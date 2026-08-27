@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.hb.FutoKeyboard1
+Exec=/usr/libexec/futo-keyboard-helper
+SystemdService=futo-keyboard-helper.service

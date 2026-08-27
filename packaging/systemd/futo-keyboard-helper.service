@@ -1,0 +1,19 @@
+[Unit]
+Description=FUTO Keyboard prediction helper for Sailfish OS
+
+[Service]
+Type=dbus
+BusName=org.hb.FutoKeyboard1
+ExecStart=/usr/libexec/futo-keyboard-helper
+Restart=on-failure
+RestartSec=2s
+TimeoutStopSec=5s
+# The helper invokes package-owned set-user-ID bridges with fixed operations:
+# its root-owned encryption key and one Tab/Shift+Tab focus gesture. Both
+# independently validate this exact helper executable as their parent.
+NoNewPrivileges=false
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=-%h/.local/share/futo-keyboard-sailfish
+LimitCORE=0

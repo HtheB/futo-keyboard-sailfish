@@ -1,0 +1,356 @@
+{
+  "formatVersion": 1,
+  "contentVersion": "0.1.0-1",
+  "baseUrl": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.1.0/",
+  "items": [
+    {
+      "id": "emoji-twemoji",
+      "kind": "emoji",
+      "name": "Twemoji",
+      "version": "0.1.0-1",
+      "archive": "futo-content-emoji-twemoji-0.1.0-1.tar.gz",
+      "sha256": "199555c90c3305e05bfd5f218bdffea9e85d1299931ffc2341490febc4affd6a",
+      "downloadBytes": 1892403,
+      "installedBytes": 10021356,
+      "paths": [
+        "emoji/twemoji"
+      ],
+      "style": "twemoji"
+    },
+    {
+      "id": "emoji-openmoji",
+      "kind": "emoji",
+      "name": "OpenMoji",
+      "version": "0.1.0-1",
+      "archive": "futo-content-emoji-openmoji-0.1.0-1.tar.gz",
+      "sha256": "959ea3503ce6fd52a949d2f02cdb5ba80398d2cd7ada2cf31ce1f6487efbb57a",
+      "downloadBytes": 1974366,
+      "installedBytes": 12995532,
+      "paths": [
+        "emoji/openmoji"
+      ],
+      "style": "openmoji"
+    },
+    {
+      "id": "emoji-noto",
+      "kind": "emoji",
+      "name": "Noto Color Emoji",
+      "version": "0.1.0-1",
+      "archive": "futo-content-emoji-noto-0.1.0-1.tar.gz",
+      "sha256": "5b4946f7478793c433786b52731f1adf9c15424f29ee41436804ad3dfb63030c",
+      "downloadBytes": 21041933,
+      "installedBytes": 21424825,
+      "paths": [
+        "emoji/noto"
+      ],
+      "style": "noto"
+    },
+    {
+      "id": "voice-multilingual-39",
+      "kind": "voice",
+      "name": "FUTO Multilingual-39",
+      "version": "0.1.0-1",
+      "archive": "futo-content-voice-multilingual-39-0.1.0-1.tar.gz",
+      "sha256": "12769b6271efdfa304e953a7a28bd7a976fb12fe4feeb60c1c5d076b69ff359c",
+      "downloadBytes": 38875718,
+      "installedBytes": 43537450,
+      "paths": [
+        "voice/tiny_acft_q8_0.bin"
+      ]
+    },
+    {
+      "id": "dictionary-en-us",
+      "kind": "dictionary",
+      "name": "English (US)",
+      "version": "0.1.0-1",
+      "archive": "futo-content-dictionary-en-us-0.1.0-1.tar.gz",
+      "sha256": "a420ccb877e78dc21ddf7321d4472b1fb87965a1b8373a3c99c9bcc123100302",
+      "downloadBytes": 1927440,
+      "installedBytes": 8125605,
+      "paths": [
+        "dictionaries/en_US.fksidx"
+      ],
+      "languageCode": "EN"
+    },
+    {
+      "id": "dictionary-en-gb",
+      "kind": "dictionary",
+      "name": "English (UK)",
+      "version": "0.1.0-1",
+      "archive": "futo-content-dictionary-en-gb-0.1.0-1.tar.gz",
+      "sha256": "694c04c52e8510b06dc50aff01730be98287e304c426edd07eb0ccd60484bdf5",
+      "downloadBytes": 1890474,
+      "installedBytes": 7967575,
+      "paths": [
+        "dictionaries/en_GB.fksidx"
+      ],
+      "languageCode": "EN_GB"
+    },
+    {
+      "id": "dictionary-nl",
+      "kind": "dictionary",
+      "name": "Nederlands",
+      "version": "0.1.0-1",
+      "archive": "futo-content-dictionary-nl-0.1.0-1.tar.gz",
+      "sha256": "3ef32a2b17cff68c4dca001ef4127b058dae5920303b0461ad3767702e7ec81c",
+      "downloadBytes": 2421382,
+      "installedBytes": 10959072,
+      "paths": [
+        "dictionaries/nl.fksidx"
+      ],
+      "languageCode": "NL"
+    },
+    {
+      "id": "dictionary-tr",
+      "kind": "dictionary",
+      "name": "Türkçe",
+      "version": "0.1.0-1",
+      "archive": "futo-content-dictionary-tr-0.1.0-1.tar.gz",
+      "sha256": "946795bfdec704fc3eb6d00e8271c93c8c7217d6a0f47be7bcb21326854837bc",
+      "downloadBytes": 2135016,
+      "installedBytes": 10311640,
+      "paths": [
+        "dictionaries/tr.fksidx"
+      ],
+      "languageCode": "TR"
+    },
+    {
+      "id": "dictionary-de",
+      "kind": "dictionary",
+      "name": "Deutsch",
+      "version": "0.1.0-1",
+      "archive": "futo-content-dictionary-de-0.1.0-1.tar.gz",
+      "sha256": "e266a44cd59084e178a58f08a3b122adc0544458bc2fe8d1aa0061a4ee89ea63",
+      "downloadBytes": 2973507,
+      "installedBytes": 13416593,
+      "paths": [
+        "dictionaries/de.fksidx"
+      ],
+      "languageCode": "DE"
+    },
+    {
+      "id": "dictionary-fr",
+      "kind": "dictionary",
+      "name": "Français",
+      "version": "0.1.0-1",
+      "archive": "futo-content-dictionary-fr-0.1.0-1.tar.gz",
+      "sha256": "6602e290a4c97bd98a0ddbbaf8d7a16b4fe160744e377388bcf0b03cebfed0cd",
+      "downloadBytes": 2503164,
+      "installedBytes": 10773344,
+      "paths": [
+        "dictionaries/fr.fksidx"
+      ],
+      "languageCode": "FR"
+    },
+    {
+      "id": "dictionary-es",
+      "kind": "dictionary",
+      "name": "Español",
+      "version": "0.1.0-1",
+      "archive": "futo-content-dictionary-es-0.1.0-1.tar.gz",
+      "sha256": "eae023a6bbc5daf329e1bcaf5fc3e7162d53dda12dfe49da75a95afe1efa78f0",
+      "downloadBytes": 2601864,
+      "installedBytes": 13239731,
+      "paths": [
+        "dictionaries/es.fksidx"
+      ],
+      "languageCode": "ES"
+    },
+    {
+      "id": "dictionary-it",
+      "kind": "dictionary",
+      "name": "Italiano",
+      "version": "0.1.0-1",
+      "archive": "futo-content-dictionary-it-0.1.0-1.tar.gz",
+      "sha256": "719dc816c5e90f7bd3acfc2f338f2763ae169cc0cfe4cf7a9527aea84770a8c7",
+      "downloadBytes": 2107785,
+      "installedBytes": 9680707,
+      "paths": [
+        "dictionaries/it.fksidx"
+      ],
+      "languageCode": "IT"
+    },
+    {
+      "id": "dictionary-pt-br",
+      "kind": "dictionary",
+      "name": "Português (Brasil)",
+      "version": "0.1.0-1",
+      "archive": "futo-content-dictionary-pt-br-0.1.0-1.tar.gz",
+      "sha256": "e3306b72a47dc92afdaa191e6cf48cd2f21470a0cba9e5d6e0b6eae6aeb4900f",
+      "downloadBytes": 1972695,
+      "installedBytes": 8836017,
+      "paths": [
+        "dictionaries/pt_BR.fksidx"
+      ],
+      "languageCode": "PT_BR"
+    },
+    {
+      "id": "dictionary-pt-pt",
+      "kind": "dictionary",
+      "name": "Português (Portugal)",
+      "version": "0.1.0-1",
+      "archive": "futo-content-dictionary-pt-pt-0.1.0-1.tar.gz",
+      "sha256": "b80284a82cf5e6269323f541ac072ce5017f17c5d2052ee09f3ca50e55468415",
+      "downloadBytes": 2450954,
+      "installedBytes": 11026095,
+      "paths": [
+        "dictionaries/pt_PT.fksidx"
+      ],
+      "languageCode": "PT_PT"
+    },
+    {
+      "id": "dictionary-sv",
+      "kind": "dictionary",
+      "name": "Svenska",
+      "version": "0.1.0-1",
+      "archive": "futo-content-dictionary-sv-0.1.0-1.tar.gz",
+      "sha256": "1a11e530fe3d0220d045af55cf2683e5fb868c51f17f59274e2fdd2717a36bed",
+      "downloadBytes": 2625498,
+      "installedBytes": 11788446,
+      "paths": [
+        "dictionaries/sv.fksidx"
+      ],
+      "languageCode": "SV"
+    },
+    {
+      "id": "dictionary-nb",
+      "kind": "dictionary",
+      "name": "Norsk bokmål",
+      "version": "0.1.0-1",
+      "archive": "futo-content-dictionary-nb-0.1.0-1.tar.gz",
+      "sha256": "4137af6c65f71bd0d5d1c386c2d591d045ace7b650a0b1417b33ff053585c4d1",
+      "downloadBytes": 2234631,
+      "installedBytes": 10444580,
+      "paths": [
+        "dictionaries/nb.fksidx"
+      ],
+      "languageCode": "NB"
+    },
+    {
+      "id": "dictionary-da",
+      "kind": "dictionary",
+      "name": "Dansk",
+      "version": "0.1.0-1",
+      "archive": "futo-content-dictionary-da-0.1.0-1.tar.gz",
+      "sha256": "e518621581adc58444374d1a9fc6fb6f95e543018b468a45c346b64ee4b7bf9e",
+      "downloadBytes": 2334333,
+      "installedBytes": 10291009,
+      "paths": [
+        "dictionaries/da.fksidx"
+      ],
+      "languageCode": "DA"
+    },
+    {
+      "id": "dictionary-fi",
+      "kind": "dictionary",
+      "name": "Suomi",
+      "version": "0.1.0-1",
+      "archive": "futo-content-dictionary-fi-0.1.0-1.tar.gz",
+      "sha256": "fef5ca90cb314b365ac7eddfe3e00eaff7bff837c5bfd2036d6cee70209dd93a",
+      "downloadBytes": 2923066,
+      "installedBytes": 13438929,
+      "paths": [
+        "dictionaries/fi.fksidx"
+      ],
+      "languageCode": "FI"
+    },
+    {
+      "id": "dictionary-pl",
+      "kind": "dictionary",
+      "name": "Polski",
+      "version": "0.1.0-1",
+      "archive": "futo-content-dictionary-pl-0.1.0-1.tar.gz",
+      "sha256": "c11e8c4d2168620d8c8452017885198e6792d49a8e852a3e2c527fc75c87f648",
+      "downloadBytes": 2451311,
+      "installedBytes": 10310224,
+      "paths": [
+        "dictionaries/pl.fksidx"
+      ],
+      "languageCode": "PL"
+    },
+    {
+      "id": "dictionary-cs",
+      "kind": "dictionary",
+      "name": "Čeština",
+      "version": "0.1.0-1",
+      "archive": "futo-content-dictionary-cs-0.1.0-1.tar.gz",
+      "sha256": "39ba9715a4ac8547a5d498bed74da130e262b893815e9a61a09c489d6d0983fd",
+      "downloadBytes": 2097217,
+      "installedBytes": 8664661,
+      "paths": [
+        "dictionaries/cs.fksidx"
+      ],
+      "languageCode": "CS"
+    },
+    {
+      "id": "dictionary-ro",
+      "kind": "dictionary",
+      "name": "Română",
+      "version": "0.1.0-1",
+      "archive": "futo-content-dictionary-ro-0.1.0-1.tar.gz",
+      "sha256": "7ff366438a3d369af5e1fe5ed5342575457a6d1748a0025c709bc9e22867c4f5",
+      "downloadBytes": 8965220,
+      "installedBytes": 67400295,
+      "paths": [
+        "dictionaries/ro.fksidx"
+      ],
+      "languageCode": "RO"
+    },
+    {
+      "id": "dictionary-sl",
+      "kind": "dictionary",
+      "name": "Slovenščina",
+      "version": "0.1.0-1",
+      "archive": "futo-content-dictionary-sl-0.1.0-1.tar.gz",
+      "sha256": "20709234d2ac2337af0fd4ebcb94824ec2744cad32234b4962cc9a4f509403b6",
+      "downloadBytes": 684145,
+      "installedBytes": 2819943,
+      "paths": [
+        "dictionaries/sl.fksidx"
+      ],
+      "languageCode": "SL"
+    },
+    {
+      "id": "dictionary-hr",
+      "kind": "dictionary",
+      "name": "Hrvatski",
+      "version": "0.1.0-1",
+      "archive": "futo-content-dictionary-hr-0.1.0-1.tar.gz",
+      "sha256": "80ae8e7a22c8585526075e931617ee2e604918974498a28819674f1ad8903a20",
+      "downloadBytes": 2268901,
+      "installedBytes": 10776822,
+      "paths": [
+        "dictionaries/hr.fksidx"
+      ],
+      "languageCode": "HR"
+    },
+    {
+      "id": "dictionary-lv",
+      "kind": "dictionary",
+      "name": "Latviešu",
+      "version": "0.1.0-1",
+      "archive": "futo-content-dictionary-lv-0.1.0-1.tar.gz",
+      "sha256": "18926029923b019c4662bda3bd4dde533638225aea64a1ef2fbf67c65b942b7d",
+      "downloadBytes": 2154654,
+      "installedBytes": 10761049,
+      "paths": [
+        "dictionaries/lv.fksidx"
+      ],
+      "languageCode": "LV"
+    },
+    {
+      "id": "dictionary-lt",
+      "kind": "dictionary",
+      "name": "Lietuvių",
+      "version": "0.1.0-1",
+      "archive": "futo-content-dictionary-lt-0.1.0-1.tar.gz",
+      "sha256": "54d91f119e6a95d7fdbb9f69f2cfcc1f45f4ac8eb46fa5becd3f92c1f5a0d91e",
+      "downloadBytes": 2238692,
+      "installedBytes": 10758668,
+      "paths": [
+        "dictionaries/lt.fksidx"
+      ],
+      "languageCode": "LT"
+    }
+  ]
+}

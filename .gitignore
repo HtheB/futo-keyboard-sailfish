@@ -1,0 +1,15 @@
+# Generated build products and release artifacts
+/build/
+/.mb2/
+
+# Local development notes and checkpoints
+/PAUSED-CHECKPOINT.md
+/reference/
+
+# Editor, OS, and language caches
+.DS_Store
+Thumbs.db
+__pycache__/
+*.py[cod]
+*.swp
+*~
