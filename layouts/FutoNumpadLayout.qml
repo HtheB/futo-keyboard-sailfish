@@ -59,7 +59,7 @@ Column {
         targetLayout: numpad.targetLayout
 		totalSpans: 9
         cells: numpad.secondPage ? [
-            { "text": numpad.numberPageLabel(), "action": "page1" }, { "text": "`" },
+            { "text": "Fn", "action": "desktopKeys" }, { "text": "`" },
             { "text": ";" }, { "text": "÷" }, { "text": "\\" },
             { "text": "|" }, { "text": "¦" }, { "text": "¬" },
 			{ "text": "", "action": "backspace" }

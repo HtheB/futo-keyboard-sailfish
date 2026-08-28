@@ -4,12 +4,19 @@
 - Commit: `eaf0389f962b0dba07778d0feab6511e6e98c581`
 - Commit date: 2026-08-11
 - Source verification: clean checkout; commit matched `origin/master`
+- Prediction dictionaries, including Greek (`el`), Russian (`ru`), and
+  Serbian Cyrillic (`sr`), are compiled from the word lists in that same
+  pinned upstream revision. Serbian Latin (`sr_Latn`) is deterministically
+  transliterated from the pinned Serbian word list during the build.
 
 Keyboard layout definitions:
 
 - Repository: https://github.com/futo-org/futo-keyboard-layouts
 - Commit: `fb4dad270790d980c32417b60359104bd0c32c1c`
 - License: Apache-2.0
+- The Serbian Cyrillic arrangement follows the upstream South Slavic layout,
+  with its primary keys limited to the modern Serbian alphabet (the obsolete
+  Cyrillic Dze is not kept as an extra primary key).
 
 Offline voice input:
 

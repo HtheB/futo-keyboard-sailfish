@@ -12,8 +12,7 @@ ShiftKey {
 
     caption: attributes.inSymView
              ? (attributes.inSymView2
-                ? (targetLayout && targetLayout.numberPageLabel
-                   ? targetLayout.numberPageLabel() : "123")
+                ? "Fn"
                 : "{&=") : ""
     background.visible: false
 
@@ -48,7 +47,7 @@ ShiftKey {
 
     MouseArea {
         anchors.fill: parent
-        visible: attributes.inSymView && !attributes.inSymView2
+        visible: attributes.inSymView
         preventStealing: true
 
         onPressed: {
@@ -61,8 +60,13 @@ ShiftKey {
         onReleased: {
             symbolPickerTimer.stop()
             shiftKey.pressed = false
-            if (!shiftKey.held && shiftKey.targetLayout)
-                shiftKey.targetLayout.showSecondSymbolPage()
+            if (!shiftKey.held && shiftKey.targetLayout) {
+                if (attributes.inSymView2
+                        && shiftKey.targetLayout.showDesktopKeysPage)
+                    shiftKey.targetLayout.showDesktopKeysPage()
+                else
+                    shiftKey.targetLayout.showSecondSymbolPage()
+            }
         }
         onCanceled: {
             symbolPickerTimer.stop()

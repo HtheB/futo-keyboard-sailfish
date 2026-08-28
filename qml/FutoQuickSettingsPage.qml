@@ -7,6 +7,18 @@ Page {
     id: page
     allowedOrientations: Orientation.All
 
+    readonly property string defaultActionOrder:
+        "language,layouts,keyboardmode,desktopkeys,clipboard,emoji,microphone,sound,incognito,settings"
+    readonly property string defaultEnabledActions: defaultActionOrder
+    property string draggedActionId: ""
+    property int draggedActionIndex: -1
+    property Item draggedActionContent: null
+    property Item draggedActionOwner: null
+    property real draggedActionPointerY: 0
+    property real draggedActionGrabY: 0
+    property real draggedActionListStartY: 0
+    property real draggedActionStartContentY: 0
+
     readonly property var knownActions: [
         { "id": "language", "label": qsTr("Switch language/layout"),
           "icon": "image://theme/icon-m-region" },
@@ -14,12 +26,16 @@ Page {
           "icon": "image://theme/icon-m-edit" },
         { "id": "keyboardmode", "label": qsTr("Keyboard mode"),
           "icon": "image://theme/icon-m-text-input" },
+        { "id": "desktopkeys", "label": qsTr("Extra key row"),
+          "icon": "image://theme/icon-m-keyboard" },
         { "id": "clipboard", "label": qsTr("Clipboard"),
           "icon": "image://theme/icon-m-clipboard" },
         { "id": "emoji", "label": qsTr("Emoji"),
           "icon": "file:///usr/share/futo-keyboard-sailfish/icons/icon-m-emoji.svg" },
         { "id": "microphone", "label": qsTr("Microphone"),
           "icon": "image://theme/icon-m-browser-microphone" },
+        { "id": "sound", "label": qsTr("Keyboard sounds"),
+          "icon": "image://theme/icon-m-speaker-on" },
         { "id": "incognito", "label": qsTr("Incognito"),
           "icon": "image://theme/icon-m-incognito" },
         { "id": "settings", "label": qsTr("FUTO Settings"),
@@ -29,10 +45,8 @@ Page {
     ConfigurationGroup {
         id: settings
         path: "/sailfish/text_input/futo_keyboard"
-        property string quickSettingsOrder:
-            "language,layouts,keyboardmode,clipboard,emoji,microphone,incognito,settings"
-        property string quickSettingsEnabled:
-            "language,layouts,keyboardmode,clipboard,emoji,microphone,incognito,settings"
+        property string quickSettingsOrder: page.defaultActionOrder
+        property string quickSettingsEnabled: page.defaultEnabledActions
     }
 
     function splitUnique(value) {
@@ -88,9 +102,101 @@ Page {
         settings.quickSettingsEnabled = enabled.join(",")
     }
 
+    function beginActionDrag(actionId, itemIndex, contentItem, pointerY, grabY) {
+        var owner = contentItem.parent
+        var floatingPosition = owner.mapToItem(page, contentItem.x, contentItem.y)
+        draggedActionId = String(actionId)
+        draggedActionIndex = itemIndex
+        draggedActionContent = contentItem
+        draggedActionOwner = owner
+        draggedActionPointerY = Number(pointerY)
+        draggedActionGrabY = Number(grabY)
+        draggedActionListStartY = floatingPosition.y
+                - itemIndex * Theme.itemSizeLarge
+        draggedActionStartContentY = actionScroller.contentY
+        contentItem.parent = page
+        contentItem.x = floatingPosition.x
+        contentItem.y = floatingPosition.y
+        contentItem.z = 1000
+        positionActionDrag()
+    }
+
+    function positionActionDrag() {
+        if (draggedActionIndex < 0 || !draggedActionContent)
+            return
+        draggedActionContent.y = draggedActionPointerY - draggedActionGrabY
+    }
+
+    function updateActionDrag(pointerY) {
+        if (draggedActionIndex < 0 || !draggedActionContent)
+            return
+        if (pointerY !== undefined && isFinite(Number(pointerY)))
+            draggedActionPointerY = Number(pointerY)
+        positionActionDrag()
+        // Base the list origin on the actual row that was pressed. Mapping a
+        // zero-height marker returns y=0 on Sailfish OS 5.2, irrespective of
+        // its visible location below the description text.
+        var listStartY = draggedActionListStartY
+                - (actionScroller.contentY - draggedActionStartContentY)
+        var rowTop = draggedActionPointerY - draggedActionGrabY - listStartY
+        var target = Math.floor((rowTop + Theme.itemSizeLarge / 2)
+                                / Theme.itemSizeLarge)
+        target = Math.max(0, Math.min(actionModel.count - 1, target))
+        if (target !== draggedActionIndex) {
+            actionModel.move(draggedActionIndex, target, 1)
+            draggedActionIndex = target
+            saveModel()
+            positionActionDrag()
+        }
+    }
+
+    function endActionDrag() {
+        if (draggedActionContent && draggedActionOwner) {
+            var restingPosition = draggedActionContent.mapToItem(draggedActionOwner, 0, 0)
+            draggedActionContent.parent = draggedActionOwner
+            draggedActionContent.x = restingPosition.x
+            draggedActionContent.y = restingPosition.y
+            draggedActionContent.z = 0
+        }
+        draggedActionId = ""
+        draggedActionIndex = -1
+        draggedActionContent = null
+        draggedActionOwner = null
+        draggedActionListStartY = 0
+        draggedActionStartContentY = 0
+    }
+
+    function restoreActionDefaults() {
+        settings.quickSettingsOrder = defaultActionOrder
+        settings.quickSettingsEnabled = defaultEnabledActions
+        loadModel()
+    }
+
     ListModel { id: actionModel }
 
     Component.onCompleted: loadModel()
+
+    Timer {
+        interval: 40
+        repeat: true
+        running: page.draggedActionIndex >= 0
+        onTriggered: {
+            if (!page.draggedActionContent)
+                return
+            var edge = Theme.itemSizeLarge
+            var oldY = actionScroller.contentY
+            var maximumY = Math.max(0, actionScroller.contentHeight
+                                    - actionScroller.height)
+            var pointerY = page.draggedActionPointerY - actionScroller.y
+            if (pointerY < edge)
+                actionScroller.contentY = Math.max(0, oldY - Theme.paddingMedium)
+            else if (pointerY > actionScroller.height - edge)
+                actionScroller.contentY = Math.min(maximumY,
+                                                   oldY + Theme.paddingMedium)
+            if (actionScroller.contentY !== oldY)
+                page.updateActionDrag()
+        }
+    }
 
     FutoSettingsTestPanel {
         id: testPanel
@@ -101,17 +207,29 @@ Page {
     }
 
     SilicaFlickable {
+        id: actionScroller
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: testPanel.top
         contentHeight: content.height + Theme.paddingLarge
         clip: true
-        VerticalScrollDecorator { flickable: parent }
+        flickableDirection: Flickable.VerticalFlick
+        boundsBehavior: Flickable.StopAtBounds
+        interactive: contentHeight > height && page.draggedActionIndex < 0
+        pressDelay: 140
+        VerticalScrollDecorator { flickable: actionScroller }
 
         Column {
             id: content
             width: parent.width
+            move: Transition {
+                NumberAnimation {
+                    properties: "x,y"
+                    duration: 140
+                    easing.type: Easing.InOutQuad
+                }
+            }
 
             PageHeader { title: qsTr("Quick settings") }
 
@@ -123,87 +241,173 @@ Page {
                 font.pixelSize: Theme.fontSizeSmall
                 text: qsTr("Choose and arrange the actions shown after holding 123. "
                            + "Unavailable actions, such as Clipboard while clipboard history "
-                           + "is off, remain hidden until their feature is enabled.")
+                           + "is off, remain hidden until their feature is enabled. Use the "
+                           + "checkbox to enable an action, then hold and drag its name to "
+                           + "arrange it.")
             }
+
+            Item { id: actionListStart; width: 1; height: 0 }
 
             Repeater {
                 model: actionModel
 
-                BackgroundItem {
+                Item {
+                    id: actionRow
                     width: content.width
                     height: Theme.itemSizeLarge
+                    z: page.draggedActionId === actionId ? 100 : 0
 
-                    Icon {
-                        anchors.left: parent.left
-                        anchors.leftMargin: Theme.horizontalPageMargin
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: Theme.iconSizeSmall
-                        height: width
-                        // The theme clipboard artwork contains more internal
-                        // padding, so enlarge only its glyph while keeping the
-                        // fixed icon slot and label alignment unchanged.
-                        scale: actionId === "clipboard" ? 1.18 : 1.0
-                        source: actionIcon
-                        color: parent.highlighted ? Theme.highlightColor
-                                                  : Theme.primaryColor
+                    onYChanged: {
+                        if (page.draggedActionId === actionId)
+                            page.positionActionDrag()
                     }
 
-                    Label {
-                        anchors.left: parent.left
-                        anchors.leftMargin: Theme.horizontalPageMargin
-                                           + Theme.iconSizeSmall + Theme.paddingMedium
-                        anchors.right: upButton.left
-                        anchors.rightMargin: Theme.paddingSmall
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: actionLabel
-                        truncationMode: TruncationMode.Fade
-                        color: actionEnabled ? Theme.primaryColor : Theme.secondaryColor
+                    function liftForDragging(pointerY, grabY) {
+                        settleAnimation.stop()
+                        rowContent.x = 0
+                        rowContent.y = 0
+                        page.beginActionDrag(actionId, index, rowContent,
+                                             pointerY, grabY)
                     }
 
-                    IconButton {
-                        id: upButton
-                        anchors.right: downButton.left
-                        anchors.verticalCenter: parent.verticalCenter
-                        icon.source: "image://theme/icon-m-up"
-                        enabled: index > 0
-                        opacity: enabled ? 1.0 : 0.3
-                        onClicked: {
-                            actionModel.move(index, index - 1, 1)
-                            page.saveModel()
+                    function returnFromDragging() {
+                        settleAnimation.restart()
+                    }
+
+                    Item {
+                        id: rowContent
+                        width: actionRow.width
+                        height: actionRow.height
+                        Rectangle {
+                            anchors.fill: parent
+                            color: page.draggedActionId === actionId
+                                   ? Theme.rgba(Theme.highlightColor, 0.24)
+                                   : Theme.rgba(Theme.highlightBackgroundColor, 0.0)
+                        }
+
+                        Icon {
+                            id: actionIconItem
+                            anchors.left: enabledSwitch.right
+                            anchors.leftMargin: Theme.paddingMedium
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: Theme.iconSizeSmall
+                            height: width
+                            // The theme clipboard artwork contains more internal
+                            // padding, so enlarge only its glyph while keeping the
+                            // fixed icon slot and label alignment unchanged.
+                            scale: actionId === "clipboard" ? 1.18 : 1.0
+                            source: actionIcon
+                            color: actionEnabled ? Theme.primaryColor
+                                                 : Theme.secondaryColor
+                        }
+
+                        Label {
+                            anchors.left: actionIconItem.right
+                            anchors.leftMargin: Theme.paddingMedium
+                            anchors.right: parent.right
+                            anchors.rightMargin: Theme.horizontalPageMargin
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: actionLabel
+                            truncationMode: TruncationMode.Fade
+                            color: actionEnabled ? Theme.primaryColor : Theme.secondaryColor
+                        }
+
+                        Switch {
+                            id: enabledSwitch
+                            anchors.left: parent.left
+                            anchors.leftMargin: Theme.horizontalPageMargin
+                            anchors.verticalCenter: parent.verticalCenter
+                            automaticCheck: false
+                            checked: actionEnabled
+                            onClicked: {
+                                actionModel.setProperty(index, "actionEnabled", !actionEnabled)
+                                page.saveModel()
+                            }
+                        }
+
+                        Timer {
+                            id: dragStartTimer
+                            interval: 180
+                            repeat: false
+                            onTriggered: {
+                                dragArea.dragGesture = true
+                                var pointer = dragArea.mapToItem(
+                                            page, dragArea.mouseX,
+                                            dragArea.mouseY)
+                                actionRow.liftForDragging(pointer.y,
+                                                          dragArea.mouseY)
+                            }
+                        }
+
+                        MouseArea {
+                            id: dragArea
+                            property bool dragGesture: false
+                            anchors.left: actionIconItem.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            preventStealing: page.draggedActionId === actionId
+                            onPressed: {
+                                dragGesture = false
+                                dragStartTimer.restart()
+                            }
+                            onPositionChanged: {
+                                if (page.draggedActionId === actionId) {
+                                    var pointer = dragArea.mapToItem(
+                                                page, mouse.x, mouse.y)
+                                    page.updateActionDrag(pointer.y)
+                                }
+                            }
+                            onReleased: {
+                                dragStartTimer.stop()
+                                if (page.draggedActionId === actionId) {
+                                    page.endActionDrag()
+                                    actionRow.returnFromDragging()
+                                }
+                            }
+                            onCanceled: {
+                                dragStartTimer.stop()
+                                if (page.draggedActionId === actionId) {
+                                    page.endActionDrag()
+                                    actionRow.returnFromDragging()
+                                }
+                                dragGesture = false
+                            }
+                            onClicked: {
+                                dragGesture = false
+                            }
                         }
                     }
 
-                    IconButton {
-                        id: downButton
-                        anchors.right: enabledSwitch.left
-                        anchors.verticalCenter: parent.verticalCenter
-                        icon.source: "image://theme/icon-m-down"
-                        enabled: index + 1 < actionModel.count
-                        opacity: enabled ? 1.0 : 0.3
-                        onClicked: {
-                            actionModel.move(index, index + 1, 1)
-                            page.saveModel()
+                    ParallelAnimation {
+                        id: settleAnimation
+                        NumberAnimation {
+                            target: rowContent
+                            property: "x"
+                            to: 0
+                            duration: 140
+                            easing.type: Easing.InOutQuad
                         }
-                    }
-
-                    Switch {
-                        id: enabledSwitch
-                        anchors.right: parent.right
-                        anchors.rightMargin: Theme.horizontalPageMargin
-                        anchors.verticalCenter: parent.verticalCenter
-                        checked: actionEnabled
-                        onClicked: {
-                            actionModel.setProperty(index, "actionEnabled", !actionEnabled)
-                            page.saveModel()
+                        NumberAnimation {
+                            target: rowContent
+                            property: "y"
+                            to: 0
+                            duration: 140
+                            easing.type: Easing.InOutQuad
                         }
-                    }
-
-                    onClicked: {
-                        actionModel.setProperty(index, "actionEnabled", !actionEnabled)
-                        page.saveModel()
                     }
                 }
             }
+
+            Item { width: 1; height: Theme.paddingLarge }
+
+            Button {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: qsTr("Restore defaults")
+                onClicked: page.restoreActionDefaults()
+            }
+
+            Item { width: 1; height: Theme.paddingLarge }
         }
     }
 }

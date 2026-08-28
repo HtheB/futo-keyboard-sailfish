@@ -8,8 +8,8 @@ const path = require("path");
 const projectRoot = path.resolve(__dirname, "..");
 const outputDirectory = path.resolve(process.argv[2] || path.join(projectRoot, "build/content-packs"));
 const manifestPath = path.resolve(process.argv[3] || path.join(projectRoot, "content/manifest.json"));
-const packVersion = "0.1.0-1";
-const defaultBaseUrl = "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.1.0/";
+const packVersion = "0.2.0-1";
+const defaultBaseUrl = "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.2.0/";
 
 const languages = [
     ["EN", "English (US)", "en_US.fksidx", "en-us"],
@@ -32,7 +32,11 @@ const languages = [
     ["SL", "Slovenščina", "sl.fksidx", "sl"],
     ["HR", "Hrvatski", "hr.fksidx", "hr"],
     ["LV", "Latviešu", "lv.fksidx", "lv"],
-    ["LT", "Lietuvių", "lt.fksidx", "lt"]
+    ["LT", "Lietuvių", "lt.fksidx", "lt"],
+    ["EL", "Ελληνικά", "el.fksidx", "el"],
+    ["RU", "Русский", "ru.fksidx", "ru"],
+    ["SR", "Српски (ћирилица)", "sr.fksidx", "sr"],
+    ["SR_LATN", "Srpski (latinica)", "sr_Latn.fksidx", "sr-latn"]
 ];
 
 function recursiveSize(filename) {

@@ -49,8 +49,8 @@ Page {
                 width: parent.width
                 automaticCheck: false
                 checked: settings.spacebarCursorControlEnabled
-                text: qsTr("Swipe Space to move the cursor")
-                description: qsTr("Swipe downward on Space to close the keyboard.")
+                text: qsTr("Hold Space to move the cursor")
+                description: qsTr("Hold and drag in any direction. Swipe downward quickly on Space to close the keyboard.")
                 onClicked: settings.spacebarCursorControlEnabled = !checked
             }
 

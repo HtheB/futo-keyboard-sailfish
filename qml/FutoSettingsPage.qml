@@ -47,6 +47,21 @@ Page {
             settings.quickSettingsEnabled = enabled.join(",")
             settings.settingsVersion = 9
         }
+        if (settings.settingsVersion < 10) {
+            var soundOrder = String(settings.quickSettingsOrder).split(",")
+            var soundEnabled = String(settings.quickSettingsEnabled).split(",")
+            if (soundOrder.indexOf("sound") < 0) {
+                var microphonePosition = soundOrder.indexOf("microphone")
+                soundOrder.splice(microphonePosition >= 0
+                                  ? microphonePosition + 1 : soundOrder.length,
+                                  0, "sound")
+            }
+            if (soundEnabled.indexOf("sound") < 0)
+                soundEnabled.push("sound")
+            settings.quickSettingsOrder = soundOrder.join(",")
+            settings.quickSettingsEnabled = soundEnabled.join(",")
+            settings.settingsVersion = 10
+        }
     }
 
     function resetDefaults() {
@@ -95,9 +110,9 @@ Page {
         settings.voiceStopAfterSilence = true
         settings.voiceSilenceTimeoutMs = 1300
         settings.quickSettingsOrder =
-                "language,layouts,keyboardmode,clipboard,emoji,microphone,incognito,settings"
+                "language,layouts,keyboardmode,clipboard,emoji,microphone,sound,incognito,settings"
         settings.quickSettingsEnabled =
-                "language,layouts,keyboardmode,clipboard,emoji,microphone,incognito,settings"
+                "language,layouts,keyboardmode,clipboard,emoji,microphone,sound,incognito,settings"
         settings.emojiLongPressEnabled = true
         settings.emojiStyle = 3
         settings.emojiSkinTone = 0
@@ -106,14 +121,14 @@ Page {
         settings.layoutAssignments = '{"EN":0,"NL":0,"TR":3}'
         settings.layoutAssignmentVersion = 1
         settings.manualLayoutAssignments = '{}'
-        settings.layoutDefaultsVersion = 1
+        settings.layoutDefaultsVersion = 2
         settings.clipboardHistoryEnabled = false
         settings.clipboardRetentionSeconds = 3600
         settings.clipboardReturnAfterPaste = true
         settings.keySoundEnabled = false
         settings.keySoundVolume = 0.5
         settings.keySoundMigrationDone = true
-        settings.settingsVersion = 9
+        settings.settingsVersion = 10
         // These two settings also have native side effects outside QML.
         // Restore those immediately instead of waiting for the helper's next
         // login-time synchronization.
@@ -188,9 +203,9 @@ Page {
         property bool voiceStopAfterSilence: true
         property int voiceSilenceTimeoutMs: 1300
         property string quickSettingsOrder:
-            "language,layouts,keyboardmode,clipboard,emoji,microphone,incognito,settings"
+            "language,layouts,keyboardmode,clipboard,emoji,microphone,sound,incognito,settings"
         property string quickSettingsEnabled:
-            "language,layouts,keyboardmode,clipboard,emoji,microphone,incognito,settings"
+            "language,layouts,keyboardmode,clipboard,emoji,microphone,sound,incognito,settings"
         property bool emojiLongPressEnabled: true
         property int emojiStyle: 3
         property int emojiSkinTone: 0
@@ -199,7 +214,7 @@ Page {
         property string layoutAssignments: "{}"
         property int layoutAssignmentVersion: 0
         property string manualLayoutAssignments: "{}"
-        property int layoutDefaultsVersion: 0
+        property int layoutDefaultsVersion: 2
         property bool clipboardHistoryEnabled: false
         property int clipboardRetentionSeconds: 3600
         property bool clipboardReturnAfterPaste: true

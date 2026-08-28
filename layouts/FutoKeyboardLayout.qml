@@ -289,6 +289,9 @@ Column {
         property var trailPoints: []
         property bool trackingSwipe: false
         property real trailOpacity: 1.0
+		property int normalMaximumTouchPoints: -1
+		property int cursorSecondaryTouchCount
+		property var pendingCanceledPointIds: []
         readonly property real maximumTailLength: Math.max(240,
                                                            Math.min(520,
                                                                     width * 0.48))
@@ -317,9 +320,58 @@ Column {
         }
 
         function discoverTouchArea() {
-            if (!touchSource)
+			if (!touchSource) {
                 touchSource = findTouchArea(keyboard)
+				if (touchSource && touchSource.maximumTouchPoints !== undefined)
+					normalMaximumTouchPoints = Number(touchSource.maximumTouchPoints)
+			}
+			updateSwipeTouchPolicy()
         }
+
+		function updateSwipeTouchPolicy() {
+			if (!touchSource || touchSource.maximumTouchPoints === undefined
+					|| normalMaximumTouchPoints < 0)
+				return
+			var swiping = keyboardLayout.handler
+					&& keyboardLayout.handler.swipePath !== undefined
+					&& keyboardLayout.handler.swipePath.length > 1
+			// KeyboardBase already owns the first point.  Limiting that existing
+			// touch area to one point makes later fingers inert without disrupting
+			// the in-progress swipe path.
+			touchSource.maximumTouchPoints = swiping ? 1 : normalMaximumTouchPoints
+		}
+
+		function cursorGestureActive() {
+			return keyboardLayout.handler
+					&& keyboardLayout.handler.spacebarGestureActive !== undefined
+					&& keyboardLayout.handler.spacebarGestureActive
+		}
+
+		function beginCursorSecondaryTouch(points) {
+			if (!cursorGestureActive())
+				return false
+			cursorSecondaryTouchCount += points ? points.length : 1
+			if (keyboardLayout.handler.cursorMoveMode
+					&& keyboardLayout.handler.beginCursorSelection)
+				keyboardLayout.handler.beginCursorSelection()
+			var ids = pendingCanceledPointIds.slice(0)
+			for (var i = 0; points && i < points.length; ++i)
+				ids.push(Number(points[i].pointId))
+			pendingCanceledPointIds = ids
+			cancelSecondaryTouchTimer.restart()
+			return true
+		}
+
+		function endCursorSecondaryTouch(points) {
+			if (cursorSecondaryTouchCount < 1)
+				return false
+			cursorSecondaryTouchCount = Math.max(0, cursorSecondaryTouchCount
+			                                - (points ? points.length : 1))
+			if (cursorSecondaryTouchCount === 0 && keyboardLayout.handler
+					&& keyboardLayout.handler.endCursorSelection)
+				keyboardLayout.handler.endCursorSelection()
+			return true
+		}
 
         function firstPoint(touchPoints) {
             if (!touchPoints || touchPoints.length < 1)
@@ -397,24 +449,57 @@ Column {
             onTriggered: swipeTrail.discoverTouchArea()
         }
 
+		Timer {
+			id: cancelSecondaryTouchTimer
+			interval: 0
+			repeat: false
+			onTriggered: {
+				var ids = swipeTrail.pendingCanceledPointIds
+				swipeTrail.pendingCanceledPointIds = []
+				for (var i = 0; i < ids.length; ++i) {
+					if (keyboard.cancelTouchPoint)
+						keyboard.cancelTouchPoint(ids[i])
+				}
+			}
+		}
+
         Connections {
             target: swipeTrail.touchSource
             ignoreUnknownSignals: true
-            onPressed: swipeTrail.beginTouch(touchPoints)
-            onUpdated: swipeTrail.appendTouch(touchPoints)
-            onReleased: swipeTrail.finishTouch()
-            onCanceled: swipeTrail.clearTouch()
+			onPressed: {
+				if (!swipeTrail.beginCursorSecondaryTouch(touchPoints))
+					swipeTrail.beginTouch(touchPoints)
+			}
+			onUpdated: {
+				if (swipeTrail.cursorSecondaryTouchCount < 1)
+					swipeTrail.appendTouch(touchPoints)
+			}
+			onReleased: {
+				if (!swipeTrail.endCursorSecondaryTouch(touchPoints))
+					swipeTrail.finishTouch()
+			}
+			onCanceled: {
+				if (!swipeTrail.endCursorSecondaryTouch(touchPoints))
+					swipeTrail.clearTouch()
+			}
         }
 
         Connections {
             target: keyboardLayout.handler
             ignoreUnknownSignals: true
-            onSwipePathChanged: {
+			onSwipePathChanged: {
+				swipeTrail.updateSwipeTouchPolicy()
                 if (keyboardLayout.handler.swipePath.length > 1) {
                     swipeTrail.trackingSwipe = true
                     swipeTrail.trailOpacity = 1.0
                 }
             }
+			onCursorMoveModeChanged: {
+				if (keyboardLayout.handler.cursorMoveMode
+						&& swipeTrail.cursorSecondaryTouchCount > 0
+						&& keyboardLayout.handler.beginCursorSelection)
+					keyboardLayout.handler.beginCursorSelection()
+			}
         }
 
         NumberAnimation {

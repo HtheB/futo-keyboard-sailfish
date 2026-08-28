@@ -90,6 +90,9 @@ Item {
                                 numpadRow.targetLayout.showSecondSymbolPage()
                             else if (cell.definition.action === "page1")
                                 numpadRow.targetLayout.showFirstSymbolPage()
+                            else if (cell.definition.action === "desktopKeys"
+                                     && numpadRow.targetLayout.showDesktopKeysPage)
+                                numpadRow.targetLayout.showDesktopKeysPage()
                         }
                     }
                 }

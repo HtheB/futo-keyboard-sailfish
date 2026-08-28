@@ -194,6 +194,13 @@ Page {
 
             SectionHeader { text: qsTr("Keys") }
 
+            FutoSettingsMenuItem {
+                width: parent.width
+                text: qsTr("Extra key row")
+                iconSource: "image://theme/icon-m-keyboard"
+                onClicked: pageStack.push(Qt.resolvedUrl("FutoDesktopKeysPage.qml"))
+            }
+
             TextSwitch {
                 width: parent.width
                 automaticCheck: false

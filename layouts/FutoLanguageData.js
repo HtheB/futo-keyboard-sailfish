@@ -1,8 +1,7 @@
 .pragma library
 
-// Keep this list alphabetized by the user-facing name.  The three
-// script-specific entries currently provide direct typing only; all other
-// entries also have packaged prediction dictionaries.
+// Keep this list alphabetized by the user-facing name. Arabic currently
+// provides direct typing only; all other entries have prediction dictionaries.
 var languages = [
     { code: "AR", name: "العربية", prediction: false },
     { code: "CS", name: "Čeština", prediction: true },
@@ -12,7 +11,7 @@ var languages = [
     { code: "EN", name: "English (US)", prediction: true },
     { code: "ES", name: "Español", prediction: true },
     { code: "FR", name: "Français", prediction: true },
-    { code: "EL", name: "Ελληνικά", prediction: false },
+    { code: "EL", name: "Ελληνικά", prediction: true },
     { code: "HR", name: "Hrvatski", prediction: true },
     { code: "IT", name: "Italiano", prediction: true },
     { code: "LV", name: "Latviešu", prediction: true },
@@ -23,8 +22,10 @@ var languages = [
     { code: "PT_BR", name: "Português (Brasil)", prediction: true },
     { code: "PT_PT", name: "Português (Portugal)", prediction: true },
     { code: "RO", name: "Română", prediction: true },
-    { code: "RU", name: "Русский", prediction: false },
+    { code: "RU", name: "Русский", prediction: true },
     { code: "SL", name: "Slovenščina", prediction: true },
+    { code: "SR", name: "Српски (ћирилица)", prediction: true },
+    { code: "SR_LATN", name: "Srpski (latinica)", prediction: true },
     { code: "FI", name: "Suomi", prediction: true },
     { code: "SV", name: "Svenska", prediction: true },
     { code: "TR", name: "Türkçe", prediction: true }

@@ -1,0 +1,14 @@
+{
+    "entries": [
+    {
+        "path": "system_settings/system/text_input/futo_keyboard",
+        "title": "FUTO Keyboard",
+        "type": "page",
+        "icon": "image://theme/icon-m-keyboard",
+        "order": 1000,
+        "params": {
+            "source": "/usr/share/jolla-settings/pages/futo-keyboard-sailfish/main.qml"
+        }
+    }
+    ]
+}

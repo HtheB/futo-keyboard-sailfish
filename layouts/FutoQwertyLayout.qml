@@ -29,7 +29,7 @@ FutoKeyboardLayout {
         property string layoutAssignments: "{}"
         property int layoutAssignmentVersion: 0
         property string manualLayoutAssignments: "{}"
-        property int layoutDefaultsVersion: 0
+        property int layoutDefaultsVersion: 2
         property string enabledLanguages: "EN,NL,TR"
         property int symbolNumberLayout: 0
         property int emojiStyle: 3
@@ -85,17 +85,22 @@ FutoKeyboardLayout {
                                          && attributes.inSymView
                                          && !emojiMode
                                          && !extendedSymbolMode
+                                         && !extraKeysMode
     property bool emojiMode: false
     property bool emojiSearchMode: false
     property string emojiSearchQuery: ""
     property int emojiPage: 1
     property bool extendedSymbolMode: false
+    property bool extraKeysMode: false
     property int extendedSymbolPage: 0
     property var extendedSymbolFavorites: []
     property bool controlMode: false
     property bool layoutEditorMode: false
     property bool clipboardMode: false
 	property bool credentialMode: false
+    readonly property bool cursorMoveMode: keyboard.inputHandler
+            && keyboard.inputHandler.cursorMoveMode !== undefined
+            && keyboard.inputHandler.cursorMoveMode
     property bool recentEmojiViewActive: false
     property var recentEmojiViewEntries: []
 
@@ -237,11 +242,24 @@ FutoKeyboardLayout {
         var manualAssignments = manualAssignmentFlags()
         var languages = enabledPredictionLanguages()
         var legacyMigration = layoutSettings.layoutAssignmentVersion < 1
-        var defaultsMigration = layoutSettings.layoutDefaultsVersion < 1
+        var defaultsMigration = layoutSettings.layoutDefaultsVersion < 2
         var changed = legacyMigration
         var manualChanged = false
 
         if (defaultsMigration) {
+            // The old defaults pointed Slovenian at generic QWERTY and
+            // Croatian at generic QWERTZ.  Move only those generated values
+            // to their exact national layouts; deliberate choices of any
+            // other layout remain untouched.
+            if (Number(assignments["SL"]) === 0) {
+                assignments["SL"] = LetterLayouts.defaultForLanguage("SL")
+                changed = true
+            }
+            if (Number(assignments["HR"]) === 1) {
+                assignments["HR"] = LetterLayouts.defaultForLanguage("HR")
+                changed = true
+            }
+
             // Existing enabled assignments are user-visible choices and stay
             // untouched.  A disabled assignment that differs from the old
             // generated default is also almost certainly deliberate.
@@ -285,7 +303,7 @@ FutoKeyboardLayout {
             layoutSettings.layoutAssignmentVersion = 1
         }
         if (defaultsMigration)
-            layoutSettings.layoutDefaultsVersion = 1
+            layoutSettings.layoutDefaultsVersion = 2
         ensureActiveLetterLayout()
     }
 
@@ -368,11 +386,13 @@ FutoKeyboardLayout {
 
     function letterRowsUseIndependentSizing() {
         // KeyboardRow normally gives every letter row the smallest key width
-        // required by any row.  Arabic's ten-letter third row also contains
-        // Shift and Backspace, so that shared width unnecessarily compresses
-        // both eleven-letter rows into a narrow block in the centre.  Let each
-        // Arabic row consume its own available width instead.
-        return usesArabicDigits
+        // required by any row. Arabic, Cyrillic, and the dense South Slavic
+        // Latin layouts have eleven-letter rows plus a differently sized
+        // Shift/Backspace row, so sharing that width compresses the letters
+        // into a narrow centred block. Let them consume each row's width.
+        var activeScript = LetterLayouts.script(layoutVariant)
+        return activeScript === "arabic" || activeScript === "cyrillic"
+                || layoutVariant === 17 || layoutVariant === 18
     }
 
     function digitForLayout(value) {
@@ -564,6 +584,7 @@ FutoKeyboardLayout {
         keyboard.inSymView = false
         keyboard.inSymView2 = false
         extendedSymbolMode = false
+        extraKeysMode = false
         controlMode = false
         layoutEditorMode = false
         clipboardMode = false
@@ -590,6 +611,7 @@ FutoKeyboardLayout {
     function showExtendedSymbolPicker() {
         keyboard.inSymView = false
         keyboard.inSymView2 = false
+        extraKeysMode = false
         emojiMode = false
         emojiSearchMode = false
         emojiSearchQuery = ""
@@ -633,6 +655,7 @@ FutoKeyboardLayout {
     function startEmojiSearch() {
         keyboard.inSymView = false
         keyboard.inSymView2 = false
+        extraKeysMode = false
         controlMode = false
         extendedSymbolMode = false
         emojiMode = false
@@ -684,21 +707,26 @@ FutoKeyboardLayout {
         emojiMode = false
         emojiSearchMode = false
         extendedSymbolMode = false
+        // Quick Settings is an overlay. Keep the Fn/desktop page underneath
+        // when it was the active page, instead of exposing symbol page two.
         layoutEditorMode = false
         clipboardMode = false
 		credentialMode = false
         controlMode = true
         controlTimeout.restart()
+        updateSizes()
     }
 
     function hideControlStrip() {
         controlMode = false
         controlTimeout.stop()
+        updateSizes()
     }
 
     function showLayoutEditor() {
         keyboard.inSymView = false
         keyboard.inSymView2 = false
+        extraKeysMode = false
         emojiMode = false
         emojiSearchMode = false
         extendedSymbolMode = false
@@ -720,6 +748,7 @@ FutoKeyboardLayout {
             return
         keyboard.inSymView = false
         keyboard.inSymView2 = false
+        extraKeysMode = false
         emojiMode = false
         emojiSearchMode = false
         extendedSymbolMode = false
@@ -741,6 +770,7 @@ FutoKeyboardLayout {
 	function showSavedCredentialChooser() {
 		keyboard.inSymView = false
 		keyboard.inSymView2 = false
+		extraKeysMode = false
 		emojiMode = false
 		emojiSearchMode = false
 		extendedSymbolMode = false
@@ -759,26 +789,44 @@ FutoKeyboardLayout {
 
     function exitSymbolMode() {
         extendedSymbolMode = false
+        extraKeysMode = false
         keyboard.inSymView = false
         keyboard.inSymView2 = false
     }
 
     function showSecondSymbolPage() {
         extendedSymbolMode = false
+        extraKeysMode = false
         keyboard.inSymView = true
         keyboard.inSymView2 = true
     }
 
     function showFirstSymbolPage() {
         extendedSymbolMode = false
+        extraKeysMode = false
         keyboard.inSymView = true
         keyboard.inSymView2 = false
+    }
+
+    function showDesktopKeysPage() {
+        emojiMode = false
+        emojiSearchMode = false
+        emojiSearchQuery = ""
+        extendedSymbolMode = false
+        layoutEditorMode = false
+        clipboardMode = false
+		credentialMode = false
+        controlMode = false
+        keyboard.inSymView = true
+        keyboard.inSymView2 = true
+        extraKeysMode = true
+        updateSizes()
     }
 
     Timer {
         id: controlTimeout
         interval: 7000
-        onTriggered: root.controlMode = false
+        onTriggered: root.hideControlStrip()
     }
 
     Timer {
@@ -802,6 +850,7 @@ FutoKeyboardLayout {
                 root.emojiSearchMode = false
                 root.emojiSearchQuery = ""
                 root.extendedSymbolMode = false
+                root.extraKeysMode = false
                 root.layoutEditorMode = false
                 root.clipboardMode = false
 				if (root.credentialMode && keyboard.inputHandler
@@ -834,6 +883,8 @@ FutoKeyboardLayout {
 					keyboard.inputHandler.cancelSavedCredentialChooser()
 				root.credentialMode = false
             }
+            if (!keyboard.inSymView)
+                root.extraKeysMode = false
             root.updateSizes()
         }
         onInSymView2Changed: root.updateSizes()
@@ -870,8 +921,14 @@ FutoKeyboardLayout {
         applyConfiguredAutocaps()
     }
 
+    FutoDesktopToolbar {
+        targetLayout: root
+    }
+
     KeyboardRow {
+        opacity: root.cursorMoveMode ? 0 : 1
         visible: !root.emojiMode && !root.extendedSymbolMode
+                 && !root.extraKeysMode
                  && !root.layoutEditorMode && !root.clipboardMode
 				 && !root.credentialMode
                  && !root.numpadMode && layoutSettings.numberRowEnabled
@@ -888,7 +945,9 @@ FutoKeyboardLayout {
     }
 
     KeyboardRow {
+        opacity: root.cursorMoveMode ? 0 : 1
         visible: !root.emojiMode && !root.extendedSymbolMode
+                 && !root.extraKeysMode
                  && !root.layoutEditorMode && !root.clipboardMode
 				 && !root.credentialMode
                  && !root.numpadMode
@@ -909,7 +968,9 @@ FutoKeyboardLayout {
     }
 
     KeyboardRow {
+        opacity: root.cursorMoveMode ? 0 : 1
         visible: !root.emojiMode && !root.extendedSymbolMode
+                 && !root.extraKeysMode
                  && !root.layoutEditorMode && !root.clipboardMode
 				 && !root.credentialMode
                  && !root.numpadMode
@@ -930,7 +991,9 @@ FutoKeyboardLayout {
     }
 
     KeyboardRow {
+        opacity: root.cursorMoveMode ? 0 : 1
         visible: !root.emojiMode && !root.extendedSymbolMode
+                 && !root.extraKeysMode
                  && !root.layoutEditorMode && !root.clipboardMode
 				 && !root.credentialMode
                  && !root.numpadMode
@@ -953,7 +1016,9 @@ FutoKeyboardLayout {
     }
 
     FutoSpacebarRow {
+        opacity: root.cursorMoveMode ? 0 : 1
         visible: !root.emojiMode && !root.extendedSymbolMode
+                 && !root.extraKeysMode
                  && !root.layoutEditorMode && !root.clipboardMode
 				 && !root.credentialMode
                  && !root.numpadMode
@@ -963,6 +1028,7 @@ FutoKeyboardLayout {
 
     FutoNumpadLayout {
         visible: root.numpadMode && !root.extendedSymbolMode
+                 && !root.extraKeysMode
                  && !root.layoutEditorMode && !root.clipboardMode
 				 && !root.credentialMode
         targetLayout: root
@@ -976,6 +1042,11 @@ FutoKeyboardLayout {
 
     FutoExtendedSymbolGrid {
         visible: root.extendedSymbolMode
+        targetLayout: root
+    }
+
+    FutoDesktopKeyGrid {
+        visible: root.extraKeysMode
         targetLayout: root
     }
 

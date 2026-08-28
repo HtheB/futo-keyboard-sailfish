@@ -79,7 +79,7 @@ var layouts = [
         ["α", "σ", "δ", "φ", "γ", "η", "ξ", "κ", "λ"],
         ["ζ", "χ", "ψ", "ω", "β", "ν", "μ"]
     ] },
-    { name: "East Slavic", script: "cyrillic", rows: [
+    { name: "East Slavic", script: "cyrillic", languages: ["RU"], rows: [
         ["й", "ц", "у", "к", "е", "н", "г", "ш", "щ", "з", "х"],
         ["ф", "ы", "в", "а", "п", "р", "о", "л", "д", "ж", "э"],
         ["я", "ч", "с", "м", "и", "т", "ь", "б", "ю"]
@@ -88,6 +88,21 @@ var layouts = [
         ["f", "g", "ğ", "ı", "o", "d", "r", "n", "h", "p", "q", "w"],
         ["u", "i", "e", "a", "ü", "t", "k", "m", "l", "y", "ş", "x"],
         ["j", "ö", "v", "c", "ç", "z", "s", "b", ".", ","]
+    ] },
+    { name: "Slovenian QWERTZ", script: "latin", rows: [
+        ["q", "w", "e", "r", "t", "z", "u", "i", "o", "p", "š"],
+        ["a", "s", "d", "f", "g", "h", "j", "k", "l", "č", "ž"],
+        ["y", "x", "c", "v", "b", "n", "m"]
+    ] },
+    { name: "Croatian / Serbian Latin QWERTZ", script: "latin", rows: [
+        ["q", "w", "e", "r", "t", "z", "u", "i", "o", "p", "š"],
+        ["a", "s", "d", "f", "g", "h", "j", "k", "l", "č", "ć"],
+        ["y", "x", "c", "v", "b", "n", "m", "đ", "ž"]
+    ] },
+    { name: "Serbian Cyrillic", script: "cyrillic", languages: ["SR"], rows: [
+        ["љ", "њ", "е", "р", "т", "з", "у", "и", "о", "п", "ш"],
+        ["а", "с", "д", "ф", "г", "х", "ј", "к", "л", "ч", "ћ"],
+        ["џ", "ђ", "ц", "в", "б", "н", "м", "ж"]
     ] }
 ]
 
@@ -98,7 +113,8 @@ var count = layouts.length
 var menuNames = [
     "QWERTY", "QWERTZ", "AZERTY", "TR-Q", "DE-QWERTZ", "ES-QWERTY",
     "SE/FI", "DA/NO", "RO-QWERTY", "COLEMAK", "COLEMAK-DH", "DVORAK",
-    "WORKMAN", "ARABIC", "GREEK", "CYRILLIC", "TR-F"
+    "WORKMAN", "ARABIC", "GREEK", "CYRILLIC", "TR-F", "SL-QWERTZ",
+    "HR/SR-QW", "SR-CYRL"
 ]
 
 // Match the first/best conventional layout offered for each language by the
@@ -116,7 +132,7 @@ var languageDefaults = {
     "ES": 5,
     "FI": 6,
     "FR": 2,
-    "HR": 1,
+    "HR": 18,
     "IT": 0,
     "LT": 0,
     "LV": 0,
@@ -127,7 +143,9 @@ var languageDefaults = {
     "PT_PT": 5,
     "RO": 8,
     "RU": 15,
-    "SL": 0,
+    "SL": 17,
+    "SR": 19,
+    "SR_LATN": 18,
     "SV": 6,
     "TR": 3
 }
@@ -157,7 +175,7 @@ function languageScript(languageCode) {
         return "arabic"
     if (languageCode === "EL")
         return "greek"
-    if (languageCode === "RU")
+    if (languageCode === "RU" || languageCode === "SR")
         return "cyrillic"
     return "latin"
 }
@@ -192,10 +210,14 @@ function legacyDefaultForLanguage(languageCode) {
 }
 
 function compatibleIndices(languageCode) {
+    languageCode = String(languageCode).toUpperCase()
     var wantedScript = languageScript(languageCode)
     var result = []
     for (var i = 0; i < layouts.length; ++i) {
-        if (layouts[i].script === wantedScript)
+        var allowedLanguages = layouts[i].languages
+        if (layouts[i].script === wantedScript
+                && (!allowedLanguages
+                    || allowedLanguages.indexOf(languageCode) >= 0))
             result.push(i)
     }
     return result

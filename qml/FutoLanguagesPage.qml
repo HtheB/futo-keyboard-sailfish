@@ -14,11 +14,17 @@ Page {
     property bool dictionaryContentReady: false
     property var installedDictionaries: ({})
     property string pendingDictionaryCode: ""
+    property string requestedDictionaryCode: ""
+    property int languageSelectionRevision: 0
 
     onStatusChanged: {
-        if (status === PageStatus.Active && pendingDictionaryCode !== ""
-                && !dictionaryDownloadNavigation.running)
-            dictionaryDownloadNavigation.start()
+        if (status === PageStatus.Active) {
+            if (pendingDictionaryCode !== ""
+                    && !dictionaryDownloadNavigation.running)
+                dictionaryDownloadNavigation.start()
+            else
+                refreshDictionaryContent()
+        }
     }
 
     Timer {
@@ -41,6 +47,57 @@ Page {
                     .replace(/^en$/, "en-us")
     }
 
+    function dictionaryCode(packId) {
+        var value = String(packId)
+        if (value.indexOf("dictionary-") !== 0)
+            return ""
+        value = value.substring(11)
+        if (value === "en-us")
+            return "EN"
+        return value.toUpperCase().replace(/-/g, "_")
+    }
+
+    function storeLanguage(code, enabled) {
+        var codes = enabledCodes()
+        var index = codes.indexOf(code)
+        if (enabled && index < 0)
+            codes.push(code)
+        else if (!enabled && index >= 0)
+            codes.splice(index, 1)
+        else
+            return false
+        settings.enabledLanguages = codes.join(",")
+        languageSelectionRevision++
+        return true
+    }
+
+    function synchronizeDictionarySelections(installed) {
+        var codes = enabledCodes()
+        var filtered = []
+        var changed = false
+        for (var i = 0; i < codes.length; ++i) {
+            var code = codes[i]
+            if (predictionSupported(code)
+                    && !installed[dictionaryPackId(code)]) {
+                changed = true
+                continue
+            }
+            filtered.push(code)
+        }
+        if (requestedDictionaryCode !== ""
+                && installed[dictionaryPackId(requestedDictionaryCode)]) {
+            if (filtered.indexOf(requestedDictionaryCode) < 0) {
+                filtered.push(requestedDictionaryCode)
+                changed = true
+            }
+            requestedDictionaryCode = ""
+        }
+        if (changed) {
+            settings.enabledLanguages = filtered.join(",")
+            languageSelectionRevision++
+        }
+    }
+
     function refreshDictionaryContent() {
         if (helper.status !== DBusInterface.Available)
             return
@@ -60,6 +117,7 @@ Page {
             }
             page.installedDictionaries = installed
             page.dictionaryContentReady = true
+            page.synchronizeDictionarySelections(installed)
             page.statusText = ""
         }, function() {
             page.statusText = qsTr("Could not check installed dictionaries")
@@ -73,7 +131,14 @@ Page {
                                 + "Open the Dictionaries downloader to install it?")
         })
         dialog.accepted.connect(function() {
+            page.requestedDictionaryCode = code
             page.pendingDictionaryCode = code
+        })
+        dialog.rejected.connect(function() {
+            // Some older Silica Switch versions briefly toggle their visual
+            // state even with automaticCheck disabled. Re-evaluate the binding
+            // so cancelling never leaves an unavailable language checked.
+            page.languageSelectionRevision++
         })
     }
 
@@ -110,11 +175,7 @@ Page {
                 return
             }
         }
-        if (enabled && index < 0)
-            codes.push(code)
-        else if (!enabled && index >= 0)
-            codes.splice(index, 1)
-        settings.enabledLanguages = codes.join(",")
+        storeLanguage(code, enabled)
         statusText = ""
     }
 
@@ -148,7 +209,7 @@ Page {
     }
 
     function predictionSupported(code) {
-        return code !== "AR" && code !== "EL" && code !== "RU"
+        return code !== "AR"
     }
 
     ConfigurationGroup {
@@ -170,6 +231,16 @@ Page {
         watchServiceStatus: true
 
         function contentChanged(packId, state) {
+            var code = page.dictionaryCode(packId)
+            if (code !== "") {
+                if (String(state) === "installed") {
+                    page.storeLanguage(code, true)
+                    if (page.requestedDictionaryCode === code)
+                        page.requestedDictionaryCode = ""
+                } else if (String(state) === "removed") {
+                    page.storeLanguage(code, false)
+                }
+            }
             page.refreshDictionaryContent()
         }
 
@@ -201,12 +272,14 @@ Page {
         ListElement { code: "PT_PT"; title: "Português (Portugal)" }
         ListElement { code: "RO"; title: "Română" }
         ListElement { code: "SL"; title: "Slovenščina" }
+        ListElement { code: "SR_LATN"; title: "Srpski (latinica)" }
         ListElement { code: "FI"; title: "Suomi" }
         ListElement { code: "SV"; title: "Svenska" }
         ListElement { code: "TR"; title: "Türkçe" }
         // Non-Latin scripts are grouped after the Latin layouts.
         ListElement { code: "EL"; title: "Ελληνικά" }
         ListElement { code: "RU"; title: "Русский" }
+        ListElement { code: "SR"; title: "Српски (ћирилица)" }
         ListElement { code: "AR"; title: "العربية" }
     }
 
@@ -247,7 +320,6 @@ Page {
                     width: content.width
                     height: Math.max(Theme.itemSizeLarge,
                                      languageLabels.height + 2 * Theme.paddingMedium)
-                    onClicked: page.setLanguage(code, title, !page.languageEnabled(code))
 
                     Switch {
                         id: languageSwitch
@@ -257,8 +329,10 @@ Page {
                             leftMargin: Theme.horizontalPageMargin
                             verticalCenter: parent.verticalCenter
                         }
-                        checked: page.languageEnabled(code)
-                        onClicked: page.setLanguage(code, title, !page.languageEnabled(code))
+                        checked: {
+                            page.languageSelectionRevision
+                            return page.languageEnabled(code)
+                        }
                     }
 
                     Column {
@@ -284,7 +358,7 @@ Page {
                             width: Math.min(implicitWidth, languageLabels.width)
                             horizontalAlignment: code === "AR"
                                                  ? Text.AlignRight : Text.AlignLeft
-                            color: languageItem.highlighted
+                            color: languageToggleArea.pressed
                                    ? Theme.highlightColor : Theme.primaryColor
                             text: title
                             truncationMode: TruncationMode.Fade
@@ -292,7 +366,7 @@ Page {
 
                         Label {
                             width: parent.width
-                            color: languageItem.highlighted
+                            color: languageToggleArea.pressed
                                    ? Theme.secondaryHighlightColor : Theme.secondaryColor
                             font.pixelSize: Theme.fontSizeSmall
                             text: qsTr("%1%2").arg(
@@ -304,6 +378,16 @@ Page {
                                   ? qsTr(" · download required") : "")
                             truncationMode: TruncationMode.Fade
                         }
+                    }
+
+                    // One touch target avoids the nested Switch and row both
+                    // toggling on older Silica releases.
+                    MouseArea {
+                        id: languageToggleArea
+                        anchors.fill: parent
+                        z: 10
+                        onClicked: page.setLanguage(
+                                       code, title, !page.languageEnabled(code))
                     }
                 }
             }

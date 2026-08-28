@@ -49,7 +49,7 @@ const (
 	focusPath                 = "/usr/libexec/futo-keyboard-focus"
 	vaultAuthAction           = "org.hb.futo.keyboard.saved-login"
 	vaultSaveAuthAction       = "org.hb.futo.keyboard.save-login"
-	version                   = "0.1.0"
+	version                   = "0.2.0"
 )
 
 func zeroBytes(data []byte) {
@@ -268,6 +268,10 @@ var supportedLanguages = []languageInfo{
 	{Code: "HR", File: "hr.fksidx", Name: "Hrvatski"},
 	{Code: "LV", File: "lv.fksidx", Name: "Latviešu"},
 	{Code: "LT", File: "lt.fksidx", Name: "Lietuvių"},
+	{Code: "EL", File: "el.fksidx", Name: "Ελληνικά"},
+	{Code: "RU", File: "ru.fksidx", Name: "Русский"},
+	{Code: "SR", File: "sr.fksidx", Name: "Српски (ћирилица)"},
+	{Code: "SR_LATN", File: "sr_Latn.fksidx", Name: "Srpski (latinica)"},
 }
 
 type scoredWord struct {
@@ -2924,6 +2928,7 @@ func voiceLanguageCodes(languagesCSV string) string {
 		"FR": "fr", "ES": "es", "IT": "it", "PT_BR": "pt", "PT_PT": "pt",
 		"SV": "sv", "NB": "no", "DA": "da", "FI": "fi", "PL": "pl",
 		"CS": "cs", "RO": "ro", "SL": "sl", "HR": "hr", "LV": "lv", "LT": "lt",
+		"EL": "el", "RU": "ru", "SR": "sr", "SR_LATN": "sr",
 	}
 	seen := make(map[string]bool)
 	result := make([]string, 0, 4)
@@ -3339,26 +3344,40 @@ func normalizeLanguages(value string) []string {
 }
 
 func languageRuneBonus(language, word string) int64 {
+	if language == "EL" || language == "RU" || language == "SR" {
+		script := unicode.Greek
+		if language == "RU" || language == "SR" {
+			script = unicode.Cyrillic
+		}
+		var bonus int64
+		for _, character := range word {
+			if unicode.Is(script, character) {
+				bonus += 350000000
+			}
+		}
+		return bonus
+	}
 	sets := map[string]string{
-		"TR":    "çğıöşüÇĞİÖŞÜ",
-		"DE":    "äöüßÄÖÜẞ",
-		"FR":    "àâæçéèêëîïôœùûüÿÀÂÆÇÉÈÊËÎÏÔŒÙÛÜŸ",
-		"ES":    "áéíñóúüÁÉÍÑÓÚÜ",
-		"IT":    "àèéìíîòóùúÀÈÉÌÍÎÒÓÙÚ",
-		"PT_BR": "áâãàçéêíóôõúüÁÂÃÀÇÉÊÍÓÔÕÚÜ",
-		"PT_PT": "áâãàçéêíóôõúÁÂÃÀÇÉÊÍÓÔÕÚ",
-		"SV":    "åäöÅÄÖ",
-		"NB":    "æøåÆØÅ",
-		"DA":    "æøåÆØÅ",
-		"FI":    "äöÄÖ",
-		"PL":    "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ",
-		"CS":    "áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ",
-		"RO":    "ăâîșşțţĂÂÎȘŞȚŢ",
-		"SL":    "čšžČŠŽ",
-		"HR":    "čćđšžČĆĐŠŽ",
-		"LV":    "āčēģīķļņšūžĀČĒĢĪĶĻŅŠŪŽ",
-		"LT":    "ąčęėįšųūžĄČĘĖĮŠŲŪŽ",
-		"NL":    "ĳĲ",
+		"TR":      "çğıöşüÇĞİÖŞÜ",
+		"DE":      "äöüßÄÖÜẞ",
+		"FR":      "àâæçéèêëîïôœùûüÿÀÂÆÇÉÈÊËÎÏÔŒÙÛÜŸ",
+		"ES":      "áéíñóúüÁÉÍÑÓÚÜ",
+		"IT":      "àèéìíîòóùúÀÈÉÌÍÎÒÓÙÚ",
+		"PT_BR":   "áâãàçéêíóôõúüÁÂÃÀÇÉÊÍÓÔÕÚÜ",
+		"PT_PT":   "áâãàçéêíóôõúÁÂÃÀÇÉÊÍÓÔÕÚ",
+		"SV":      "åäöÅÄÖ",
+		"NB":      "æøåÆØÅ",
+		"DA":      "æøåÆØÅ",
+		"FI":      "äöÄÖ",
+		"PL":      "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ",
+		"CS":      "áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ",
+		"RO":      "ăâîșşțţĂÂÎȘŞȚŢ",
+		"SL":      "čšžČŠŽ",
+		"HR":      "čćđšžČĆĐŠŽ",
+		"SR_LATN": "čćđšžČĆĐŠŽ",
+		"LV":      "āčēģīķļņšūžĀČĒĢĪĶĻŅŠŪŽ",
+		"LT":      "ąčęėįšųūžĄČĘĖĮŠŲŪŽ",
+		"NL":      "ĳĲ",
 	}
 	characters := sets[language]
 	if characters == "" {
@@ -3774,6 +3793,12 @@ func (service *service) SwipeSuggestions(languagesCSV, path, geometry, context s
 		candidates, err := service.engine.swipe(language, path, geometry,
 			limit, capitalize)
 		if err != nil {
+			// Enabled languages may intentionally have no downloaded dictionary.
+			// Keep swipe results from the installed packs instead of discarding the
+			// complete multilingual result when one optional pack is unavailable.
+			if strings.Contains(err.Error(), "unknown language") {
+				continue
+			}
 			return "", dbus.MakeFailedError(err)
 		}
 		bonus := service.history.languageBonus(previous, language)

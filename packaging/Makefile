@@ -38,6 +38,12 @@ LAYOUT_FILES := \
 	layouts/FutoExtendedSymbolGrid.qml \
 	layouts/FutoExtendedSymbolKey.qml \
 	layouts/FutoExtendedSymbolsKey.qml \
+	layouts/FutoDesktopKey.qml \
+	layouts/FutoDesktopKeyData.js \
+	layouts/FutoDesktopKeyGrid.qml \
+	layouts/FutoDesktopKeyRow.qml \
+	layouts/FutoDesktopToolbar.qml \
+	layouts/FutoDesktopToolbarSide.qml \
 	layouts/FutoSymbolData.js \
 	layouts/FutoLanguageData.js \
 	layouts/FutoLetterLayouts.js \
@@ -69,6 +75,7 @@ SETTINGS_QML := \
 	FutoContentListPage.qml \
 	FutoContentRequiredDialog.qml \
 	FutoQuickSettingsPage.qml \
+	FutoDesktopKeysPage.qml \
 	FutoEmojiSettingsPage.qml \
 	FutoClipboardSettingsPage.qml \
 	FutoFeedbackPage.qml \
@@ -95,7 +102,8 @@ DICTIONARY_FILES := \
 	en_US.fksidx en_GB.fksidx nl.fksidx tr.fksidx de.fksidx fr.fksidx \
 	es.fksidx it.fksidx pt_BR.fksidx pt_PT.fksidx sv.fksidx nb.fksidx \
 	da.fksidx fi.fksidx pl.fksidx cs.fksidx ro.fksidx sl.fksidx \
-	hr.fksidx lv.fksidx lt.fksidx
+	hr.fksidx lv.fksidx lt.fksidx el.fksidx ru.fksidx sr.fksidx \
+	sr_Latn.fksidx
 
 EMOJI_STYLES := twemoji openmoji noto
 EMOJI_EXPECTED_FILES := 3944
@@ -139,6 +147,7 @@ check:
 	@test -s packaging/scripts/remove-textinput-bottom-hook.sh || exit 1
 	@test -s packaging/patches/textinput-bottom-settings.patch || exit 1
 	@grep -q 'FutoTextInputSettings.qml' packaging/patches/textinput-bottom-settings.patch || exit 1
+	@test -s packaging/settings/futo-keyboard.json || exit 1
 	@! grep -q '^settings=' layouts/layouts_futo.conf || exit 1
 	@test -s packaging/systemd/maliit-server.service.d/10-futo-hardware-policy.conf || exit 1
 	@test -s $(COMPOSE_ROOT)/en_US.UTF-8/Compose || exit 1
@@ -223,11 +232,16 @@ install: check
 		"$(DESTDIR)$(PREFIX)/share/X11/locale/compose.dir"
 	install -Dm0644 "$(COMPOSE_ROOT)/locale.alias" \
 		"$(DESTDIR)$(PREFIX)/share/X11/locale/locale.alias"
+# Sailfish OS 5.1 resolves handlers from the plugin root, while 5.2 resolves
+# them from the handlers subdirectory. Install both so one package supports both.
 	@for file in $(HANDLER_FILES); do \
+		install -Dm0644 "$$file" "$(MALIIT_ROOT)/$$(basename "$$file")"; \
 		install -Dm0644 "$$file" "$(MALIIT_ROOT)/handlers/$$(basename "$$file")"; \
 	done
 	install -Dm0644 qml/FutoSettingsPage.qml \
 		"$(DESTDIR)$(PREFIX)/share/jolla-settings/pages/futo-keyboard-sailfish/main.qml"
+	install -Dm0644 packaging/settings/futo-keyboard.json \
+		"$(DESTDIR)$(PREFIX)/share/jolla-settings/entries/futo-keyboard.json"
 	@for file in $(filter-out FutoSettingsPage.qml,$(SETTINGS_QML)); do \
 		install -Dm0644 "qml/$$file" \
 			"$(DESTDIR)$(PREFIX)/share/jolla-settings/pages/futo-keyboard-sailfish/$$file"; \

@@ -1,6 +1,6 @@
 # Modified derivative notice
 
-This is **FUTO Keyboard for Sailfish OS 0.1.0**, an independent and modified
+This is **FUTO Keyboard for Sailfish OS 0.2.0**, an independent and modified
 Sailfish OS integration. It is not an official FUTO product and is not built,
 published, or supported by FUTO.
 

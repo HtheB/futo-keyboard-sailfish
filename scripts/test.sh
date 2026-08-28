@@ -44,6 +44,54 @@ grep -Fq 'Authenticator.Fingerprint' "$ROOT/qml/FutoDeviceAuthentication.qml"
 grep -Fq 'FutoDeviceLockInputPage.qml' "$ROOT/qml/FutoDeviceAuthentication.qml"
 grep -Fq 'if (settings.personalDictionaryProtected)' "$ROOT/qml/FutoPrivacyPage.qml"
 grep -Fq 'InitializeLearnedEncryption' "$ROOT/qml/FutoLearnedDataPage.qml"
+grep -Fq '{ "id": "sound", "label": qsTr("Keyboard sounds")' \
+    "$ROOT/qml/FutoQuickSettingsPage.qml"
+grep -Fq 'keyboardSettings.keySoundEnabled = !keyboardSettings.keySoundEnabled' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'actionId === "sound"' "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'settings.settingsVersion = 10' "$ROOT/qml/FutoSettingsPage.qml"
+grep -Fq 'settingsUi.call("showPage"' "$ROOT/qml/FutoInputHandler.qml"
+! sed -n '/function openFutoSettings()/,/^    }/p' \
+    "$ROOT/qml/FutoInputHandler.qml" | grep -Fq 'userHide()'
+grep -Fq 'function moveCursor2D(horizontalSteps, verticalSteps)' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'Qt.Key_Up : Qt.Key_Down' "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'keyboard.inputHandler.beginCursorMoveMode()' \
+    "$ROOT/layouts/FutoSpacebarKey.qml"
+grep -Fq 'if (!pointerDown || cursorMode || keyboardDismissed)' \
+    "$ROOT/layouts/FutoSpacebarKey.qml"
+grep -Fq 'spaceKey.pointerDown = false' \
+    "$ROOT/layouts/FutoSpacebarKey.qml"
+! sed -n '/function beginCursorMoveMode()/,/^\t}/p' \
+    "$ROOT/qml/FutoInputHandler.qml" | grep -Fq 'beginSpacebarGesture()'
+grep -Fq 'Math.max(Theme.itemSizeLarge, height * 1.6)' \
+    "$ROOT/layouts/FutoSpacebarKey.qml"
+grep -Fq 'opacity: root.cursorMoveMode ? 0 : 1' \
+    "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'readonly property bool cursorStatusVisible: futoHandler.cursorMoveMode' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'Drag finger to move cursor' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'id: cursorMoveIcon' "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq '// Up and down.' "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'touchSource.maximumTouchPoints = swiping ? 1' \
+    "$ROOT/layouts/FutoKeyboardLayout.qml"
+grep -Fq 'keyboard.cancelTouchPoint(ids[i])' \
+    "$ROOT/layouts/FutoKeyboardLayout.qml"
+grep -Fq 'normalMaximumTouchPoints < 0' \
+    "$ROOT/layouts/FutoKeyboardLayout.qml"
+grep -Fq 'property bool gesturePreviewSuppressed' \
+    "$ROOT/layouts/FutoCharacterKey.qml"
+grep -Fq '&& !gesturePreviewSuppressed' \
+    "$ROOT/layouts/FutoCharacterKey.qml"
+grep -Fq 'keyboardLayout.handler.beginCursorSelection()' \
+    "$ROOT/layouts/FutoKeyboardLayout.qml"
+grep -Fq 'property bool cursorSelectionMode: false' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'cursorSelectionMode ? Qt.ShiftModifier : 0' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'Drag finger to select text' \
+    "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq '"٠١٢٣٤٥٦٧٨٩".charAt(index)' \
     "$ROOT/layouts/FutoQwertyLayout.qml"
 grep -Fq 'case "١": return "1½¼¹⅛⅓"' \
@@ -80,6 +128,137 @@ grep -Fq 'ImportPasswordsFromFileWithPassword' \
     "$ROOT/qml/FutoPasswordImportPage.qml"
 grep -Fq 'FutoPasswordExportPage.qml' "$ROOT/packaging/Makefile"
 grep -Fq 'YEKA-ZIP-LICENSE.txt' "$ROOT/packaging/Makefile"
+grep -Fq 'property real draggedKeyPointerY: 0' \
+    "$ROOT/qml/FutoDesktopKeysPage.qml"
+grep -Fq 'contentItem.parent = page' \
+    "$ROOT/qml/FutoDesktopKeysPage.qml"
+grep -Fq 'draggedKeyContent.mapToItem(draggedKeyOwner, 0, 0)' \
+    "$ROOT/qml/FutoDesktopKeysPage.qml"
+grep -Fq 'property real draggedKeyListStartY: 0' \
+    "$ROOT/qml/FutoDesktopKeysPage.qml"
+grep -Fq 'var listStartY = draggedKeyListStartY' \
+    "$ROOT/qml/FutoDesktopKeysPage.qml"
+grep -Fq 'var rowTop = draggedKeyPointerY - draggedKeyGrabY - listStartY' \
+    "$ROOT/qml/FutoDesktopKeysPage.qml"
+! grep -Fq 'drag.target:' "$ROOT/qml/FutoDesktopKeysPage.qml"
+! grep -Fq 'id: upButton' "$ROOT/qml/FutoDesktopKeysPage.qml"
+! grep -Fq 'id: downButton' "$ROOT/qml/FutoDesktopKeysPage.qml"
+grep -Fq 'anchors.left: keyBadge.left' "$ROOT/qml/FutoDesktopKeysPage.qml"
+grep -Fq 'property real draggedActionPointerY: 0' \
+    "$ROOT/qml/FutoQuickSettingsPage.qml"
+grep -Fq 'contentItem.parent = page' \
+    "$ROOT/qml/FutoQuickSettingsPage.qml"
+grep -Fq 'draggedActionContent.mapToItem(draggedActionOwner, 0, 0)' \
+    "$ROOT/qml/FutoQuickSettingsPage.qml"
+grep -Fq 'property real draggedActionListStartY: 0' \
+    "$ROOT/qml/FutoQuickSettingsPage.qml"
+grep -Fq 'var listStartY = draggedActionListStartY' \
+    "$ROOT/qml/FutoQuickSettingsPage.qml"
+grep -Fq 'var rowTop = draggedActionPointerY - draggedActionGrabY - listStartY' \
+    "$ROOT/qml/FutoQuickSettingsPage.qml"
+! grep -Fq 'drag.target:' "$ROOT/qml/FutoQuickSettingsPage.qml"
+! grep -Fq 'id: upButton' "$ROOT/qml/FutoQuickSettingsPage.qml"
+! grep -Fq 'id: downButton' "$ROOT/qml/FutoQuickSettingsPage.qml"
+grep -Fq 'anchors.left: actionIconItem.left' "$ROOT/qml/FutoQuickSettingsPage.qml"
+
+serbian_latin_test=$(mktemp)
+node "$ROOT/scripts/generate-serbian-latin-dictionary.js" \
+    "$ROOT/upstream/dictionaries/sr_wordlist.combined.gz" \
+    "$serbian_latin_test"
+grep -Fq 'dictionary=main:sr_Latn,locale=sr_Latn,description=Srpski' \
+    "$serbian_latin_test"
+grep -Fq ' word=ljubav,' "$serbian_latin_test"
+rm -f "$serbian_latin_test"
+
+# Desktop/Fn page and optional extra-key row.
+desktop_files=(
+    layouts/FutoDesktopKey.qml
+    layouts/FutoDesktopKeyData.js
+    layouts/FutoDesktopKeyGrid.qml
+    layouts/FutoDesktopKeyRow.qml
+    layouts/FutoDesktopToolbar.qml
+    layouts/FutoDesktopToolbarSide.qml
+    qml/FutoDesktopKeysPage.qml
+)
+for desktop_file in "${desktop_files[@]}"; do
+    [[ -f "$ROOT/$desktop_file" ]]
+    grep -Fq "${desktop_file##*/}" "$ROOT/packaging/Makefile"
+done
+grep -Fq 'FutoDesktopKey.qml' \
+    "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"
+grep -Fq '%{_datadir}/jolla-settings/pages/futo-keyboard-sailfish/' \
+    "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"
+grep -Fq '? "Fn"' "$ROOT/layouts/FutoShiftKey.qml"
+grep -Fq '{ "text": "Fn", "action": "desktopKeys" }' \
+    "$ROOT/layouts/FutoNumpadLayout.qml"
+grep -Fq 'function showDesktopKeysPage()' \
+    "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq '{ "id": "tab", "label": "Tab" }' \
+    "$ROOT/layouts/FutoDesktopKeyData.js"
+grep -Fq '{ "id": "tab" }' \
+    "$ROOT/layouts/FutoDesktopKeyGrid.qml"
+grep -Fq '{ "id": "tab" }, { "id": "f10" }, { "id": "f11" },' \
+    "$ROOT/layouts/FutoDesktopKeyGrid.qml"
+grep -Fq '{ "id": "numbers" }, { "id": "abc" }, { "id": "numlock" },' \
+    "$ROOT/layouts/FutoDesktopKeyGrid.qml"
+grep -Fq '{ "id": "ctrl" }, { "id": "super" }, { "id": "alt" },' \
+    "$ROOT/layouts/FutoDesktopKeyGrid.qml"
+grep -Fq '{ "id": "space", "span": 3 }, { "id": "altgr" }, { "id": "left" },' \
+    "$ROOT/layouts/FutoDesktopKeyGrid.qml"
+grep -Fq '{ "id": "altgr", "label": "AltGr" }' \
+    "$ROOT/layouts/FutoDesktopKeyData.js"
+grep -Fq 'if (keyId === "altgr") return 0x40000000' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'if (keyId === "tab") return Qt.Key_Tab' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'function toggleDesktopModifier(keyId)' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'desktopLastModifierTapMs <= 430' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'property bool desktopToolbarEnabled: false' \
+    "$ROOT/layouts/FutoDesktopToolbar.qml"
+grep -Fq 'actionId === "desktopkeys"' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'FutoDesktopKeysPage.qml' "$ROOT/qml/FutoAppearancePage.qml"
+grep -Fq 'id: keyScroller' "$ROOT/qml/FutoDesktopKeysPage.qml"
+grep -Fq 'contentHeight: Math.max(height, contentColumn.height + Theme.paddingLarge)' \
+    "$ROOT/qml/FutoDesktopKeysPage.qml"
+grep -Fq 'pressDelay: 140' "$ROOT/qml/FutoDesktopKeysPage.qml"
+grep -Fq 'VerticalScrollDecorator { flickable: keyScroller }' \
+    "$ROOT/qml/FutoDesktopKeysPage.qml"
+grep -Fq 'source: "image://theme/icon-m-sailfish"' \
+    "$ROOT/qml/FutoDesktopKeysPage.qml"
+grep -Fq 'id: quickSettingsHoldTimer' \
+    "$ROOT/layouts/FutoDesktopKey.qml"
+grep -Fq 'desktopKey.targetLayout.showControlStrip()' \
+    "$ROOT/layouts/FutoDesktopKey.qml"
+grep -Fq 'visible: desktopKey.keyId === "numbers"' \
+    "$ROOT/layouts/FutoDesktopKey.qml"
+grep -Fq 'preventStealing: false' \
+    "$ROOT/layouts/FutoDesktopKey.qml"
+grep -Fq 'pressDelay: 140' \
+    "$ROOT/layouts/FutoDesktopToolbarSide.qml"
+grep -Fq 'visible: desktopKey.keyId !== "numbers" && desktopKey.keyId !== "abc"' \
+    "$ROOT/layouts/FutoDesktopKey.qml"
+grep -Fq 'onDesktopToolbarEnabledChanged: resizeTimer.restart()' \
+    "$ROOT/layouts/FutoDesktopToolbar.qml"
+grep -Fq 'id: leftOverflowFade' \
+    "$ROOT/layouts/FutoDesktopToolbarSide.qml"
+grep -Fq 'id: quickSettingsRightOverflowFade' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'function switchToNextSailfishKeyboard()' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'onPressAndHold:' \
+    "$ROOT/qml/FutoInputHandler.qml"
+! grep -Fq '!targetLayout.controlMode' \
+    "$ROOT/layouts/FutoDesktopToolbar.qml"
+grep -Fq 'onTriggered: root.hideControlStrip()' \
+    "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'readonly property bool immediateCommitField: !urlField' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'function terminalInputApplication()' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'if (immediateCommitField)' "$ROOT/qml/FutoInputHandler.qml"
 
 if [[ ! -x "$ENGINE" ]]; then
     echo "Run scripts/build.sh before scripts/test.sh" >&2
@@ -146,12 +325,25 @@ mapfile -t swipe_lines <<<"$swipe_output"
 [[ ${swipe_lines[1]} == $'OK\t[{"word":"hello",'* ]]
 [[ ${swipe_lines[2]} == $'OK\t[{"word":"keyboard",'* ]]
 
+greek_swipe_geometry='59:0.05:0.10;962:0.15:0.10;949:0.25:0.10;961:0.35:0.10;964:0.45:0.10;965:0.55:0.10;952:0.65:0.10;953:0.75:0.10;959:0.85:0.10;960:0.95:0.10;945:0.10:0.50;963:0.20:0.50;948:0.30:0.50;966:0.40:0.50;947:0.50:0.50;951:0.60:0.50;958:0.70:0.50;954:0.80:0.50;955:0.90:0.50;950:0.20:0.90;967:0.30:0.90;968:0.40:0.90;969:0.50:0.90;946:0.60:0.90;957:0.70:0.90;956:0.80:0.90'
+greek_swipe_output=$(printf 'SWIPE\tEL\t5\t0\t%s\t%s\n' \
+    '954:0.80:0.50;945:0.10:0.50;953:0.75:0.10' "$greek_swipe_geometry" \
+    | "$ENGINE" --dictionary "EL=$ROOT/build/dictionaries/el.fksidx" 2>/dev/null)
+[[ $greek_swipe_output == $'OK\t[{"word":"και",'* ]]
+
+russian_swipe_geometry='1081:0.05:0.10;1094:0.14:0.10;1091:0.23:0.10;1082:0.32:0.10;1077:0.41:0.10;1085:0.50:0.10;1075:0.59:0.10;1096:0.68:0.10;1097:0.77:0.10;1079:0.86:0.10;1093:0.95:0.10;1092:0.05:0.50;1099:0.14:0.50;1074:0.23:0.50;1072:0.32:0.50;1087:0.41:0.50;1088:0.50:0.50;1086:0.59:0.50;1083:0.68:0.50;1076:0.77:0.50;1078:0.86:0.50;1101:0.95:0.50;1103:0.10:0.90;1095:0.20:0.90;1089:0.30:0.90;1084:0.40:0.90;1080:0.50:0.90;1090:0.60:0.90;1100:0.70:0.90;1073:0.80:0.90;1102:0.90:0.90'
+russian_swipe_output=$(printf 'SWIPE\tRU\t5\t0\t%s\t%s\n' \
+    '1087:0.41:0.50;1088:0.50:0.50;1080:0.50:0.90;1074:0.23:0.50;1077:0.41:0.10;1090:0.60:0.90' "$russian_swipe_geometry" \
+    | "$ENGINE" --dictionary "RU=$ROOT/build/dictionaries/ru.fksidx" 2>/dev/null)
+[[ $russian_swipe_output == $'OK\t[{"word":"привет",'* ]]
+
 language_files=(
     EN=en_US.fksidx EN_GB=en_GB.fksidx NL=nl.fksidx TR=tr.fksidx
     DE=de.fksidx FR=fr.fksidx ES=es.fksidx IT=it.fksidx
     PT_BR=pt_BR.fksidx PT_PT=pt_PT.fksidx SV=sv.fksidx NB=nb.fksidx
     DA=da.fksidx FI=fi.fksidx PL=pl.fksidx CS=cs.fksidx
     RO=ro.fksidx SL=sl.fksidx HR=hr.fksidx LV=lv.fksidx LT=lt.fksidx
+    EL=el.fksidx RU=ru.fksidx SR=sr.fksidx SR_LATN=sr_Latn.fksidx
 )
 engine_arguments=()
 top_requests=()

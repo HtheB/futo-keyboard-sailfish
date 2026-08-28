@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUTPUT=${FUTO_CONTENT_OUTPUT:-"$ROOT/build/content-packs"}
-PACK_VERSION=0.1.0-1
+PACK_VERSION=0.2.0-1
 
 mkdir -p "$OUTPUT" "$ROOT/content"
 find "$OUTPUT" -maxdepth 1 -type f \

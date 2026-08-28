@@ -75,6 +75,7 @@ fi
 
 LANGUAGES=(
     en_US en_GB nl tr de fr es it pt_BR pt_PT sv nb da fi pl cs ro sl hr lv lt
+    el ru sr sr_Latn
 )
 
 if [[ ${FUTO_SKIP_DICTIONARY_BUILD:-0} != 1 ]]; then
@@ -88,7 +89,13 @@ if [[ ${FUTO_SKIP_DICTIONARY_BUILD:-0} != 1 ]]; then
 
     for language in "${LANGUAGES[@]}"; do
         source_file="$HOST_BUILD/dictionaries/${language}.combined.tmp"
-        gzip -dc "$ROOT/upstream/dictionaries/${language}_wordlist.combined.gz" > "$source_file"
+        if [[ "$language" == sr_Latn ]]; then
+            node "$ROOT/scripts/generate-serbian-latin-dictionary.js" \
+                "$ROOT/upstream/dictionaries/sr_wordlist.combined.gz" \
+                "$source_file"
+        else
+            gzip -dc "$ROOT/upstream/dictionaries/${language}_wordlist.combined.gz" > "$source_file"
+        fi
         "$HOST_BUILD/futo-dictionary-compiler" --compile "$source_file" \
             "$HOST_BUILD/dictionaries/${language}.fksidx"
         rm -f "$source_file"

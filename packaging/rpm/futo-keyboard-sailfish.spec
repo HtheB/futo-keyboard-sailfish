@@ -4,7 +4,7 @@
 %global _missing_build_ids_terminate_build 0
 
 Name:           futo-keyboard-sailfish
-Version:        0.1.0
+Version:        0.2.0
 Release:        1
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
 License:        LicenseRef-FUTO-Source-First-1.1-kb AND BSD-3-Clause AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND (LGPL-2.1-only OR LGPL-3.0-only)
@@ -35,7 +35,7 @@ Requires:       qt5-qtwayland-wayland_egl >= 5.6.3
 %description
 An independent, modified Sailfish OS integration using FUTO Keyboard dictionary
 data. It provides one native FUTO layout with simultaneous suggestions across
-21 selectable Latin prediction languages, per-language visual layout assignment,
+25 selectable prediction languages, per-language visual layout assignment,
 automatic language weighting, context and next-word learning, configurable typo
 correction, keyboard-layout-aware swipe typing, optional offline FUTO voice typing,
 private clipboard history, an on-device personal dictionary, and
@@ -110,10 +110,14 @@ fi
 %{_datadir}/X11/locale/compose.dir
 %{_datadir}/X11/locale/locale.alias
 %{_datadir}/futo-keyboard-sailfish/
+%{_datadir}/maliit/plugins/com/jolla/FutoInputHandler.qml
+%{_datadir}/maliit/plugins/com/jolla/FutoHorizontalPredictionListView.qml
+%{_datadir}/maliit/plugins/com/jolla/FutoVerticalPredictionListView.qml
 %{_datadir}/maliit/plugins/com/jolla/handlers/FutoInputHandler.qml
 %{_datadir}/maliit/plugins/com/jolla/handlers/FutoHorizontalPredictionListView.qml
 %{_datadir}/maliit/plugins/com/jolla/handlers/FutoVerticalPredictionListView.qml
 %{_datadir}/jolla-settings/pages/futo-keyboard-sailfish/
+%{_datadir}/jolla-settings/entries/futo-keyboard.json
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoCharacterKey.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoBackspaceKey.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoCommaKey.qml
@@ -124,6 +128,12 @@ fi
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoExtendedSymbolGrid.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoExtendedSymbolKey.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoExtendedSymbolsKey.qml
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoDesktopKey.qml
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoDesktopKeyData.js
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoDesktopKeyGrid.qml
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoDesktopKeyRow.qml
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoDesktopToolbar.qml
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoDesktopToolbarSide.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoSymbolData.js
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoLanguageData.js
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoLetterLayouts.js
@@ -149,6 +159,16 @@ fi
 %{_userunitdir}/maliit-server.service.d/10-futo-hardware-policy.conf
 
 %changelog
+* Fri Aug 28 2026 HtheB - 0.2.0-1
+- Add the Fn keyboard page, configurable extra-key row, sticky desktop
+  modifiers, and drag-and-drop organizers.
+- Add vertical cursor movement, second-finger text selection, and terminal
+  input compatibility improvements.
+- Add Greek, Russian, Serbian Cyrillic and Serbian Latin predictions, plus
+  Slovenian, Croatian/Serbian Latin and Serbian Cyrillic layouts.
+- Improve compatibility with Sailfish OS 5.1, including swipe typing, Quick
+  Settings, symbol and emoji tabs, and blank emoji rendering.
+
 * Fri Aug 28 2026 HtheB - 0.1.0-1
 - First public Sailfish OS release, including the native FUTO keyboard,
   downloadable content packs, offline voice typing and optional dictionaries.

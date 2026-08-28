@@ -50,7 +50,21 @@ InputHandler {
 	// KeyboardBase starts feeding letter keys into swipe typing as soon as the
 	// finger leaves Space, which steals cursor-control gestures.
 	property bool spacebarGestureActive: false
-	property int pendingCursorSteps: 0
+	property bool cursorMoveMode: false
+	property bool cursorSelectionMode: false
+	// Desktop modifiers use a sticky-key model. A single tap latches the
+	// modifier for exactly one real key event; a quick second tap locks it until
+	// explicitly tapped again.
+	property int desktopLatchedModifiers: 0
+	property int desktopLockedModifiers: 0
+	property string desktopLastModifierId: ""
+	property double desktopLastModifierTapMs: 0
+	readonly property int activeDesktopModifiers:
+	        desktopLatchedModifiers | desktopLockedModifiers
+	readonly property string desktopModifierStatusText:
+	        desktopModifierSummary()
+	property int pendingCursorHorizontalSteps: 0
+	property int pendingCursorVerticalSteps: 0
 	property bool voiceRecording: false
 	property bool voiceBusy: false
 	property string voiceMessage: ""
@@ -124,6 +138,14 @@ InputHandler {
     readonly property bool urlField: explicitUrlField || urlShapedEditorText()
     readonly property bool passwordField: MInputMethodQuick.hiddenText
             || !!MInputMethodQuick.extensions.sensitiveInput
+	// Some terminal and console editors do not render Maliit's preedit text.
+	// Commit each character immediately when the editor explicitly disables
+	// prediction, or when its application identity identifies a terminal. URL
+	// fields stay on the existing preedit path so swipe/search and URL-history
+	// suggestions continue to work.
+	readonly property bool immediateCommitField: !urlField
+	        && (!MInputMethodQuick.predictionEnabled
+	            || terminalInputApplication())
 	readonly property bool credentialUsernameField: !passwordField && !urlField
 	        && (usernameMetadataAvailable() || emailContentTypeActive()
 	            || !MInputMethodQuick.predictionEnabled
@@ -295,6 +317,13 @@ InputHandler {
 		value = String(value || "").toLocaleLowerCase()
 		return /firefox|fennec|chrome|chromium|browser|brave|opera|vivaldi|edge|duckduckgo/.test(
 		        value)
+	}
+
+	function terminalInputApplication() {
+		var metadataId = normalizedApplicationId(applicationIdFromMetadata())
+		var policyId = normalizedApplicationId(activePolicyApplicationId)
+		return /terminal|ghosteel|console/.test(metadataId)
+		        || /terminal|ghosteel|console/.test(policyId)
 	}
 
 	function internalCredentialApplication(value) {
@@ -1420,10 +1449,15 @@ InputHandler {
         property bool voiceLiveTranscriptionEnabled: true
         property bool voiceStopAfterSilence: true
         property int voiceSilenceTimeoutMs: 1300
+		property bool desktopToolbarEnabled: false
+		property string desktopToolbarOrder:
+		    "esc,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,print,pause,insert,delete,home,end,pageup,pagedown,ctrl,alt,super,tab,menu,numlock,scrolllock,left,up,down,right,backspace,space,enter"
+		property string desktopToolbarEnabledKeys:
+		    "esc,ctrl,alt,left,down,right,delete"
         property string quickSettingsOrder:
-            "language,layouts,keyboardmode,clipboard,emoji,microphone,incognito,settings"
+            "language,layouts,keyboardmode,desktopkeys,clipboard,emoji,microphone,sound,incognito,settings"
         property string quickSettingsEnabled:
-            "language,layouts,keyboardmode,clipboard,emoji,microphone,incognito,settings"
+            "language,layouts,keyboardmode,desktopkeys,clipboard,emoji,microphone,sound,incognito,settings"
 
 		onVoicePushToTalkEnabledChanged: {
 			if (voicePushToTalkEnabled)
@@ -1598,6 +1632,36 @@ InputHandler {
             keyboardSettings.quickSettingsOrder = order.join(",")
             keyboardSettings.quickSettingsEnabled = enabled.join(",")
             keyboardSettings.settingsVersion = 9
+        }
+        if (keyboardSettings.settingsVersion < 10) {
+            var soundOrder = quickSettingIds(keyboardSettings.quickSettingsOrder)
+            var soundEnabled = quickSettingIds(keyboardSettings.quickSettingsEnabled)
+            if (soundOrder.indexOf("sound") < 0) {
+                var microphonePosition = soundOrder.indexOf("microphone")
+                soundOrder.splice(microphonePosition >= 0
+                                  ? microphonePosition + 1 : soundOrder.length,
+                                  0, "sound")
+            }
+            if (soundEnabled.indexOf("sound") < 0)
+                soundEnabled.push("sound")
+            keyboardSettings.quickSettingsOrder = soundOrder.join(",")
+            keyboardSettings.quickSettingsEnabled = soundEnabled.join(",")
+            keyboardSettings.settingsVersion = 10
+        }
+        if (keyboardSettings.settingsVersion < 11) {
+            var desktopOrder = quickSettingIds(keyboardSettings.quickSettingsOrder)
+            var desktopEnabled = quickSettingIds(keyboardSettings.quickSettingsEnabled)
+            if (desktopOrder.indexOf("desktopkeys") < 0) {
+                var keyboardModePosition = desktopOrder.indexOf("keyboardmode")
+                desktopOrder.splice(keyboardModePosition >= 0
+                                    ? keyboardModePosition + 1 : desktopOrder.length,
+                                    0, "desktopkeys")
+            }
+            if (desktopEnabled.indexOf("desktopkeys") < 0)
+                desktopEnabled.push("desktopkeys")
+            keyboardSettings.quickSettingsOrder = desktopOrder.join(",")
+            keyboardSettings.quickSettingsEnabled = desktopEnabled.join(",")
+            keyboardSettings.settingsVersion = 11
         }
         refreshPrivacySwitchState()
         refreshHardwareKeyboardState()
@@ -1800,10 +1864,13 @@ InputHandler {
     function openFutoSettings() {
         if (keyboard.layout && keyboard.layout.hideControlStrip)
             keyboard.layout.hideControlStrip()
-        MInputMethodQuick.userHide()
-        settingsUi.typedCall("showPage", [
-            { "type": "s", "value": "system_settings/system/futo_keyboard" }
-        ], function() {}, function() {})
+        // Dispatch the page request before the keyboard loses focus. Calling
+        // userHide() here can unload this handler before its queued D-Bus call
+        // reaches Settings, leaving the gear action apparently unresponsive.
+        // Opening Settings moves focus away and hides the keyboard naturally.
+        settingsUi.call("showPage", [
+            "system_settings/system/text_input/futo_keyboard"
+        ])
     }
 
     function toggleIncognitoMode() {
@@ -1823,16 +1890,212 @@ InputHandler {
         return result
     }
 
+	function desktopModifierFlag(keyId) {
+		if (keyId === "ctrl") return Qt.ControlModifier
+		if (keyId === "alt") return Qt.AltModifier
+		if (keyId === "altgr") return 0x40000000
+		if (keyId === "super") return Qt.MetaModifier
+		return 0
+	}
+
+	function desktopModifierState(keyId) {
+		var flag = desktopModifierFlag(String(keyId))
+		if (flag === 0)
+			return 0
+		if ((desktopLockedModifiers & flag) !== 0)
+			return 2
+		return (desktopLatchedModifiers & flag) !== 0 ? 1 : 0
+	}
+
+	function desktopModifierName(keyId) {
+		if (keyId === "ctrl") return qsTr("Ctrl")
+		if (keyId === "alt") return qsTr("Alt")
+		if (keyId === "altgr") return qsTr("AltGr")
+		if (keyId === "super") return qsTr("Sailfish")
+		return String(keyId)
+	}
+
+	function desktopModifierSummary() {
+		var ready = []
+		var locked = []
+		var ids = ["ctrl", "alt", "altgr", "super"]
+		for (var i = 0; i < ids.length; ++i) {
+			var state = desktopModifierState(ids[i])
+			if (state === 2)
+				locked.push(desktopModifierName(ids[i]))
+			else if (state === 1)
+				ready.push(desktopModifierName(ids[i]))
+		}
+		var parts = []
+		if (ready.length > 0)
+			parts.push(qsTr("%1 ready").arg(ready.join(" + ")))
+		if (locked.length > 0)
+			parts.push(qsTr("%1 locked").arg(locked.join(" + ")))
+		return parts.join(" · ")
+	}
+
+	function clearDesktopModifiers() {
+		desktopLatchedModifiers = 0
+		desktopLockedModifiers = 0
+		desktopLastModifierId = ""
+		desktopLastModifierTapMs = 0
+	}
+
+	function toggleDesktopModifier(keyId) {
+		keyId = String(keyId)
+		var flag = desktopModifierFlag(keyId)
+		if (flag === 0)
+			return
+		var now = Date.now()
+		if ((desktopLockedModifiers & flag) !== 0) {
+			desktopLockedModifiers &= ~flag
+			desktopLatchedModifiers &= ~flag
+		} else if ((desktopLatchedModifiers & flag) !== 0) {
+			if (desktopLastModifierId === keyId
+					&& now - desktopLastModifierTapMs <= 430) {
+				desktopLatchedModifiers &= ~flag
+				desktopLockedModifiers |= flag
+			} else {
+				desktopLatchedModifiers &= ~flag
+			}
+		} else {
+			desktopLatchedModifiers |= flag
+		}
+		desktopLastModifierId = keyId
+		desktopLastModifierTapMs = now
+	}
+
+	function desktopKeyCode(keyId) {
+		if (keyId === "esc") return Qt.Key_Escape
+		if (keyId === "f1") return Qt.Key_F1
+		if (keyId === "f2") return Qt.Key_F2
+		if (keyId === "f3") return Qt.Key_F3
+		if (keyId === "f4") return Qt.Key_F4
+		if (keyId === "f5") return Qt.Key_F5
+		if (keyId === "f6") return Qt.Key_F6
+		if (keyId === "f7") return Qt.Key_F7
+		if (keyId === "f8") return Qt.Key_F8
+		if (keyId === "f9") return Qt.Key_F9
+		if (keyId === "f10") return Qt.Key_F10
+		if (keyId === "f11") return Qt.Key_F11
+		if (keyId === "f12") return Qt.Key_F12
+		if (keyId === "print") return Qt.Key_Print
+		if (keyId === "pause") return Qt.Key_Pause
+		if (keyId === "insert") return Qt.Key_Insert
+		if (keyId === "delete") return Qt.Key_Delete
+		if (keyId === "home") return Qt.Key_Home
+		if (keyId === "end") return Qt.Key_End
+		if (keyId === "pageup") return Qt.Key_PageUp
+		if (keyId === "pagedown") return Qt.Key_PageDown
+		if (keyId === "tab") return Qt.Key_Tab
+		if (keyId === "menu") return Qt.Key_Menu
+		if (keyId === "numlock") return Qt.Key_NumLock
+		if (keyId === "scrolllock") return Qt.Key_ScrollLock
+		if (keyId === "left") return Qt.Key_Left
+		if (keyId === "up") return Qt.Key_Up
+		if (keyId === "down") return Qt.Key_Down
+		if (keyId === "right") return Qt.Key_Right
+		if (keyId === "backspace") return Qt.Key_Backspace
+		if (keyId === "space") return Qt.Key_Space
+		if (keyId === "enter") return Qt.Key_Return
+		return Qt.Key_unknown
+	}
+
+	function desktopKeyText(keyId) {
+		if (keyId === "tab") return "\t"
+		if (keyId === "space") return " "
+		if (keyId === "enter") return "\n"
+		if (keyId === "backspace") return "\b"
+		return ""
+	}
+
+	function prepareDesktopKeyDispatch() {
+		if (preedit !== "") {
+			learn(preedit)
+			commit(preedit)
+		}
+		clearEditingWord()
+		candidateSpaceIndex = -1
+		clearUndoCorrection()
+	}
+
+	function sendDesktopKeyCode(keyCode, text) {
+		if (keyCode === Qt.Key_unknown)
+			return false
+		prepareDesktopKeyDispatch()
+		MInputMethodQuick.sendKey(keyCode, activeDesktopModifiers,
+		                          text || "", Maliit.KeyClick)
+		desktopLatchedModifiers = 0
+		desktopLastModifierId = ""
+		desktopLastModifierTapMs = 0
+		return true
+	}
+
+	function activateDesktopKey(keyId) {
+		keyId = String(keyId)
+		if (desktopModifierFlag(keyId) !== 0) {
+			toggleDesktopModifier(keyId)
+			return true
+		}
+		return sendDesktopKeyCode(desktopKeyCode(keyId), desktopKeyText(keyId))
+	}
+
+	function handleArmedDesktopModifierKey(key) {
+		if (activeDesktopModifiers === 0 || !key
+				|| key.keyType === KeyType.SymbolKey
+				|| key.keyType === KeyType.ShiftKey)
+			return false
+		var keyCode = Number(key.key)
+		var text = String(key.text || "")
+		if ((!isFinite(keyCode) || keyCode === 0 || keyCode === Qt.Key_unknown)
+				&& text.length === 1)
+			keyCode = text.toUpperCase().charCodeAt(0)
+		return sendDesktopKeyCode(keyCode, text)
+	}
+
+	function nextEnabledSailfishKeyboardIndex() {
+		var model = keyboard ? keyboard.model : null
+		if (!model || typeof model.get !== "function")
+			return -1
+		var count = Math.max(0, Number(model.count || 0))
+		if (count < 2)
+			return -1
+		var current = Math.max(0, Number(keyboard.currentIndex || 0))
+		for (var offset = 1; offset < count; ++offset) {
+			var index = (current + offset) % count
+			var candidate = model.get(index)
+			if (candidate && candidate.enabled
+					&& String(candidate.type || "") !== "emojis")
+				return index
+		}
+		return -1
+	}
+
+	function switchToNextSailfishKeyboard() {
+		var index = nextEnabledSailfishKeyboardIndex()
+		if (index < 0)
+			return false
+		playOptionFeedback()
+		keyboard.currentIndex = index
+		if (keyboard.overriddenLayoutFile !== undefined)
+			keyboard.overriddenLayoutFile = ""
+		return true
+	}
+
     function quickSettingAvailable(actionId) {
         if (actionId === "language")
-            return keyboard.layout && keyboard.layout.enabledLetterLayoutCount > 1
+            return keyboard.layout
+                    && (keyboard.layout.enabledLetterLayoutCount > 1
+                        || nextEnabledSailfishKeyboardIndex() >= 0)
         if (actionId === "clipboard")
             return keyboardSettings.clipboardHistoryEnabled
         if (actionId === "microphone")
             return keyboardSettings.voiceTypingEnabled && !passwordField
         return actionId === "layouts" || actionId === "keyboardmode"
+                || actionId === "desktopkeys"
                 || actionId === "emoji"
-                || actionId === "incognito" || actionId === "settings"
+                || actionId === "sound" || actionId === "incognito"
+                || actionId === "settings"
     }
 
     function quickSettingsActions() {
@@ -1850,10 +2113,15 @@ InputHandler {
         if (actionId === "language") return "image://theme/icon-m-region"
         if (actionId === "layouts") return "image://theme/icon-m-edit"
         if (actionId === "keyboardmode") return "image://theme/icon-m-text-input"
+		if (actionId === "desktopkeys") return "image://theme/icon-m-keyboard"
         if (actionId === "clipboard") return "image://theme/icon-m-clipboard"
         if (actionId === "emoji")
             return "file:///usr/share/futo-keyboard-sailfish/icons/icon-m-emoji.svg"
         if (actionId === "microphone") return "image://theme/icon-m-browser-microphone"
+        if (actionId === "sound")
+            return keyboardSettings.keySoundEnabled
+                    ? "image://theme/icon-m-speaker-on"
+                    : "image://theme/icon-m-speaker-mute"
         if (actionId === "incognito") return "image://theme/icon-m-incognito"
         return ""
     }
@@ -1871,14 +2139,23 @@ InputHandler {
                 return qsTr("Right")
             return qsTr("Full size")
         }
+		if (actionId === "desktopkeys") return qsTr("Extra key row")
         if (actionId === "clipboard") return qsTr("Clipboard")
         if (actionId === "emoji") return qsTr("Emoji")
         if (actionId === "microphone") return qsTr("Microphone")
+        if (actionId === "sound") return qsTr("Sound")
         if (actionId === "incognito") return qsTr("Incognito")
         return qsTr("Settings")
     }
 
     function activateQuickSetting(actionId) {
+        if (actionId === "sound") {
+            keyboardSettings.keySoundEnabled = !keyboardSettings.keySoundEnabled
+            // Toggle first so enabling sound produces an immediate preview;
+            // disabling it still keeps the normal haptic confirmation.
+            playOptionFeedback()
+            return
+        }
         playOptionFeedback()
         if (!keyboard.layout)
             return
@@ -1889,6 +2166,9 @@ InputHandler {
         } else if (actionId === "keyboardmode") {
             keyboard.layout.setCurrentKeyboardMode(
                         (keyboard.layout.activeKeyboardMode + 1) % 4)
+		} else if (actionId === "desktopkeys") {
+			keyboardSettings.desktopToolbarEnabled =
+			        !keyboardSettings.desktopToolbarEnabled
         } else if (actionId === "clipboard") {
             keyboard.layout.showClipboardHistory()
         } else if (actionId === "emoji") {
@@ -2111,6 +2391,10 @@ InputHandler {
             id: topStrip
 			clip: true
 
+            readonly property bool cursorStatusVisible: futoHandler.cursorMoveMode
+			readonly property bool modifierStatusVisible:
+			        futoHandler.activeDesktopModifiers !== 0
+			        && !keyboardLayout.controlMode
             readonly property bool emojiTabsVisible: keyboardLayout.emojiMode
             readonly property bool emojiSearchVisible: keyboardLayout.emojiSearchMode
             readonly property bool symbolTabsVisible: keyboardLayout.extendedSymbolMode
@@ -2120,6 +2404,8 @@ InputHandler {
 			readonly property bool credentialSaveVisible: false
 			readonly property bool passwordVaultVisible:
 			        keyboardSettings.passwordSavingEnabled
+			        && !cursorStatusVisible
+			        && !modifierStatusVisible
 			        && !futoHandler.credentialLookupPrivateBlocked
 			        && futoHandler.credentialFieldCandidate
 			        && futoHandler.credentialMatchAvailable
@@ -2134,7 +2420,9 @@ InputHandler {
 					futoHandler.credentialDebug("ui-visible=" + passwordVaultVisible
 					                            + " strip=" + stripRequired)
 			}
-            readonly property bool predictionContentAvailable: !futoHandler.passwordField
+            readonly property bool predictionContentAvailable: !cursorStatusVisible
+			        && !modifierStatusVisible
+                    && !futoHandler.passwordField
                     && (futoHandler.showUrlSuggestions
                     ? predictionModel.count > 0
                     : (futoHandler.showApplicationSuggestions
@@ -2144,7 +2432,8 @@ InputHandler {
                        && futoHandler.predictionSuggestionsAvailable)))
 			readonly property bool credentialChooserVisible: keyboardLayout.credentialMode
 			readonly property bool stripRequired: !credentialChooserVisible
-			        && (emojiTabsVisible || emojiSearchVisible
+			        && (cursorStatusVisible || modifierStatusVisible
+			        || emojiTabsVisible || emojiSearchVisible
 			        || symbolTabsVisible
 			        || controlsVisible || voiceStatusVisible || credentialSaveVisible
 			        || futoHandler.ordinaryPredictionStripEnabled
@@ -2160,6 +2449,8 @@ InputHandler {
                 orientation: ListView.Horizontal
                 clip: true
                 visible: !topStrip.emojiTabsVisible
+                         && !topStrip.cursorStatusVisible
+					 && !topStrip.modifierStatusVisible
                          && !topStrip.emojiSearchVisible
                          && !topStrip.symbolTabsVisible
                          && !topStrip.controlsVisible
@@ -2197,6 +2488,8 @@ InputHandler {
                 id: predictionList
                 anchors.fill: parent
                 visible: !topStrip.emojiTabsVisible
+                         && !topStrip.cursorStatusVisible
+					 && !topStrip.modifierStatusVisible
                          && !topStrip.emojiSearchVisible
                          && !topStrip.symbolTabsVisible
                          && !topStrip.controlsVisible
@@ -2221,6 +2514,8 @@ InputHandler {
                 anchors.leftMargin: Theme.horizontalPageMargin
                 anchors.rightMargin: Theme.horizontalPageMargin
                 visible: topStrip.stripRequired
+                         && !topStrip.cursorStatusVisible
+					 && !topStrip.modifierStatusVisible
                          && !topStrip.emojiTabsVisible
                          && !topStrip.emojiSearchVisible
                          && !topStrip.symbolTabsVisible
@@ -2237,6 +2532,113 @@ InputHandler {
                 text: futoHandler.urlHistoryStripEnabled
                       ? qsTr("No saved URLs yet") : ""
             }
+
+			Item {
+				anchors.fill: parent
+				z: 12
+				visible: topStrip.cursorStatusVisible
+
+				Row {
+					anchors.centerIn: parent
+					spacing: Theme.paddingMedium
+
+					Canvas {
+						id: cursorMoveIcon
+						anchors.verticalCenter: parent.verticalCenter
+						width: Theme.iconSizeMedium
+						height: width
+						property color arrowColor: Theme.highlightColor
+
+						onArrowColorChanged: requestPaint()
+						onWidthChanged: requestPaint()
+						onHeightChanged: requestPaint()
+						onPaint: {
+							var context = getContext("2d")
+							context.clearRect(0, 0, width, height)
+							context.strokeStyle = arrowColor
+							context.lineWidth = Math.max(2, width / 16)
+							context.lineCap = "round"
+							context.lineJoin = "round"
+							var centerX = width / 2
+							var centerY = height / 2
+							var edge = width * 0.17
+							var head = width * 0.10
+							var gap = width * 0.16
+
+							context.beginPath()
+							// Up and down.
+							context.moveTo(centerX, centerY - gap)
+							context.lineTo(centerX, edge)
+							context.moveTo(centerX, edge)
+							context.lineTo(centerX - head, edge + head)
+							context.moveTo(centerX, edge)
+							context.lineTo(centerX + head, edge + head)
+							context.moveTo(centerX, centerY + gap)
+							context.lineTo(centerX, height - edge)
+							context.moveTo(centerX, height - edge)
+							context.lineTo(centerX - head, height - edge - head)
+							context.moveTo(centerX, height - edge)
+							context.lineTo(centerX + head, height - edge - head)
+							// Left and right.
+							context.moveTo(centerX - gap, centerY)
+							context.lineTo(edge, centerY)
+							context.moveTo(edge, centerY)
+							context.lineTo(edge + head, centerY - head)
+							context.moveTo(edge, centerY)
+							context.lineTo(edge + head, centerY + head)
+							context.moveTo(centerX + gap, centerY)
+							context.lineTo(width - edge, centerY)
+							context.moveTo(width - edge, centerY)
+							context.lineTo(width - edge - head, centerY - head)
+							context.moveTo(width - edge, centerY)
+							context.lineTo(width - edge - head, centerY + head)
+							context.stroke()
+						}
+					}
+
+					Label {
+						anchors.verticalCenter: parent.verticalCenter
+						text: futoHandler.cursorSelectionMode
+						      ? qsTr("Drag finger to select text")
+						      : qsTr("Drag finger to move cursor")
+						color: Theme.highlightColor
+						font.pixelSize: Theme.fontSizeMedium
+						truncationMode: TruncationMode.Fade
+					}
+				}
+			}
+
+			Item {
+				anchors.fill: parent
+				z: 13
+				visible: topStrip.modifierStatusVisible
+
+				Row {
+					anchors.centerIn: parent
+					spacing: Theme.paddingMedium
+
+					Icon {
+						anchors.verticalCenter: parent.verticalCenter
+						width: Theme.iconSizeSmall
+						height: width
+						source: "image://theme/icon-m-keyboard"
+						color: Theme.highlightColor
+					}
+
+					Label {
+						anchors.verticalCenter: parent.verticalCenter
+						text: futoHandler.desktopModifierStatusText
+						color: Theme.highlightColor
+						font.pixelSize: Theme.fontSizeSmall
+						truncationMode: TruncationMode.Fade
+					}
+				}
+
+				MouseArea {
+					anchors.fill: parent
+					onClicked: futoHandler.clearDesktopModifiers()
+				}
+			}
 
 			Item {
 				anchors.fill: parent
@@ -2284,6 +2686,8 @@ InputHandler {
                 anchors.fill: parent
                 z: 2
                 visible: topStrip.stripRequired
+                         && !topStrip.cursorStatusVisible
+					 && !topStrip.modifierStatusVisible
                          && !topStrip.emojiTabsVisible
                          && !topStrip.emojiSearchVisible
                          && !topStrip.symbolTabsVisible
@@ -2866,14 +3270,36 @@ InputHandler {
                         BackgroundItem {
                             id: quickActionButton
                             property string actionId: String(modelData)
+                            property bool languageHoldConsumed: false
                             readonly property bool selectedAction:
                                 (actionId === "incognito" && futoHandler.incognitoMode)
                                 || (actionId === "microphone"
                                     && futoHandler.voiceRecording)
+                                || (actionId === "sound"
+                                    && keyboardSettings.keySoundEnabled)
+								|| (actionId === "desktopkeys"
+								    && keyboardSettings.desktopToolbarEnabled)
                             width: configuredControlButtons.buttonWidth
                             height: configuredControlButtons.height
                             clip: true
-                            onClicked: futoHandler.activateQuickSetting(actionId)
+                            onPressedChanged: {
+                                if (pressed)
+                                    languageHoldConsumed = false
+                            }
+                            onPressAndHold: {
+                                if (actionId === "language") {
+                                    // Consume the hold even when FUTO is the
+                                    // only active keyboard; releasing must not
+                                    // turn it into an ordinary layout tap.
+                                    languageHoldConsumed = true
+                                    futoHandler.switchToNextSailfishKeyboard()
+                                }
+                            }
+                            onClicked: {
+                                if (!languageHoldConsumed)
+                                    futoHandler.activateQuickSetting(actionId)
+                                languageHoldConsumed = false
+                            }
 
                             Column {
                                 anchors.centerIn: parent
@@ -3002,6 +3428,70 @@ InputHandler {
                 }
             }
 
+            Item {
+                id: quickSettingsLeftOverflowFade
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: Math.min(Theme.paddingLarge * 1.6, parent.width / 9)
+                z: 30
+                clip: true
+                visible: configuredControlButtons.visible
+                         && configuredControlButtons.contentWidth
+                            > configuredControlButtons.width + 1
+                         && configuredControlButtons.contentX > 1
+
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: parent.height
+                    height: parent.width
+                    rotation: -90
+                    gradient: Gradient {
+                        GradientStop {
+                            position: 0
+                            color: Theme.rgba(Theme.primaryColor, 0.16)
+                        }
+                        GradientStop {
+                            position: 1
+                            color: Theme.rgba(Theme.primaryColor, 0.0)
+                        }
+                    }
+                }
+            }
+
+            Item {
+                id: quickSettingsRightOverflowFade
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: Math.min(Theme.paddingLarge * 1.6, parent.width / 9)
+                z: 30
+                clip: true
+                visible: configuredControlButtons.visible
+                         && configuredControlButtons.contentWidth
+                            > configuredControlButtons.width + 1
+                         && configuredControlButtons.contentX
+                            < configuredControlButtons.contentWidth
+                              - configuredControlButtons.width - 1
+
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: parent.height
+                    height: parent.width
+                    rotation: -90
+                    gradient: Gradient {
+                        GradientStop {
+                            position: 0
+                            color: Theme.rgba(Theme.primaryColor, 0.0)
+                        }
+                        GradientStop {
+                            position: 1
+                            color: Theme.rgba(Theme.primaryColor, 0.16)
+                        }
+                    }
+                }
+            }
+
         }
     }
 
@@ -3014,11 +3504,13 @@ InputHandler {
             // letter page. Keeping it alive on 123 or a tool page caused stale
             // predictions to cover the landscape picker and control surfaces.
             readonly property bool predictionsVisible: activeLayout
+					&& futoHandler.activeDesktopModifiers === 0
                     && !activeLayout.attributes.inSymView
                     && !activeLayout.attributes.inSymView2
                     && !activeLayout.emojiMode
                     && !activeLayout.emojiSearchMode
                     && !activeLayout.extendedSymbolMode
+					&& !activeLayout.extraKeysMode
                     && !activeLayout.controlMode
                     && !activeLayout.layoutEditorMode
                     && !activeLayout.clipboardMode
@@ -3095,6 +3587,7 @@ InputHandler {
         if (!editorSessionActive) {
 			cancelVoiceInput()
 			cancelSwipeSession()
+			clearDesktopModifiers()
 			cancelCredentialAutofill(false)
 			resetPasswordVault(true)
 			credentialOfferDismissedForFocus = false
@@ -3191,6 +3684,7 @@ InputHandler {
 					futoHandler.offerCapturedCredential()
 				}
                 futoHandler.cancelVoiceInput()
+				futoHandler.clearDesktopModifiers()
             } else if (keyboardSettings.urlHistoryEnabled) {
                 editorContextTimer.restart()
                 urlSuggestionTimer.restart()
@@ -3767,6 +4261,10 @@ InputHandler {
         // Custom keys marked manualFeedbackOnPress already play on touch-down.
         playAutomaticKeySound(pressedKey)
         typingContinued()
+		if (handleArmedDesktopModifierKey(pressedKey)) {
+			resetSwipePath()
+			return true
+		}
 		captureEditorKey(pressedKey)
 		captureCredentialKey(pressedKey)
 		if (finishSwipeGesture())
@@ -3854,7 +4352,14 @@ InputHandler {
             handled = true
         } else if (pressedKey.text.length !== 0) {
             if (isInputCharacter(pressedKey.text)) {
-                if (editingWord !== "") {
+                if (immediateCommitField) {
+					if (preedit !== "")
+						commit(preedit)
+					MInputMethodQuick.sendCommit(pressedKey.text)
+					clearEditingWord()
+					if (keyboard.shiftState !== ShiftState.LockedShift)
+						keyboard.shiftState = ShiftState.NoShift
+				} else if (editingWord !== "") {
                     MInputMethodQuick.sendCommit(pressedKey.text)
                     clearEditingWord()
                     editorContextTimer.restart()
@@ -3926,7 +4431,8 @@ InputHandler {
 	}
 
 	function swipeKeyAllowed(key) {
-		if (spacebarGestureActive || !key || key.swipeTypingKey !== true
+		if (spacebarGestureActive || activeDesktopModifiers !== 0
+				|| !key || key.swipeTypingKey !== true
 				|| !keyboardSettings.swipeTypingEnabled
 				|| !active || passwordField || !activePredictionsAvailable
 				|| MInputMethodQuick.hasSelection || keyboard.inSymView)
@@ -3934,10 +4440,10 @@ InputHandler {
 		var layout = keyboard.layout
 		if (!layout || layout.emojiMode || layout.emojiSearchMode || layout.controlMode
 				|| layout.extendedSymbolMode || layout.layoutEditorMode
-				|| layout.clipboardMode || layout.numpadMode)
+				|| layout.extraKeysMode || layout.clipboardMode || layout.numpadMode)
 			return false
 		var caption = String(key.caption || "")
-		return caption.length === 1 && KeyboardSupport.isLetter(caption)
+		return caption.length === 1 && isLetterCharacter(caption)
 	}
 
 	function swipePointForKey(key) {
@@ -3978,7 +4484,7 @@ InputHandler {
 			return
 		if (item.swipeTypingKey === true && item.visible && item.active) {
 			var caption = String(item.caption || "")
-			if (caption.length === 1 && KeyboardSupport.isLetter(caption)) {
+			if (caption.length === 1 && isLetterCharacter(caption)) {
 				var code = caption.charCodeAt(0)
 				if (!seen[code]) {
 					var point = swipePointForKey(item)
@@ -4019,13 +4525,36 @@ InputHandler {
 	function beginSpacebarGesture() {
 		spacebarGestureGuard.stop()
 		spacebarGestureActive = true
+		cursorMoveMode = false
+		cursorSelectionMode = false
 		cancelSwipeSession()
 		if (keyboard.closeSwipeActive !== undefined)
 			keyboard.closeSwipeActive = false
 	}
 
+	function beginCursorMoveMode() {
+		// Cursor mode may only be entered by a currently pressed Space gesture.
+		// Never resurrect a gesture from a late QML Timer callback after release.
+		if (!spacebarGestureActive) {
+			cursorMoveMode = false
+			return
+		}
+		cursorMoveMode = true
+	}
+
+	function beginCursorSelection() {
+		if (spacebarGestureActive && cursorMoveMode)
+			cursorSelectionMode = true
+	}
+
+	function endCursorSelection() {
+		cursorSelectionMode = false
+	}
+
 	function endSpacebarGesture(delayed) {
 		cancelSwipeSession()
+		cursorMoveMode = false
+		cursorSelectionMode = false
 		if (delayed) {
 			// KeyboardBase can deliver the release/click after the Space MouseArea.
 			// Keep swallowing that tail briefly so no crossed letter is committed.
@@ -4040,7 +4569,11 @@ InputHandler {
 		id: spacebarGestureGuard
 		interval: 120
 		repeat: false
-		onTriggered: futoHandler.spacebarGestureActive = false
+		onTriggered: {
+			futoHandler.spacebarGestureActive = false
+			futoHandler.cursorMoveMode = false
+			futoHandler.cursorSelectionMode = false
+		}
 	}
 
 	function finishSwipeGesture() {
@@ -4157,19 +4690,70 @@ InputHandler {
         return true
     }
 
-    function isInputCharacter(character) {
-        return KeyboardSupport.isLetter(character) || "'-’".indexOf(character) >= 0
+    function isLetterCharacter(character) {
+        character = String(character || "")
+        if (character.length !== 1)
+            return false
+
+		// KeyboardSupport.isLetter() was added after Sailfish OS 5.1. Prefer the
+		// platform implementation where available, but keep the input handler
+		// usable on older releases instead of throwing during every key click.
+		if (KeyboardSupport
+		        && typeof KeyboardSupport.isLetter === "function")
+			return KeyboardSupport.isLetter(character)
+
+		// Case conversion covers all Latin and Cyrillic layouts. Arabic and
+		// Hebrew are uncased, so include their letter blocks explicitly while
+		// excluding the punctuation and digit ranges in those scripts.
+		if (character.toLocaleUpperCase() !== character.toLocaleLowerCase())
+			return true
+		var code = character.charCodeAt(0)
+		return (code >= 0x05d0 && code <= 0x05ea)
+		        || (code >= 0x05ef && code <= 0x05f2)
+		        || (code >= 0x0620 && code <= 0x063f)
+		        || (code >= 0x0641 && code <= 0x064a)
+		        || (code >= 0x066e && code <= 0x066f)
+		        || (code >= 0x0671 && code <= 0x06d3)
+		        || code === 0x06d5
+		        || (code >= 0x06ee && code <= 0x06ef)
+		        || (code >= 0x06fa && code <= 0x06fc)
+		        || code === 0x06ff
+		        || (code >= 0x0750 && code <= 0x077f)
+		        || (code >= 0x08a0 && code <= 0x08c7)
+		        || (code >= 0xfb1d && code <= 0xfdff)
+		        || (code >= 0xfe70 && code <= 0xfefc)
     }
 
-    function sendCursorSteps(steps) {
-        var key = steps < 0 ? Qt.Key_Left : Qt.Key_Right
-        for (var i = 0; i < Math.abs(steps); ++i)
-            MInputMethodQuick.sendKey(key, 0, "", Maliit.KeyClick)
+    function isInputCharacter(character) {
+        return isLetterCharacter(character) || "'-’".indexOf(character) >= 0
+    }
+
+    function sendCursorSteps(horizontalSteps, verticalSteps) {
+		var modifiers = cursorSelectionMode ? Qt.ShiftModifier : 0
+        horizontalSteps = Math.round(Number(horizontalSteps || 0))
+        verticalSteps = Math.round(Number(verticalSteps || 0))
+        var horizontalKey = horizontalSteps < 0 ? Qt.Key_Left : Qt.Key_Right
+        for (var i = 0; i < Math.abs(horizontalSteps); ++i)
+			MInputMethodQuick.sendKey(horizontalKey, modifiers, "", Maliit.KeyClick)
+        var verticalKey = verticalSteps < 0 ? Qt.Key_Up : Qt.Key_Down
+        for (var j = 0; j < Math.abs(verticalSteps); ++j)
+			MInputMethodQuick.sendKey(verticalKey, modifiers, "", Maliit.KeyClick)
     }
 
     function moveCursor(steps) {
-        steps = Math.max(-24, Math.min(24, Math.round(Number(steps))))
-        if (!isFinite(steps) || steps === 0)
+        moveCursor2D(steps, 0)
+    }
+
+    function moveCursor2D(horizontalSteps, verticalSteps) {
+        horizontalSteps = Math.max(-24, Math.min(24,
+                                   Math.round(Number(horizontalSteps))))
+        verticalSteps = Math.max(-12, Math.min(12,
+                                 Math.round(Number(verticalSteps))))
+        if (!isFinite(horizontalSteps))
+            horizontalSteps = 0
+        if (!isFinite(verticalSteps))
+            verticalSteps = 0
+        if (horizontalSteps === 0 && verticalSteps === 0)
             return
         if (preedit !== "") {
             learn(preedit)
@@ -4180,11 +4764,13 @@ InputHandler {
         // those keys. Queue them for the next event-loop turn so cursor
         // control works there exactly as it does in ordinary text fields.
         if (urlField) {
-            pendingCursorSteps = Math.max(-48, Math.min(48,
-                                         pendingCursorSteps + steps))
+			pendingCursorHorizontalSteps = Math.max(-48, Math.min(48,
+			        pendingCursorHorizontalSteps + horizontalSteps))
+			pendingCursorVerticalSteps = Math.max(-24, Math.min(24,
+			        pendingCursorVerticalSteps + verticalSteps))
             cursorMoveTimer.restart()
         } else {
-            sendCursorSteps(steps)
+            sendCursorSteps(horizontalSteps, verticalSteps)
         }
         predictionModel.clear()
         nextWordMode = false
@@ -4197,10 +4783,12 @@ InputHandler {
         interval: 1
         repeat: false
         onTriggered: {
-            var steps = futoHandler.pendingCursorSteps
-            futoHandler.pendingCursorSteps = 0
-            if (steps !== 0)
-                futoHandler.sendCursorSteps(steps)
+            var horizontalSteps = futoHandler.pendingCursorHorizontalSteps
+            var verticalSteps = futoHandler.pendingCursorVerticalSteps
+			futoHandler.pendingCursorHorizontalSteps = 0
+			futoHandler.pendingCursorVerticalSteps = 0
+			if (horizontalSteps !== 0 || verticalSteps !== 0)
+				futoHandler.sendCursorSteps(horizontalSteps, verticalSteps)
         }
     }
 

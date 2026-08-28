@@ -14,6 +14,11 @@ CharacterKey {
     property string popupHighlightedText: ""
     property var managedPopperTimer: null
     property bool popupAlways: symbolPopupChoices(baseKeyText()) !== ""
+	readonly property bool gesturePreviewSuppressed: keyboard.inputHandler
+			&& ((keyboard.inputHandler.spacebarGestureActive !== undefined
+			     && keyboard.inputHandler.spacebarGestureActive)
+			    || (keyboard.inputHandler.swipePath !== undefined
+			        && keyboard.inputHandler.swipePath.length > 1))
     // FutoInputHandler uses this marker to collect only the visible letter
     // keys when building a layout-specific swipe trajectory.
     property bool swipeTypingKey: true
@@ -279,6 +284,7 @@ CharacterKey {
                           * Math.max(0.8, Math.min(1.3, visualSettings.keyFontScale)))
     fontSizeMode: Text.Fit
     showPopper: visualSettings.keyPreviewEnabled
+				&& !gesturePreviewSuppressed
                 && !(visualSettings.hideKeyPreviewsInIncognito
                      && keyboard.layout
                      && keyboard.layout.effectiveIncognitoMode !== undefined
@@ -304,7 +310,7 @@ CharacterKey {
     }
 
     onPressedChanged: {
-        if (pressed)
+		if (pressed && !gesturePreviewSuppressed)
             armSecondaryPopup()
         else
             cancelSecondaryPopup()
@@ -323,7 +329,9 @@ CharacterKey {
 		anchors.rightMargin: anchors.topMargin + futoKey.rightPadding
         radius: Theme.paddingSmall
         z: -2
-        color: Theme.rgba(parent.palette.primaryColor, parent.pressed ? 0.24 : 0.12)
+        color: Theme.rgba(parent.palette.primaryColor,
+				          parent.pressed && !parent.gesturePreviewSuppressed
+				          ? 0.24 : 0.12)
         border.width: 1
         border.color: Theme.rgba(parent.palette.primaryColor, 0.12)
         visible: visualSettings.separatedKeysEnabled

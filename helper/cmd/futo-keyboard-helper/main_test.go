@@ -770,6 +770,24 @@ func TestDistinctiveLettersPreferTheirLanguage(t *testing.T) {
 	if languageRuneBonus("PL", "żółty") <= languageRuneBonus("DE", "żółty") {
 		t.Fatal("Polish letters did not prefer Polish")
 	}
+	if languageRuneBonus("EL", "καλημέρα") <= languageRuneBonus("EN", "καλημέρα") {
+		t.Fatal("Greek letters did not prefer Greek")
+	}
+	if languageRuneBonus("RU", "привет") <= languageRuneBonus("EL", "привет") {
+		t.Fatal("Cyrillic letters did not prefer Russian")
+	}
+	if languageRuneBonus("SR", "српски") <= languageRuneBonus("EN", "српски") {
+		t.Fatal("Serbian Cyrillic letters did not prefer Serbian")
+	}
+	if languageRuneBonus("SR_LATN", "ćirilica") <= languageRuneBonus("EN", "ćirilica") {
+		t.Fatal("Serbian Latin letters did not prefer Serbian Latin")
+	}
+}
+
+func TestVoiceLanguageCodesIncludeSerbianScripts(t *testing.T) {
+	if got := voiceLanguageCodes("SR,SR_LATN,RU,EL"); got != "sr,ru,el" {
+		t.Fatalf("voiceLanguageCodes() = %q, want %q", got, "sr,ru,el")
+	}
 }
 
 func TestCompoundPartsHandlesUnicodeApostrophe(t *testing.T) {
