@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	securezip "github.com/yeka/zip"
 )
 
 func testEncryptionKey() []byte {
@@ -443,6 +445,127 @@ func TestPasswordCSVRejectsAmbiguousOrUnsupportedHeaders(t *testing.T) {
 		if _, err := store.importCSV(path); err == nil {
 			t.Fatalf("unsupported CSV was accepted: %q", csvData)
 		}
+	}
+}
+
+func TestPasswordZIPExportSeparatesAndRestoresWebAndAppAccounts(t *testing.T) {
+	directory := t.TempDir()
+	source := newVaultStore(filepath.Join(directory, "source-vault.json"))
+	if err := source.open(testEncryptionKey(), true); err != nil {
+		t.Fatal(err)
+	}
+	entries := []struct {
+		label, origin, username, password string
+	}{
+		{"Example website", "https://example.com/login", "web-user", "web-secret"},
+		{"Example app", "app://com.example.app", "app-user", "app-secret"},
+		{"Older app entry", "", "other-user", "other-secret"},
+	}
+	for _, entry := range entries {
+		if saved, err := source.upsert(entry.label, entry.origin, entry.username,
+			entry.password); err != nil || !saved {
+			t.Fatalf("upsert(%q) = %v, %v", entry.label, saved, err)
+		}
+	}
+	service := &service{
+		vault: source, backupDirectory: filepath.Join(directory, "FUTO-Keyboard"),
+		documentsDir: directory,
+	}
+	fixedTime := time.Date(2026, 8, 28, 3, 4, 5, 0, time.UTC)
+	exported, err := service.exportCredentials("correct horse", fixedTime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exported.Websites != 1 || exported.Apps != 2 || !exported.Protected {
+		t.Fatalf("export result = %#v", exported)
+	}
+	if filepath.Base(exported.Path) != "FUTO-Passwords-2026-08-28_03-04-05.zip" {
+		t.Fatalf("export path = %q", exported.Path)
+	}
+	if info, err := os.Stat(exported.Path); err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("export permissions = %v, %v", info, err)
+	}
+	selected, err := selectedPasswordImportPath(
+		(&url.URL{Scheme: "file", Path: exported.Path}).String())
+	if err != nil || selected != exported.Path {
+		t.Fatalf("selected ZIP = %q, %v", selected, err)
+	}
+
+	archive, err := securezip.OpenReader(exported.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := make(map[string][]byte)
+	for _, file := range archive.File {
+		data, readErr := readCredentialArchiveFile(file, "correct horse")
+		if readErr != nil {
+			_ = archive.Close()
+			t.Fatal(readErr)
+		}
+		files[file.Name] = data
+	}
+	_ = archive.Close()
+	for _, name := range []string{credentialArchiveManifestName,
+		credentialWebChromiumName, credentialWebFirefoxName, credentialAppName,
+		credentialArchiveReadmeName} {
+		if _, ok := files[name]; !ok {
+			t.Fatalf("missing %s from ZIP", name)
+		}
+	}
+	if bytes.Contains(files[credentialWebChromiumName], []byte("app://")) ||
+		!bytes.Contains(files[credentialAppName], []byte("app://com.example.app")) {
+		t.Fatal("website and app accounts were not separated")
+	}
+	if !bytes.Contains(files[credentialWebChromiumName], []byte("web-secret")) ||
+		!bytes.Contains(files[credentialWebFirefoxName], []byte("web-secret")) {
+		t.Fatal("browser CSVs did not preserve the website password")
+	}
+
+	destination := newVaultStore(filepath.Join(directory, "destination-vault.json"))
+	if err := destination.open(bytes.Repeat([]byte{0x45}, 32), true); err != nil {
+		t.Fatal(err)
+	}
+	if result, err := destination.importCredentialZIP(exported.Path, ""); err == nil ||
+		!strings.Contains(err.Error(), "password") || result.Imported != 0 {
+		t.Fatalf("empty ZIP password = %#v, %v", result, err)
+	}
+	if result, err := destination.importCredentialZIP(exported.Path, "wrong"); err == nil ||
+		!strings.Contains(err.Error(), "password") || result.Imported != 0 {
+		t.Fatalf("wrong ZIP password = %#v, %v", result, err)
+	}
+	result, err := destination.importCredentialZIP(exported.Path, "correct horse")
+	if err != nil || result.Imported != 3 {
+		t.Fatalf("ZIP restore = %#v, %v", result, err)
+	}
+	restored, err := destination.list()
+	if err != nil || len(restored) != 3 {
+		t.Fatalf("restored entries = %#v, %v", restored, err)
+	}
+}
+
+func TestUnprotectedPasswordZIPRestoresWithoutPassword(t *testing.T) {
+	directory := t.TempDir()
+	source := newVaultStore(filepath.Join(directory, "source-vault.json"))
+	if err := source.open(testEncryptionKey(), true); err != nil {
+		t.Fatal(err)
+	}
+	if saved, err := source.upsert("Example", "https://example.org", "person",
+		"secret"); err != nil || !saved {
+		t.Fatalf("upsert = %v, %v", saved, err)
+	}
+	service := &service{vault: source, backupDirectory: directory,
+		documentsDir: directory}
+	exported, err := service.exportCredentials("", time.Now())
+	if err != nil || exported.Protected {
+		t.Fatalf("unprotected export = %#v, %v", exported, err)
+	}
+	destination := newVaultStore(filepath.Join(directory, "destination-vault.json"))
+	if err := destination.open(bytes.Repeat([]byte{0x46}, 32), true); err != nil {
+		t.Fatal(err)
+	}
+	result, err := destination.importCredentialZIP(exported.Path, "")
+	if err != nil || result.Imported != 1 {
+		t.Fatalf("unprotected restore = %#v, %v", result, err)
 	}
 }
 

@@ -380,6 +380,17 @@ Page {
                                 "vaultHelper": helper
                             })
                 }
+
+				FutoSettingsMenuItem {
+					width: parent.width
+					text: qsTr("Export passwords")
+					iconSource: "image://theme/icon-m-data-upload"
+					onClicked: pageStack.animatorPush(
+							Qt.resolvedUrl("FutoPasswordExportPage.qml"), {
+								"vaultToken": page.vaultToken,
+								"vaultHelper": helper
+							})
+				}
             }
 
             Column {

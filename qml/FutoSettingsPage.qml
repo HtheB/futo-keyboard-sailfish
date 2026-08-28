@@ -99,7 +99,7 @@ Page {
         settings.quickSettingsEnabled =
                 "language,layouts,keyboardmode,clipboard,emoji,microphone,incognito,settings"
         settings.emojiLongPressEnabled = true
-        settings.emojiStyle = 0
+        settings.emojiStyle = 3
         settings.emojiSkinTone = 0
         settings.emojiSizeScale = 1.0
         settings.layoutVariant = 0
@@ -192,7 +192,7 @@ Page {
         property string quickSettingsEnabled:
             "language,layouts,keyboardmode,clipboard,emoji,microphone,incognito,settings"
         property bool emojiLongPressEnabled: true
-        property int emojiStyle: 0
+        property int emojiStyle: 3
         property int emojiSkinTone: 0
         property real emojiSizeScale: 1.0
         property int layoutVariant: 0

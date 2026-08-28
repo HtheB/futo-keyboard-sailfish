@@ -36,7 +36,7 @@ This project brings the FUTO typing experience to Sailfish OS while adding many 
 - Complete Emoji 17 collection
 - Emoji search using your enabled languages
 - Categories, favourites, recently used emoji, and skin tones
-- Twemoji, OpenMoji, and Noto Color Emoji styles
+- Built-in Sailfish OS emojis, plus downloadable Twemoji, OpenMoji, and Noto Color Emoji styles
 - Large categorized symbol collection
 - Favourite symbols for quick access
 
@@ -47,6 +47,7 @@ This project brings the FUTO typing experience to Sailfish OS while adding many 
 - Automatic protection while entering passwords
 - Encrypted learned words and URL history
 - Encrypted password manager protected by your device code or fingerprint
+- Password import and export, with optional AES-256 ZIP protection
 - Clipboard history with pinned entries and automatic cleanup
 - No account or online service required for typing, predictions, or voice input
 

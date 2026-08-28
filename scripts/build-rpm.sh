@@ -57,6 +57,10 @@ for style in twemoji openmoji noto; do
             "$STAGING/$NAME-$VERSION/emoji/$style/$codepoint.$extension"
     done
 done
+for codepoint in 1f550 1f600 1f44b 1f43b 1f354 1f697 26bd 1f4a1 2764 1f3f3; do
+    cp "$ROOT/emoji/noto/$codepoint.png" \
+        "$STAGING/$NAME-$VERSION/emoji/noto/$codepoint.png"
+done
 find "$STAGING/$NAME-$VERSION" -type d -exec chmod 0755 {} +
 find "$STAGING/$NAME-$VERSION" -type f -exec chmod 0644 {} +
 chmod 0755 "$STAGING/$NAME-$VERSION/scripts/"*.sh \

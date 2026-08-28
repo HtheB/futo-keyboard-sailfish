@@ -2395,9 +2395,12 @@ InputHandler {
                             height: width
                             fillMode: Image.PreserveAspectFit
                             smooth: true
-                            asynchronous: true
-                            source: keyboardLayout.emojiAssetPath(
-                                        keyboardLayout.emojiTabIconCode(index))
+                            // Category icons are tiny local assets.  Loading
+                            // them synchronously avoids a visibly empty tab
+							// strip. These tiny bundled PNGs do not depend on a
+							// downloaded emoji style or SVG loader state.
+                            asynchronous: false
+							source: keyboardLayout.emojiTabAssetPath(index)
                             opacity: index === keyboardLayout.emojiPage ? 1.0 : 0.62
                         }
 

@@ -31,6 +31,7 @@ import (
 
 	"github.com/godbus/dbus/v5"
 	"github.com/godbus/dbus/v5/introspect"
+	securezip "github.com/yeka/zip"
 )
 
 const (
@@ -1907,13 +1908,50 @@ func (store *vaultStore) secret(id, field string) (string, error) {
 	return "", errors.New("credential not found")
 }
 
-type credentialImportResult struct {
-	Imported int    `json:"imported"`
-	Skipped  int    `json:"skipped"`
-	Path     string `json:"path"`
-	Source   string `json:"source,omitempty"`
-	Error    string `json:"error,omitempty"`
+func (store *vaultStore) snapshot() ([]credentialEntry, error) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if !store.unlockedLocked() {
+		return nil, errors.New("password vault is locked")
+	}
+	store.lastAccess = time.Now()
+	entries := make([]credentialEntry, len(store.entries))
+	copy(entries, store.entries)
+	return entries, nil
 }
+
+type credentialImportResult struct {
+	Imported         int    `json:"imported"`
+	Skipped          int    `json:"skipped"`
+	Path             string `json:"path"`
+	Source           string `json:"source,omitempty"`
+	PasswordRequired bool   `json:"passwordRequired,omitempty"`
+	Error            string `json:"error,omitempty"`
+}
+
+type credentialExportResult struct {
+	Path      string `json:"path,omitempty"`
+	Websites  int    `json:"websites"`
+	Apps      int    `json:"apps"`
+	Protected bool   `json:"protected"`
+	Error     string `json:"error,omitempty"`
+}
+
+type credentialArchiveManifest struct {
+	Format       string   `json:"format"`
+	Version      int      `json:"version"`
+	CreatedAt    string   `json:"createdAt"`
+	RestoreFiles []string `json:"restoreFiles"`
+}
+
+const (
+	credentialArchiveFormat       = "futo-keyboard-password-export"
+	credentialArchiveManifestName = "futo-password-export.json"
+	credentialWebChromiumName     = "web-passwords-chromium.csv"
+	credentialWebFirefoxName      = "web-passwords-firefox.csv"
+	credentialAppName             = "futo-app-passwords.csv"
+	credentialArchiveReadmeName   = "README.txt"
+)
 
 func normalizedCSVHeader(value string) string {
 	value = strings.TrimPrefix(value, "\ufeff")
@@ -2080,18 +2118,10 @@ func csvValueAt(row []string, columns map[string]int, names ...string) string {
 	return ""
 }
 
-func (store *vaultStore) importCSV(path string) (credentialImportResult, error) {
+func (store *vaultStore) importCSVReader(source io.Reader,
+	path string) (credentialImportResult, error) {
 	result := credentialImportResult{Path: path}
-	info, err := os.Stat(path)
-	if err != nil || !info.Mode().IsRegular() || info.Size() > 20*1024*1024 {
-		return result, errors.New("password CSV was not found or is too large")
-	}
-	file, err := os.Open(path)
-	if err != nil {
-		return result, err
-	}
-	defer file.Close()
-	reader := csv.NewReader(io.LimitReader(file, 20*1024*1024))
+	reader := csv.NewReader(io.LimitReader(source, 20*1024*1024))
 	reader.FieldsPerRecord = -1
 	headers, err := reader.Read()
 	if err != nil {
@@ -2142,6 +2172,296 @@ func (store *vaultStore) importCSV(path string) (credentialImportResult, error) 
 		} else {
 			result.Skipped++
 		}
+	}
+	return result, nil
+}
+
+func (store *vaultStore) importCSV(path string) (credentialImportResult, error) {
+	result := credentialImportResult{Path: path}
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Size() > 20*1024*1024 {
+		return result, errors.New("password CSV was not found or is too large")
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return result, err
+	}
+	defer file.Close()
+	return store.importCSVReader(file, path)
+}
+
+type credentialArchiveFile struct {
+	name string
+	data []byte
+}
+
+func encodeCredentialCSV(headers []string, rows [][]string) ([]byte, error) {
+	var buffer bytes.Buffer
+	writer := csv.NewWriter(&buffer)
+	if err := writer.Write(headers); err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		if err := writer.Write(row); err != nil {
+			return nil, err
+		}
+	}
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+func buildCredentialArchive(entries []credentialEntry,
+	createdAt time.Time) ([]credentialArchiveFile, int, int, error) {
+	chromiumRows := make([][]string, 0, len(entries))
+	firefoxRows := make([][]string, 0, len(entries))
+	appRows := make([][]string, 0, len(entries))
+	for _, entry := range entries {
+		switch {
+		case strings.HasPrefix(entry.Origin, "http://") ||
+			strings.HasPrefix(entry.Origin, "https://"):
+			chromiumRows = append(chromiumRows, []string{
+				entry.Label, entry.Origin, entry.Username, entry.Password, "",
+			})
+			firefoxRows = append(firefoxRows, []string{
+				entry.Origin, entry.Username, entry.Password, "",
+			})
+		default:
+			appRows = append(appRows, []string{
+				entry.Label, entry.Origin, entry.Username, entry.Password,
+			})
+		}
+	}
+
+	chromiumData, err := encodeCredentialCSV(
+		[]string{"name", "url", "username", "password", "note"}, chromiumRows)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	firefoxData, err := encodeCredentialCSV(
+		[]string{"url", "username", "password", "httpRealm"}, firefoxRows)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	appData, err := encodeCredentialCSV(
+		[]string{"name", "origin", "username", "password"}, appRows)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	manifestData, err := json.MarshalIndent(credentialArchiveManifest{
+		Format: credentialArchiveFormat, Version: 1,
+		CreatedAt:    createdAt.UTC().Format(time.RFC3339),
+		RestoreFiles: []string{credentialWebChromiumName, credentialAppName},
+	}, "", "  ")
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	readme := []byte("FUTO Keyboard password export\n\n" +
+		"Restore the ZIP directly from FUTO Keyboard's Import passwords page.\n" +
+		"For Chrome, Chromium, Edge, Brave and similar browsers, extract and import " +
+		credentialWebChromiumName + ".\n" +
+		"For Firefox, extract and import " + credentialWebFirefoxName + ".\n" +
+		credentialAppName + " contains native and Android app accounts for FUTO only.\n\n" +
+		"The CSV files contain plaintext passwords after extraction. Keep them private " +
+		"and remove extracted copies after importing.\n")
+	files := []credentialArchiveFile{
+		{name: credentialArchiveManifestName, data: manifestData},
+		{name: credentialWebChromiumName, data: chromiumData},
+		{name: credentialWebFirefoxName, data: firefoxData},
+		{name: credentialAppName, data: appData},
+		{name: credentialArchiveReadmeName, data: readme},
+	}
+	return files, len(chromiumRows), len(appRows), nil
+}
+
+func writeCredentialZIP(path, password string, files []credentialArchiveFile) error {
+	output, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return err
+	}
+	succeeded := false
+	defer func() {
+		_ = output.Close()
+		if !succeeded {
+			_ = os.Remove(path)
+		}
+	}()
+
+	archive := securezip.NewWriter(output)
+	for _, file := range files {
+		var target io.Writer
+		if password == "" {
+			target, err = archive.Create(file.name)
+		} else {
+			target, err = archive.Encrypt(file.name, password,
+				securezip.AES256Encryption)
+		}
+		if err != nil {
+			_ = archive.Close()
+			return err
+		}
+		if _, err = target.Write(file.data); err != nil {
+			_ = archive.Close()
+			return err
+		}
+	}
+	if err := archive.Close(); err != nil {
+		return err
+	}
+	if err := output.Sync(); err != nil {
+		return err
+	}
+	if err := output.Close(); err != nil {
+		return err
+	}
+	succeeded = true
+	return nil
+}
+
+func (service *service) exportCredentials(password string,
+	timestamp time.Time) (credentialExportResult, error) {
+	result := credentialExportResult{Protected: password != ""}
+	if len(password) > 1024 || strings.IndexFunc(password, func(character rune) bool {
+		return character == '\x00' || character == '\r' || character == '\n'
+	}) >= 0 {
+		return result, errors.New("export password is too long or contains unsupported characters")
+	}
+	entries, err := service.vault.snapshot()
+	if err != nil {
+		return result, err
+	}
+	files, websites, apps, err := buildCredentialArchive(entries, timestamp)
+	for index := range entries {
+		entries[index].Password = ""
+	}
+	if err != nil {
+		return result, err
+	}
+	defer func() {
+		for _, file := range files {
+			zeroBytes(file.data)
+		}
+	}()
+
+	directory := service.backupDirectory
+	if directory == "" {
+		directory = filepath.Join(service.documentsDir, "FUTO-Keyboard")
+	}
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		return result, err
+	}
+	if err := os.Chmod(directory, 0o700); err != nil {
+		return result, err
+	}
+	base := "FUTO-Passwords-" + timestamp.Format("2006-01-02_15-04-05")
+	for sequence := 1; sequence <= 1000; sequence++ {
+		name := base
+		if sequence > 1 {
+			name += "-" + strconv.Itoa(sequence)
+		}
+		path := filepath.Join(directory, name+".zip")
+		err = writeCredentialZIP(path, password, files)
+		if os.IsExist(err) {
+			continue
+		}
+		if err != nil {
+			return result, err
+		}
+		result.Path = path
+		result.Websites = websites
+		result.Apps = apps
+		return result, nil
+	}
+	return result, errors.New("could not create a unique password-export filename")
+}
+
+func readCredentialArchiveFile(file *securezip.File,
+	password string) ([]byte, error) {
+	if file.UncompressedSize64 > 20*1024*1024 {
+		return nil, errors.New("password CSV in ZIP is larger than 20 MB")
+	}
+	if file.IsEncrypted() {
+		if password == "" {
+			return nil, securezip.ErrPassword
+		}
+		file.SetPassword(password)
+	}
+	reader, err := file.Open()
+	if err != nil {
+		return nil, err
+	}
+	data, readErr := io.ReadAll(io.LimitReader(reader, 20*1024*1024+1))
+	closeErr := reader.Close()
+	if readErr != nil {
+		return nil, readErr
+	}
+	if closeErr != nil {
+		return nil, closeErr
+	}
+	if len(data) > 20*1024*1024 {
+		zeroBytes(data)
+		return nil, errors.New("password CSV in ZIP is larger than 20 MB")
+	}
+	return data, nil
+}
+
+func (store *vaultStore) importCredentialZIP(path,
+	password string) (credentialImportResult, error) {
+	result := credentialImportResult{Path: path, Source: "FUTO password ZIP"}
+	archive, err := securezip.OpenReader(path)
+	if err != nil {
+		return result, err
+	}
+	defer archive.Close()
+	wanted := map[string]bool{
+		credentialArchiveManifestName: true,
+		credentialWebChromiumName:     true,
+		credentialAppName:             true,
+	}
+	contents := make(map[string][]byte)
+	defer func() {
+		for _, data := range contents {
+			zeroBytes(data)
+		}
+	}()
+	for _, file := range archive.File {
+		if file.Name != filepath.Base(file.Name) || !wanted[file.Name] {
+			continue
+		}
+		if _, duplicate := contents[file.Name]; duplicate {
+			return result, errors.New("password ZIP contains duplicate files")
+		}
+		data, readErr := readCredentialArchiveFile(file, password)
+		if readErr != nil {
+			return result, readErr
+		}
+		contents[file.Name] = data
+	}
+	manifestData, ok := contents[credentialArchiveManifestName]
+	if !ok {
+		return result, errors.New("password ZIP is not a FUTO password export")
+	}
+	var manifest credentialArchiveManifest
+	if err := json.Unmarshal(manifestData, &manifest); err != nil ||
+		manifest.Format != credentialArchiveFormat || manifest.Version != 1 {
+		return result, errors.New("password ZIP has an unsupported FUTO export format")
+	}
+	for _, name := range manifest.RestoreFiles {
+		if name != credentialWebChromiumName && name != credentialAppName {
+			return result, errors.New("password ZIP requests an unsafe restore file")
+		}
+		data, present := contents[name]
+		if !present {
+			return result, errors.New("password ZIP is missing a restore file")
+		}
+		part, importErr := store.importCSVReader(bytes.NewReader(data), path+"/"+name)
+		if importErr != nil {
+			return result, importErr
+		}
+		result.Imported += part.Imported
+		result.Skipped += part.Skipped
 	}
 	return result, nil
 }
@@ -4555,14 +4875,14 @@ func firstRegularFile(directory string, names []string) string {
 	return ""
 }
 
-func selectedPasswordCSVPath(value string) (string, error) {
+func selectedPasswordImportPath(value string) (string, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
-		return "", errors.New("No CSV file was selected")
+		return "", errors.New("No password export was selected")
 	}
 	if parsed, err := url.Parse(value); err == nil && parsed.Scheme != "" {
 		if parsed.Scheme != "file" {
-			return "", errors.New("Only local CSV files can be imported")
+			return "", errors.New("Only local password exports can be imported")
 		}
 		value = parsed.Path
 	}
@@ -4570,21 +4890,37 @@ func selectedPasswordCSVPath(value string) (string, error) {
 		value = decoded
 	}
 	value = filepath.Clean(value)
-	if !filepath.IsAbs(value) || !strings.EqualFold(filepath.Ext(value), ".csv") {
-		return "", errors.New("Select a local .csv password export")
+	ext := strings.ToLower(filepath.Ext(value))
+	if !filepath.IsAbs(value) || (ext != ".csv" && ext != ".zip") {
+		return "", errors.New("Select a local .csv or .zip password export")
 	}
 	resolved, err := filepath.EvalSymlinks(value)
 	if err != nil {
-		return "", errors.New("The selected CSV file could not be found")
+		return "", errors.New("The selected password export could not be found")
 	}
 	info, err := os.Stat(resolved)
 	if err != nil || !info.Mode().IsRegular() {
-		return "", errors.New("The selected CSV file could not be read")
+		return "", errors.New("The selected password export could not be read")
 	}
-	if info.Size() <= 0 || info.Size() > 20*1024*1024 {
-		return "", errors.New("The selected CSV file is empty or larger than 20 MB")
+	maximum := int64(20 * 1024 * 1024)
+	if ext == ".zip" {
+		maximum = 50 * 1024 * 1024
+	}
+	if info.Size() <= 0 || info.Size() > maximum {
+		return "", errors.New("The selected password export is empty or too large")
 	}
 	return resolved, nil
+}
+
+func selectedPasswordCSVPath(value string) (string, error) {
+	path, err := selectedPasswordImportPath(value)
+	if err != nil {
+		return "", err
+	}
+	if !strings.EqualFold(filepath.Ext(path), ".csv") {
+		return "", errors.New("Select a local .csv password export")
+	}
+	return path, nil
 }
 
 func friendlyPasswordImportError(err error) string {
@@ -4593,10 +4929,14 @@ func friendlyPasswordImportError(err error) string {
 	}
 	message := err.Error()
 	switch {
+	case errors.Is(err, securezip.ErrPassword):
+		return "The ZIP password is missing or incorrect"
 	case strings.Contains(message, "header"):
 		return "This CSV does not have a recognized password-export header"
+	case strings.Contains(message, "ZIP") || strings.Contains(message, "zip"):
+		return message
 	default:
-		return "The selected CSV could not be imported"
+		return "The selected password export could not be imported"
 	}
 }
 
@@ -4610,14 +4950,33 @@ func marshalCredentialImportResult(result credentialImportResult) (string, *dbus
 
 func (service *service) ImportPasswordsFromFile(sender dbus.Sender, token,
 	path string) (string, *dbus.Error) {
+	return service.importPasswordsFromFile(sender, token, path, "")
+}
+
+func (service *service) ImportPasswordsFromFileWithPassword(sender dbus.Sender,
+	token, path, password string) (string, *dbus.Error) {
+	return service.importPasswordsFromFile(sender, token, path, password)
+}
+
+func (service *service) importPasswordsFromFile(sender dbus.Sender, token,
+	path, password string) (string, *dbus.Error) {
 	if err := service.validateVaultSession(sender, token); err != nil {
 		return "", dbus.MakeFailedError(err)
 	}
-	selectedPath, err := selectedPasswordCSVPath(path)
+	selectedPath, err := selectedPasswordImportPath(path)
 	if err != nil {
 		return marshalCredentialImportResult(credentialImportResult{Error: err.Error()})
 	}
-	result, importErr := service.vault.importCSV(selectedPath)
+	var result credentialImportResult
+	var importErr error
+	if strings.EqualFold(filepath.Ext(selectedPath), ".zip") {
+		result, importErr = service.vault.importCredentialZIP(selectedPath, password)
+	} else {
+		result, importErr = service.vault.importCSV(selectedPath)
+	}
+	if errors.Is(importErr, securezip.ErrPassword) {
+		result.PasswordRequired = true
+	}
 	result.Error = friendlyPasswordImportError(importErr)
 	if importErr == nil {
 		if entries, listErr := service.vault.list(); listErr == nil {
@@ -4625,6 +4984,22 @@ func (service *service) ImportPasswordsFromFile(sender dbus.Sender, token,
 		}
 	}
 	return marshalCredentialImportResult(result)
+}
+
+func (service *service) ExportPasswords(sender dbus.Sender, token,
+	password string) (string, *dbus.Error) {
+	if err := service.validateVaultSession(sender, token); err != nil {
+		return "", dbus.MakeFailedError(err)
+	}
+	result, exportErr := service.exportCredentials(password, time.Now())
+	if exportErr != nil {
+		result.Error = "The password export could not be created"
+	}
+	data, err := json.Marshal(result)
+	if err != nil {
+		return "", dbus.MakeFailedError(err)
+	}
+	return string(data), nil
 }
 
 func (service *service) importBrowserPasswords(sender dbus.Sender, token string,

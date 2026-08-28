@@ -66,42 +66,47 @@ Item {
                 + "?r=" + contentRevision
     }
 
-    SilicaFlickable {
+    SilicaListView {
         id: grid
         anchors.fill: parent
         clip: true
         boundsBehavior: Flickable.StopAtBounds
-        contentWidth: width
-        contentHeight: Math.ceil(emojiGrid.entries.length / emojiGrid.columns)
-                       * cellHeight
         readonly property real cellWidth: (width - emojiGrid.splitGap)
                                           / emojiGrid.columns
         readonly property real cellHeight: cellWidth
+        model: Math.ceil(emojiGrid.entries.length / emojiGrid.columns)
 
-        function positionViewAtBeginning() {
-            contentY = 0
-        }
+        delegate: Item {
+            id: emojiRow
+            width: grid.width
+            height: grid.cellHeight
+            readonly property int rowIndex: index
+            readonly property int firstEntry: rowIndex * emojiGrid.columns
+            readonly property int entryCount: Math.min(
+                    emojiGrid.columns,
+                    Math.max(0, emojiGrid.entries.length - firstEntry))
 
-        Repeater {
-            model: emojiGrid.entries
+            Repeater {
+                model: emojiRow.entryCount
 
-            FutoEmojiKey {
-                id: emojiDelegate
-                readonly property int cellColumn: index % emojiGrid.columns
-                readonly property int cellRow: Math.floor(index / emojiGrid.columns)
-                x: cellColumn * grid.cellWidth
-                   + (emojiGrid.split && cellColumn >= emojiGrid.columns / 2
-                      ? emojiGrid.splitGap : 0)
-                y: cellRow * grid.cellHeight
-                width: grid.cellWidth
-                height: grid.cellHeight
-                emojiText: modelData.t
-                assetCode: modelData.c
-                variants: modelData.v || []
-                emojiStyle: targetLayout.emojiStyle
-                skinTone: targetLayout.emojiSkinTone
-                onToneRequested: emojiGrid.openTonePicker(emojiDelegate)
-                onEmojiCommitted: targetLayout.recordEmoji(baseCode)
+                FutoEmojiKey {
+                    id: emojiDelegate
+                    readonly property int cellColumn: index
+                    readonly property var entry:
+                            emojiGrid.entries[emojiRow.firstEntry + cellColumn]
+                    x: cellColumn * grid.cellWidth
+                       + (emojiGrid.split && cellColumn >= emojiGrid.columns / 2
+                          ? emojiGrid.splitGap : 0)
+                    width: grid.cellWidth
+                    height: grid.cellHeight
+                    emojiText: entry ? entry.t : ""
+                    assetCode: entry ? entry.c : ""
+                    variants: entry && entry.v ? entry.v : []
+                    emojiStyle: targetLayout.emojiStyle
+                    skinTone: targetLayout.emojiSkinTone
+                    onToneRequested: emojiGrid.openTonePicker(emojiDelegate)
+                    onEmojiCommitted: targetLayout.recordEmoji(baseCode)
+                }
             }
         }
 

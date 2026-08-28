@@ -21,7 +21,7 @@ CharacterKey {
     readonly property int variantCount: 1 + (variants ? variants.length : 0)
     readonly property string styleDirectory: emojiStyle === 1 ? "openmoji"
                                              : emojiStyle === 2 ? "noto"
-                                             : "twemoji"
+                                             : emojiStyle === 0 ? "twemoji" : ""
     readonly property var effectiveVariant: defaultVariant()
     readonly property int contentRevision: keyboard && keyboard.inputHandler
             && keyboard.inputHandler.contentRevision !== undefined
@@ -52,6 +52,8 @@ CharacterKey {
     }
 
     function assetPath(code, bundled) {
+        if (emojiStyle === 3)
+            return ""
         var home = String(StandardPaths.home)
         var userRoot = (home.indexOf("file://") === 0 ? home : "file://" + home)
                 + "/.local/share/futo-keyboard-sailfish/content/emoji/"
@@ -119,9 +121,15 @@ CharacterKey {
         anchors.centerIn: parent
         width: Math.min(parent.width, parent.height) * 0.72
         height: width
+		sourceSize.width: Math.max(1, Math.ceil(width))
+		sourceSize.height: Math.max(1, Math.ceil(height))
         fillMode: Image.PreserveAspectFit
         smooth: true
-        asynchronous: true
+		// The grid is row-virtualized, so only the visible cells exist. Loading
+		// these small local assets synchronously avoids Qt 5.6's slow serial
+		// asynchronous SVG queue when changing categories.
+		asynchronous: false
+		cache: true
         source: !emojiKey.effectiveVariant ? ""
                 : emojiKey.assetPath(emojiKey.effectiveVariant.c, bundledFallback)
         onStatusChanged: {

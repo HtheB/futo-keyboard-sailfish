@@ -29,6 +29,13 @@ FUTO swipe-model research:
 The added Turkish F arrangement follows X.Org `xkeyboard-config`'s
 `symbols/tr` Turkish F definition; only the visible three letter rows are used.
 
+Password ZIP encryption:
+
+- Repository: https://github.com/yeka/zip
+- Revision: `03d6312748a9`
+- Purpose: WinZip-compatible AES-256 encryption for portable password exports
+- License: MIT (`LICENSES/YEKA-ZIP-LICENSE.txt`)
+
 No exploratory prebuilt binaries are included. This project rebuilds its
 required native components from the recorded source files.
 

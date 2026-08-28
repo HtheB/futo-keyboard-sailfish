@@ -1,2 +1,6 @@
 github.com/godbus/dbus/v5 v5.1.0 h1:4KLkAxT3aOY8Li4FRJe/KvhoNFFxo0m6fNuFUO8QJUk=
 github.com/godbus/dbus/v5 v5.1.0/go.mod h1:xhWf0FNVPg57R7Z0UbKHbJfkEywrmjJnf7w5xrFpKfA=
+github.com/yeka/zip v0.0.0-20231116150916-03d6312748a9 h1:K8gF0eekWPEX+57l30ixxzGhHH/qscI3JCnuhbN6V4M=
+github.com/yeka/zip v0.0.0-20231116150916-03d6312748a9/go.mod h1:9BnoKCcgJ/+SLhfAXj15352hTOuVmG5Gzo8xNRINfqI=
+golang.org/x/crypto v0.17.0 h1:r8bRNjWL3GshPW3gkd+RpvzWrZAwPS49OmTGZ/uhM4k=
+golang.org/x/crypto v0.17.0/go.mod h1:gCAAfMLgwOJRpTjQ2zCCt2OcSfYMTeZVSRtQlPC7Nq4=

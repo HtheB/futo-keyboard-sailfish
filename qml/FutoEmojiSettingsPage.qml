@@ -14,9 +14,11 @@ Page {
     property int pendingEmojiDownloadStyle: -1
 
     onStatusChanged: {
-        if (status === PageStatus.Active && pendingEmojiDownloadStyle >= 0
-                && !emojiDownloadNavigation.running)
-            emojiDownloadNavigation.start()
+        if (status === PageStatus.Active) {
+            refreshEmojiContent()
+            if (pendingEmojiDownloadStyle >= 0 && !emojiDownloadNavigation.running)
+                emojiDownloadNavigation.start()
+        }
     }
 
     Timer {
@@ -36,12 +38,32 @@ Page {
 
     function emojiPackId(styleIndex) {
         return styleIndex === 1 ? "emoji-openmoji"
-             : styleIndex === 2 ? "emoji-noto" : "emoji-twemoji"
+             : styleIndex === 2 ? "emoji-noto"
+             : styleIndex === 0 ? "emoji-twemoji" : ""
     }
 
     function emojiStyleName(styleIndex) {
         return styleIndex === 1 ? "OpenMoji Color"
-             : styleIndex === 2 ? "Noto Color Emoji" : "Twemoji"
+             : styleIndex === 2 ? "Noto Color Emoji"
+             : styleIndex === 0 ? "Twemoji" : qsTr("Sailfish OS (built-in)")
+    }
+
+    // Preserve the existing stored style values while presenting the built-in
+    // Sailfish style first in the user-facing list.
+    function comboIndexToStyle(comboIndex) {
+        return comboIndex === 0 ? 3 : comboIndex - 1
+    }
+
+    function styleToComboIndex(styleIndex) {
+        return styleIndex === 3 ? 0 : Math.max(0, Math.min(2, styleIndex)) + 1
+    }
+
+    function firstAvailableEmojiStyle(installed) {
+        for (var styleIndex = 0; styleIndex < 3; ++styleIndex) {
+            if (installed[emojiPackId(styleIndex)])
+                return styleIndex
+        }
+        return 3
     }
 
     function refreshEmojiContent() {
@@ -63,6 +85,9 @@ Page {
             }
             page.installedEmojiPacks = installed
             page.emojiContentReady = true
+            var selectedPackId = page.emojiPackId(settings.emojiStyle)
+            if (selectedPackId !== "" && !installed[selectedPackId])
+                settings.emojiStyle = page.firstAvailableEmojiStyle(installed)
             page.statusText = ""
         }, function() {
             page.statusText = qsTr("Could not check installed emoji styles")
@@ -86,9 +111,9 @@ Page {
         if (styleIndex === settings.emojiStyle)
             return
         var packId = emojiPackId(styleIndex)
-        if (!installedEmojiPacks[packId]) {
+        if (packId !== "" && !installedEmojiPacks[packId]) {
             restoringEmojiStyle = true
-            emojiStyleCombo.currentIndex = Math.max(0, Math.min(2, settings.emojiStyle))
+            emojiStyleCombo.currentIndex = styleToComboIndex(settings.emojiStyle)
             restoringEmojiStyle = false
             openEmojiDownloads(styleIndex)
             return
@@ -106,7 +131,7 @@ Page {
         id: settings
         path: "/sailfish/text_input/futo_keyboard"
         property bool emojiLongPressEnabled: true
-        property int emojiStyle: 0
+        property int emojiStyle: 3
         property int emojiSkinTone: 0
         property real emojiSizeScale: 1.0
         property string recentEmojis: "[]"
@@ -118,7 +143,13 @@ Page {
         service: "org.hb.FutoKeyboard1"
         path: "/org/hb/FutoKeyboard1"
         iface: "org.hb.FutoKeyboard1"
+        signalsEnabled: true
         watchServiceStatus: true
+
+        function contentChanged(packId, state) {
+            if (String(packId).indexOf("emoji-") === 0)
+                page.refreshEmojiContent()
+        }
 
         onStatusChanged: {
             if (status === DBusInterface.Available)
@@ -166,12 +197,13 @@ Page {
                 width: parent.width
                 enabled: settings.emojiLongPressEnabled && page.emojiContentReady
                 label: qsTr("Emoji style")
-                currentIndex: Math.max(0, Math.min(2, settings.emojiStyle))
+                currentIndex: page.styleToComboIndex(settings.emojiStyle)
                 onCurrentIndexChanged: {
                     if (page.emojiSelectionReady && !page.restoringEmojiStyle)
-                        page.chooseEmojiStyle(currentIndex)
+                        page.chooseEmojiStyle(page.comboIndexToStyle(currentIndex))
                 }
                 menu: ContextMenu {
+                    MenuItem { text: qsTr("Sailfish OS (built-in)") }
                     MenuItem { text: "Twemoji" }
                     MenuItem { text: "OpenMoji Color" }
                     MenuItem { text: "Noto Color Emoji" }

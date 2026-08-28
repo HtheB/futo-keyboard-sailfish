@@ -12,8 +12,16 @@ Page {
     property var vaultHelper: null
     property bool busy
     property string statusText: ""
+	property string selectedPath: ""
+	property bool selectedIsZIP: selectedPath.toLowerCase().slice(-4) === ".zip"
 
-    function choosePasswordCSV() {
+	function fileName(path) {
+		path = String(path || "").replace(/\\/g, "/")
+		var parts = path.split("/")
+		return parts.length > 0 ? parts[parts.length - 1] : path
+	}
+
+    function choosePasswordExport() {
         if (!busy && vaultToken !== "")
             pageStack.push(csvFilePicker, { "title": qsTr("Select password export") })
     }
@@ -24,18 +32,24 @@ Page {
             return
         busy = true
         statusText = qsTr("Importing passwords…")
-        helper.typedCall("ImportPasswordsFromFile", [
+		helper.typedCall("ImportPasswordsFromFileWithPassword", [
             { "type": "s", "value": vaultToken },
-            { "type": "s", "value": filePath }
+			{ "type": "s", "value": filePath },
+			{ "type": "s", "value": selectedIsZIP ? zipPasswordField.text : "" }
         ], function(resultJson) {
             page.busy = false
-            var result = { "imported": 0, "skipped": 0, "error": "" }
+			var result = { "imported": 0, "skipped": 0, "error": "",
+				"passwordRequired": false }
             try { result = JSON.parse(String(resultJson)) } catch (error) {}
             if (String(result.error || "") !== "") {
                 page.statusText = String(result.error)
+				if (Boolean(result.passwordRequired)) {
+					zipPasswordField.forceActiveFocus()
+				}
                 return
             }
-            var source = String(result.source || qsTr("password CSV"))
+			zipPasswordField.text = ""
+			var source = String(result.source || qsTr("password export"))
             page.statusText = qsTr("Imported %1 passwords from %2; skipped %3")
                     .arg(Number(result.imported)).arg(source)
                     .arg(Number(result.skipped))
@@ -48,11 +62,16 @@ Page {
     Component {
         id: csvFilePicker
         FilePickerPage {
-            nameFilters: [ "*.csv" ]
+			nameFilters: [ "*.zip", "*.csv" ]
             onSelectedContentPropertiesChanged: {
                 var filePath = selectedContentProperties.filePath
-                if (filePath)
-                    page.importPasswords(filePath)
+				if (filePath) {
+					page.selectedPath = String(filePath)
+					page.statusText = ""
+					zipPasswordField.text = ""
+					if (!page.selectedIsZIP)
+						page.importPasswords(page.selectedPath)
+				}
             }
         }
     }
@@ -95,7 +114,7 @@ Page {
                 wrapMode: Text.Wrap
                 color: Theme.secondaryColor
                 font.pixelSize: Theme.fontSizeSmall
-                text: qsTr("Choose a CSV exported by a browser or password manager. "
+				text: qsTr("Choose a FUTO password ZIP, or a CSV exported by a browser or password manager. "
                            + "FUTO automatically detects Firefox, Chromium browsers, "
                            + "Apple Passwords, 1Password, Bitwarden, LastPass, KeePass, "
                            + "Dropbox Passwords, Keeper, Dashlane, RoboForm, NordPass, "
@@ -108,7 +127,7 @@ Page {
                 wrapMode: Text.Wrap
                 color: Theme.highlightColor
                 font.pixelSize: Theme.fontSizeSmall
-                text: qsTr("CSV files contain plaintext passwords. Delete the export after a successful import.")
+				text: qsTr("Browser CSV files contain plaintext passwords. Delete extracted copies after a successful import.")
             }
 
             Item { width: 1; height: Theme.paddingLarge }
@@ -117,8 +136,38 @@ Page {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: qsTr("Choose password export")
                 enabled: !page.busy
-                onClicked: page.choosePasswordCSV()
+				onClicked: page.choosePasswordExport()
             }
+
+			Label {
+				x: Theme.horizontalPageMargin
+				width: parent.width - 2 * x
+				horizontalAlignment: Text.AlignHCenter
+				elide: Text.ElideMiddle
+				color: Theme.secondaryHighlightColor
+				text: page.fileName(page.selectedPath)
+				visible: page.selectedPath !== ""
+			}
+
+			TextField {
+				id: zipPasswordField
+				width: parent.width
+				visible: page.selectedIsZIP
+				label: qsTr("ZIP password")
+				placeholderText: qsTr("Leave empty if the ZIP is unprotected")
+				echoMode: TextInput.Password
+				inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
+				EnterKey.iconSource: "image://theme/icon-m-enter-accept"
+				EnterKey.onClicked: page.importPasswords(page.selectedPath)
+			}
+
+			Button {
+				anchors.horizontalCenter: parent.horizontalCenter
+				visible: page.selectedIsZIP
+				enabled: !page.busy && page.selectedPath !== ""
+				text: qsTr("Import ZIP")
+				onClicked: page.importPasswords(page.selectedPath)
+			}
 
             BusyIndicator {
                 anchors.horizontalCenter: parent.horizontalCenter

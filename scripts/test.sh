@@ -54,6 +54,32 @@ grep -Fq 'targetLayout.numberPageLabel()' \
     "$ROOT/layouts/FutoSymbolKey.qml"
 grep -Fq 'targetLayout.letterPageLabel()' \
     "$ROOT/layouts/FutoSymbolKey.qml"
+grep -Fq '"?r=" + revision' \
+    "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'SilicaListView {' \
+    "$ROOT/layouts/FutoEmojiGrid.qml"
+grep -Fq 'model: Math.ceil(emojiGrid.entries.length / emojiGrid.columns)' \
+    "$ROOT/layouts/FutoEmojiGrid.qml"
+grep -Fq 'emojiTabAssetPath(index)' "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'EMOJI_TAB_CODEPOINTS :=' "$ROOT/packaging/Makefile"
+grep -Fq '1f550 1f600 1f44b 1f43b 1f354 1f697 26bd 1f4a1 2764 1f3f3' \
+    "$ROOT/scripts/build-rpm.sh"
+grep -Fq 'asynchronous: false' "$ROOT/layouts/FutoEmojiKey.qml"
+grep -Fq 'signalsEnabled: true' "$ROOT/qml/FutoEmojiSettingsPage.qml"
+grep -Fq 'function contentChanged(packId, state)' \
+    "$ROOT/qml/FutoEmojiSettingsPage.qml"
+grep -Fq 'status === PageStatus.Active' \
+    "$ROOT/qml/FutoEmojiSettingsPage.qml"
+grep -Fq 'Sailfish OS (built-in)' "$ROOT/qml/FutoEmojiSettingsPage.qml"
+grep -Fq 'firstAvailableEmojiStyle(installed)' "$ROOT/qml/FutoEmojiSettingsPage.qml"
+grep -Fq 'property int emojiStyle: 3' "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'if (emojiStyle === 3)' "$ROOT/layouts/FutoEmojiKey.qml"
+grep -Fq 'securezip.AES256Encryption' \
+    "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+grep -Fq 'ImportPasswordsFromFileWithPassword' \
+    "$ROOT/qml/FutoPasswordImportPage.qml"
+grep -Fq 'FutoPasswordExportPage.qml' "$ROOT/packaging/Makefile"
+grep -Fq 'YEKA-ZIP-LICENSE.txt' "$ROOT/packaging/Makefile"
 
 if [[ ! -x "$ENGINE" ]]; then
     echo "Run scripts/build.sh before scripts/test.sh" >&2

@@ -84,6 +84,7 @@ SETTINGS_QML := \
 	FutoPasswordAddPage.qml \
 	FutoPasswordManagePage.qml \
 	FutoPasswordImportPage.qml \
+	FutoPasswordExportPage.qml \
 	FutoCredentialPage.qml \
 	FutoAboutPage.qml \
 	FutoCredit.qml \
@@ -99,6 +100,7 @@ DICTIONARY_FILES := \
 EMOJI_STYLES := twemoji openmoji noto
 EMOJI_EXPECTED_FILES := 3944
 EMOJI_PREVIEW_CODEPOINTS := 1f600 1f44d 1f389 2764
+EMOJI_TAB_CODEPOINTS := 1f550 1f600 1f44b 1f43b 1f354 1f697 26bd 1f4a1 2764 1f3f3
 SOUND_FILES := $(wildcard assets/sounds/*.wav)
 SOUND_EXPECTED_FILES := 30
 ICON_FILES := assets/icons/icon-m-emoji.svg
@@ -164,6 +166,9 @@ check:
 	@for codepoint in $(EMOJI_PREVIEW_CODEPOINTS); do \
 		test -s "emoji/noto/$$codepoint.png" || exit 1; \
 	done
+	@for codepoint in $(EMOJI_TAB_CODEPOINTS); do \
+		test -s "emoji/noto/$$codepoint.png" || exit 1; \
+	done
 	@test -s LICENSES/EMOJI-ATTRIBUTION.md || exit 1
 	@test -s LICENSES/TWEMOJI-GRAPHICS-LICENSE.txt || exit 1
 	@test -s LICENSES/OPENMOJI-LICENSE.txt || exit 1
@@ -174,6 +179,7 @@ check:
 	@test -s LICENSES/QT-COMPOSE-NOTICE.md || exit 1
 	@test -s LICENSES/FUTO-VOICE-SOURCE-FIRST-LICENSE.md || exit 1
 	@test -s LICENSES/AMIRI-FONT-LICENSE.txt || exit 1
+	@test -s LICENSES/YEKA-ZIP-LICENSE.txt || exit 1
 	@test "$$(printf '%s\n' $(SOUND_FILES) | wc -l)" -eq $(SOUND_EXPECTED_FILES) || exit 1
 	@test -z "$$(find assets/sounds -maxdepth 1 -type f -name '*.wav' -size 0 -print -quit)" || exit 1
 	@for file in $(ICON_FILES); do test -s "$$file" || exit 1; done
@@ -242,6 +248,11 @@ install: check
 		install -Dm0644 "emoji/noto/$$codepoint.png" \
 			"$(PACKAGE_ROOT)/content-previews/emoji/noto/$$codepoint.png"; \
 	done
+	install -d "$(PACKAGE_ROOT)/emoji-tabs"
+	@for codepoint in $(EMOJI_TAB_CODEPOINTS); do \
+		install -m0644 "emoji/noto/$$codepoint.png" \
+			"$(PACKAGE_ROOT)/emoji-tabs/$$codepoint.png"; \
+	done
 	install -d "$(PACKAGE_ROOT)/icons"
 	@for file in $(ICON_FILES); do \
 		install -m0644 "$$file" "$(PACKAGE_ROOT)/icons/"; \
@@ -289,5 +300,7 @@ install: check
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/QT-COMPOSE-NOTICE.md"
 	install -Dm0644 LICENSES/AMIRI-FONT-LICENSE.txt \
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/AMIRI-FONT-LICENSE.txt"
+	install -Dm0644 LICENSES/YEKA-ZIP-LICENSE.txt \
+		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/YEKA-ZIP-LICENSE.txt"
 	install -Dm0644 MODIFIED-NOTICE.md \
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/MODIFIED-NOTICE.md"

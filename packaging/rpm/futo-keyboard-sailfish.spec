@@ -91,6 +91,7 @@ fi
 %license %{_licensedir}/%{name}/LIBX11-COMPOSE-LICENSE.txt
 %license %{_licensedir}/%{name}/QT-COMPOSE-NOTICE.md
 %license %{_licensedir}/%{name}/AMIRI-FONT-LICENSE.txt
+%license %{_licensedir}/%{name}/YEKA-ZIP-LICENSE.txt
 %license %{_licensedir}/%{name}/MODIFIED-NOTICE.md
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-engine
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-helper

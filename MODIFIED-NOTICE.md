@@ -89,3 +89,9 @@ and standalone dead-key output. It also makes rotation select the current
 surface's saved mode immediately and arranges Arabic religious ligatures in a
 semantic right-to-left sequence, using a readable compatibility phrase where
 Sailfish's native fonts lack U+FDFB.
+
+The Sailfish edition adds portable password export and restore. One ZIP
+contains separate browser-compatible website CSV files and a FUTO app-account
+CSV. Exports may be protected with WinZip-compatible AES-256 encryption through
+the MIT-licensed `github.com/yeka/zip` library; leaving the password empty
+requires an explicit warning in Settings.

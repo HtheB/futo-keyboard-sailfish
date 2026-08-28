@@ -32,7 +32,7 @@ FutoKeyboardLayout {
         property int layoutDefaultsVersion: 0
         property string enabledLanguages: "EN,NL,TR"
         property int symbolNumberLayout: 0
-        property int emojiStyle: 0
+        property int emojiStyle: 3
         property int emojiSkinTone: 0
         property real emojiSizeScale: 1.0
         property string recentEmojis: "[]"
@@ -51,7 +51,7 @@ FutoKeyboardLayout {
                                              layoutSettings.layoutVariant)
     readonly property int symbolNumberLayout: Math.max(0, Math.min(1,
                                                                   layoutSettings.symbolNumberLayout))
-    readonly property int emojiStyle: Math.max(0, Math.min(2, layoutSettings.emojiStyle))
+    readonly property int emojiStyle: Math.max(0, Math.min(3, layoutSettings.emojiStyle))
     readonly property int emojiSkinTone: Math.max(0, Math.min(5,
                                                               layoutSettings.emojiSkinTone))
     readonly property real emojiSizeScale: clampedEmojiSizeScale(
@@ -476,17 +476,27 @@ FutoKeyboardLayout {
     }
 
     function emojiAssetPath(code) {
+        if (emojiStyle === 3)
+            return ""
         var directory = emojiStyle === 1 ? "openmoji" : emojiStyle === 2 ? "noto" : "twemoji"
 		var home = String(StandardPaths.home)
 		var root = (home.indexOf("file://") === 0 ? home : "file://" + home)
 				+ "/.local/share/futo-keyboard-sailfish/content/emoji/"
+		var revision = handler && handler.contentRevision !== undefined
+				? handler.contentRevision : 0
 		return root + directory + "/"
                 + String(code).toLowerCase() + (emojiStyle === 2 ? ".png" : ".svg")
+				+ "?r=" + revision
     }
 
     function emojiTabIconCode(pageIndex) {
         return pageIndex === 0 ? "1f550" : EmojiData.categoryIconCodes[pageIndex - 1]
     }
+
+	function emojiTabAssetPath(pageIndex) {
+		return "file:///usr/share/futo-keyboard-sailfish/emoji-tabs/"
+				+ emojiTabIconCode(pageIndex) + ".png"
+	}
 
     function emojiTabName(pageIndex) {
         return pageIndex === 0 ? qsTr("Recent") : EmojiData.categoryNames[pageIndex - 1]
