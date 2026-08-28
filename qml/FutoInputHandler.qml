@@ -2054,13 +2054,24 @@ InputHandler {
 	}
 
 	function nextEnabledSailfishKeyboardIndex() {
-		var model = keyboard ? keyboard.model : null
+		// The enabled Sailfish keyboards belong to the canvas LayoutModel.  The
+		// `keyboard` object is the current keyboard surface and does not expose
+		// that model, so consulting keyboard.model made this return -1 whenever
+		// FUTO itself only had one assigned letter layout.
+		var model = (typeof canvas !== "undefined") ? canvas.layoutModel : null
 		if (!model || typeof model.get !== "function")
 			return -1
 		var count = Math.max(0, Number(model.count || 0))
-		if (count < 2)
+		var enabledCount = 0
+		for (var enabledIndex = 0; enabledIndex < count; ++enabledIndex) {
+			var enabledCandidate = model.get(enabledIndex)
+			if (enabledCandidate && enabledCandidate.enabled
+					&& String(enabledCandidate.type || "") !== "emojis")
+				enabledCount++
+		}
+		if (enabledCount < 2)
 			return -1
-		var current = Math.max(0, Number(keyboard.currentIndex || 0))
+		var current = Math.max(0, Number(canvas.activeIndex || 0))
 		for (var offset = 1; offset < count; ++offset) {
 			var index = (current + offset) % count
 			var candidate = model.get(index)
@@ -2073,10 +2084,11 @@ InputHandler {
 
 	function switchToNextSailfishKeyboard() {
 		var index = nextEnabledSailfishKeyboardIndex()
-		if (index < 0)
+		if (index < 0 || typeof canvas === "undefined"
+				|| typeof canvas.switchLayout !== "function")
 			return false
 		playOptionFeedback()
-		keyboard.currentIndex = index
+		canvas.switchLayout(index)
 		if (keyboard.overriddenLayoutFile !== undefined)
 			keyboard.overriddenLayoutFile = ""
 		return true

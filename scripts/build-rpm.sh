@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 ARCH=${FUTO_ARCH:-aarch64}
 VERSION=0.2.0
-RELEASE=1
+RELEASE=2
 NAME=futo-keyboard-sailfish
 TOPDIR=$(mktemp -d)
 STAGING=$(mktemp -d)

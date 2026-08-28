@@ -6,7 +6,7 @@ ARCH=${FUTO_ARCH:-aarch64}
 SOURCE_ARCHIVE=${1:?Usage: package-source-archive.sh /path/to/source.tar.gz}
 NAME=futo-keyboard-sailfish
 VERSION=0.2.0
-RELEASE=1
+RELEASE=2
 TOPDIR=$(mktemp -d)
 NORMALIZED=$(mktemp -d)
 

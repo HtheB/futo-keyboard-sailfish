@@ -248,6 +248,12 @@ grep -Fq 'id: quickSettingsRightOverflowFade' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'function switchToNextSailfishKeyboard()' \
     "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'canvas.layoutModel' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'canvas.switchLayout(index)' \
+    "$ROOT/qml/FutoInputHandler.qml"
+! grep -Fq 'keyboard.currentIndex = index' \
+    "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'onPressAndHold:' \
     "$ROOT/qml/FutoInputHandler.qml"
 ! grep -Fq '!targetLayout.controlMode' \

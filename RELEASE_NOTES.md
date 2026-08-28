@@ -24,5 +24,7 @@
 - Improved typing compatibility in terminal and console applications.
 - Fixed predictions, swipe typing, and FUTO Settings being unavailable after
   a new installation until the keyboard service was restarted.
+- Fixed the language/layout Quick Settings item being hidden when another
+  Sailfish keyboard was enabled but FUTO itself used only one letter layout.
 - Improved compatibility with Sailfish OS 5.1, fixing swipe typing, Quick
   Settings, missing symbol and emoji tabs, and blank emojis.

@@ -5,7 +5,7 @@
 
 Name:           futo-keyboard-sailfish
 Version:        0.2.0
-Release:        1
+Release:        2
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
 License:        LicenseRef-FUTO-Source-First-1.1-kb AND BSD-3-Clause AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND (LGPL-2.1-only OR LGPL-3.0-only)
 Source0:        %{name}-%{version}.tar.gz
@@ -159,6 +159,12 @@ fi
 %{_userunitdir}/maliit-server.service.d/10-futo-hardware-policy.conf
 
 %changelog
+* Sat Aug 29 2026 HtheB - 0.2.0-2
+- Show the language/layout Quick Settings item when another Sailfish keyboard
+  is enabled, even if FUTO itself uses only one letter layout.
+- Switch keyboards through Sailfish's active LayoutModel instead of the current
+  FUTO keyboard surface.
+
 * Fri Aug 28 2026 HtheB - 0.2.0-1
 - Add the Fn keyboard page, configurable extra-key row, sticky desktop
   modifiers, and drag-and-drop organizers.
