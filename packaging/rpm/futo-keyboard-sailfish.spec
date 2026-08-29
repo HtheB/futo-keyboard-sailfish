@@ -88,6 +88,7 @@ fi
 %license %{_licensedir}/%{name}/NOTO-EMOJI-SVG-LICENSE.txt
 %license %{_licensedir}/%{name}/UNICODE-LICENSE.txt
 %license %{_licensedir}/%{name}/FUTO-LAYOUTS-ATTRIBUTION.md
+%license %{_licensedir}/%{name}/HUNGARIAN-DICTIONARY-ATTRIBUTION.md
 %license %{_licensedir}/%{name}/LIBX11-COMPOSE-LICENSE.txt
 %license %{_licensedir}/%{name}/QT-COMPOSE-NOTICE.md
 %license %{_licensedir}/%{name}/AMIRI-FONT-LICENSE.txt

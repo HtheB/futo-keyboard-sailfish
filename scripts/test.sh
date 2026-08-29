@@ -16,6 +16,10 @@ grep -Fq '525f9b560de45753a5ea01069454e72e9aa541c6' \
     "$ROOT/dictionaries/README.md"
 grep -Fq 'Creative Commons Attribution-ShareAlike 4.0 International' \
     "$ROOT/LICENSES/HUNGARIAN-DICTIONARY-ATTRIBUTION.md"
+grep -Fq 'LICENSES/HUNGARIAN-DICTIONARY-ATTRIBUTION.md' \
+    "$ROOT/packaging/Makefile"
+grep -Fq '%license %{_licensedir}/%{name}/HUNGARIAN-DICTIONARY-ATTRIBUTION.md' \
+    "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"
 grep -Fq 'QLibraryInfo::location(QLibraryInfo::PluginsPath)' \
     "$ROOT/hardware/compose/futo_maliit_compose_wrapper.cpp"
 ! grep -Fq '/usr/lib64/qt5/plugins/platforminputcontexts' \

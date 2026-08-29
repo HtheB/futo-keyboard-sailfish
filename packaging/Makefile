@@ -311,6 +311,8 @@ install: check
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/UNICODE-LICENSE.txt"
 	install -Dm0644 LICENSES/FUTO-LAYOUTS-ATTRIBUTION.md \
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/FUTO-LAYOUTS-ATTRIBUTION.md"
+	install -Dm0644 LICENSES/HUNGARIAN-DICTIONARY-ATTRIBUTION.md \
+		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/HUNGARIAN-DICTIONARY-ATTRIBUTION.md"
 	install -Dm0644 LICENSES/LIBX11-COMPOSE-LICENSE.txt \
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/LIBX11-COMPOSE-LICENSE.txt"
 	install -Dm0644 LICENSES/QT-COMPOSE-NOTICE.md \
