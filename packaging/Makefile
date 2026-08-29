@@ -9,6 +9,7 @@ HELPER_BINARY ?= $(BUILD_DIR)/futo-keyboard-helper
 SECRETS_BINARY ?= $(BUILD_DIR)/futo-keyboard-secrets
 KEYRING_BINARY ?= $(BUILD_DIR)/futo-keyboard-keyring
 FOCUS_BINARY ?= $(BUILD_DIR)/futo-keyboard-focus
+APPSUPPORT_BINARY ?= $(BUILD_DIR)/futo-keyboard-appsupport
 VOICE_BINARY ?= $(BUILD_DIR)/futo-keyboard-voice
 POLICY_LIBRARY ?= $(BUILD_DIR)/libfuto-maliit-policy.so.1
 COMPOSE_PLUGIN ?= $(BUILD_DIR)/libcomposeplatforminputcontextplugin.so
@@ -122,6 +123,7 @@ check:
 	@test -s "$(SECRETS_BINARY)" || { echo "Missing $(ARCH) Secrets bridge" >&2; exit 1; }
 	@test -s "$(KEYRING_BINARY)" || { echo "Missing $(ARCH) device key store" >&2; exit 1; }
 	@test -s "$(FOCUS_BINARY)" || { echo "Missing restricted focus bridge" >&2; exit 1; }
+	@test -s "$(APPSUPPORT_BINARY)" || { echo "Missing AppSupport keyboard bridge" >&2; exit 1; }
 	@test -s "$(VOICE_BINARY)" || { echo "Missing $(ARCH) voice worker" >&2; exit 1; }
 	@for file in $(HANDLER_FILES); do test -s "$$file" || exit 1; done
 	@for file in $(SETTINGS_QML); do test -s "qml/$$file" || exit 1; done
@@ -200,6 +202,7 @@ install: check
 	install -Dm0755 "$(SECRETS_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-secrets"
 	install -Dm0755 "$(KEYRING_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-keyring"
 	install -Dm0755 "$(FOCUS_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-focus"
+	install -Dm0755 "$(APPSUPPORT_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-appsupport"
 	install -Dm0755 "$(VOICE_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-voice"
 	install -Dm0755 "$(POLICY_LIBRARY)" \
 		"$(DESTDIR)$(LIBDIR)/libfuto-maliit-policy.so.1"

@@ -1205,3 +1205,16 @@ func TestAnalyzeVoiceActivityRejectsSilence(t *testing.T) {
 		t.Fatalf("silence activity = %#v", activity)
 	}
 }
+
+func TestValidAndroidSwipeWord(t *testing.T) {
+	for _, word := range []string{"hello", "don't", "re-entry", "café", "ayı"} {
+		if !validAndroidSwipeWord(word) {
+			t.Errorf("valid swipe word rejected: %q", word)
+		}
+	}
+	for _, word := range []string{"", "two words", "line\nbreak", "bad!", strings.Repeat("a", 65)} {
+		if validAndroidSwipeWord(word) {
+			t.Errorf("invalid swipe word accepted: %q", word)
+		}
+	}
+}

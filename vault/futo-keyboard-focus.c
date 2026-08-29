@@ -18,7 +18,6 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
-#include <sys/time.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -75,7 +74,9 @@ static int emit_event(int descriptor, unsigned short type,
 {
     struct input_event event;
     memset(&event, 0, sizeof(event));
-    gettimeofday(&event.time, NULL);
+    /* uinput supplies the event timestamp.  Leaving the timestamp fields at
+     * zero also keeps this bridge source-compatible with both the legacy
+     * timeval ABI and 32-bit time64 input_event headers. */
     event.type = type;
     event.code = code;
     event.value = value;

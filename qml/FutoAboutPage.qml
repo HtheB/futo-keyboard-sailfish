@@ -5,7 +5,7 @@ import Sailfish.Silica 1.0
 Page {
     id: page
 
-    readonly property string keyboardVersion: "0.2.0"
+    readonly property string keyboardVersion: "0.2.1"
 
     SilicaFlickable {
         anchors.fill: parent

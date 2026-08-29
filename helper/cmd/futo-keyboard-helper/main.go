@@ -47,9 +47,11 @@ const (
 	soundDir                  = "/usr/share/futo-keyboard-sailfish/sounds"
 	keyringPath               = "/usr/libexec/futo-keyboard-keyring"
 	focusPath                 = "/usr/libexec/futo-keyboard-focus"
+	appSupportKeyboardPath    = "/usr/libexec/futo-keyboard-appsupport"
+	forcedAppSupportDconfPath = "/sailfish/text_input/futo_keyboard/forcedAppSupportKeyEvents"
 	vaultAuthAction           = "org.hb.futo.keyboard.saved-login"
 	vaultSaveAuthAction       = "org.hb.futo.keyboard.save-login"
-	version                   = "0.2.0"
+	version                   = "0.2.1"
 )
 
 func zeroBytes(data []byte) {
@@ -5153,6 +5155,238 @@ func (service *service) ClearClipboardHistory() (bool, *dbus.Error) {
 
 func (service *service) Ping() (string, *dbus.Error) {
 	return version, nil
+}
+
+var (
+	showAndroidKeyboardMu      sync.Mutex
+	showAndroidKeyboardRunning bool
+	forcedAppSupportUntil      time.Time
+	androidKeyInjectionMu      sync.Mutex
+	maliitRecoveryMu           sync.Mutex
+	maliitRecoveryRunning      bool
+)
+
+func showAndroidKeyboardWithRetries() {
+	defer func() {
+		showAndroidKeyboardMu.Lock()
+		showAndroidKeyboardRunning = false
+		showAndroidKeyboardMu.Unlock()
+	}()
+
+	context, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for attempt := 0; attempt < 3; attempt++ {
+		command := exec.CommandContext(context, appSupportKeyboardPath)
+		command.Stdout = io.Discard
+		command.Stderr = io.Discard
+		if err := command.Run(); err != nil {
+			log.Printf("could not show Android AppSupport keyboard (attempt %d): %v",
+				attempt+1, err)
+		}
+		if attempt == 2 {
+			break
+		}
+		select {
+		case <-context.Done():
+			return
+		case <-time.After(time.Second):
+		}
+	}
+}
+
+// ShowAndroidKeyboard is the fire-and-forget Top Menu action used for Android
+// apps that focus a text field without asking AppSupport to display its remote
+// IME.  Some apps immediately hide the first request, so the helper repeats it
+// briefly.  The set-user-ID bridge accepts no arguments and can only request
+// that the keyboard be shown.
+func (service *service) ShowAndroidKeyboard() *dbus.Error {
+	if err := exec.Command("/usr/bin/dconf", "write", forcedAppSupportDconfPath,
+		"true").Run(); err != nil {
+		log.Printf("could not enable forced AppSupport key events: %v", err)
+	}
+	showAndroidKeyboardMu.Lock()
+	forcedAppSupportUntil = time.Now().Add(10 * time.Minute)
+	if !showAndroidKeyboardRunning {
+		showAndroidKeyboardRunning = true
+		go showAndroidKeyboardWithRetries()
+	}
+	showAndroidKeyboardMu.Unlock()
+	return nil
+}
+
+func androidInputArgument(key int32, text string) (string, string, bool) {
+	switch key {
+	case 0x01000000:
+		return "keyevent", "KEYCODE_ESCAPE", true
+	case 0x01000001, 0x01000002:
+		return "keyevent", "KEYCODE_TAB", true
+	case 0x01000003:
+		return "keyevent", "KEYCODE_DEL", true
+	case 0x01000004, 0x01000005:
+		return "keyevent", "KEYCODE_ENTER", true
+	case 0x01000007:
+		return "keyevent", "KEYCODE_FORWARD_DEL", true
+	case 0x01000010:
+		return "keyevent", "KEYCODE_MOVE_HOME", true
+	case 0x01000011:
+		return "keyevent", "KEYCODE_MOVE_END", true
+	case 0x01000012:
+		return "keyevent", "KEYCODE_DPAD_LEFT", true
+	case 0x01000013:
+		return "keyevent", "KEYCODE_DPAD_UP", true
+	case 0x01000014:
+		return "keyevent", "KEYCODE_DPAD_RIGHT", true
+	case 0x01000015:
+		return "keyevent", "KEYCODE_DPAD_DOWN", true
+	case 0x01000016:
+		return "keyevent", "KEYCODE_PAGE_UP", true
+	case 0x01000017:
+		return "keyevent", "KEYCODE_PAGE_DOWN", true
+	case 0x20:
+		return "keyevent", "KEYCODE_SPACE", true
+	}
+	if len(text) == 1 && text[0] >= 0x21 && text[0] <= 0x7e {
+		return "text", text, true
+	}
+	return "", "", false
+}
+
+func validAndroidSwipeWord(word string) bool {
+	if word == "" || len(word) > 256 || !utf8.ValidString(word) ||
+		utf8.RuneCountInString(word) > 64 {
+		return false
+	}
+	for _, character := range word {
+		if !(unicode.IsLetter(character) || character == '\'' ||
+			character == '’' || character == '-') {
+			return false
+		}
+	}
+	return true
+}
+
+// InjectAndroidKey is available only for a short period after the user invokes
+// the explicit Top Menu compatibility action.  The privileged bridge performs
+// a second validation and accepts only one printable ASCII character or a
+// small fixed set of navigation/editing keys.
+func (service *service) InjectAndroidKey(sender dbus.Sender, key int32,
+	text string) (bool, *dbus.Error) {
+	if !service.trustedNamedVaultCaller(sender, "com.jolla.keyboard") {
+		return false, nil
+	}
+	showAndroidKeyboardMu.Lock()
+	enabled := time.Now().Before(forcedAppSupportUntil)
+	showAndroidKeyboardMu.Unlock()
+	if !enabled {
+		return false, nil
+	}
+
+	mode, value, valid := androidInputArgument(key, text)
+	if !valid {
+		return false, nil
+	}
+
+	androidKeyInjectionMu.Lock()
+	defer androidKeyInjectionMu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, appSupportKeyboardPath, mode, value)
+	command.Stdout = io.Discard
+	command.Stderr = io.Discard
+	if err := command.Run(); err != nil {
+		log.Printf("could not inject Android AppSupport key: %v", err)
+		return false, nil
+	}
+	return true, nil
+}
+
+// InjectAndroidSwipe commits one decoded swipe word and its trailing space
+// through Android's direct-input channel.  The ordinary Maliit commit protocol
+// is unavailable precisely in the applications for which Top Menu compatibility
+// mode is needed, so keeping both operations under one lock also preserves their
+// order.  The privileged bridge independently rejects whitespace and controls.
+func (service *service) InjectAndroidSwipe(sender dbus.Sender,
+	word string) (bool, *dbus.Error) {
+	if !service.trustedNamedVaultCaller(sender, "com.jolla.keyboard") ||
+		!validAndroidSwipeWord(word) {
+		return false, nil
+	}
+	showAndroidKeyboardMu.Lock()
+	enabled := time.Now().Before(forcedAppSupportUntil)
+	showAndroidKeyboardMu.Unlock()
+	if !enabled {
+		return false, nil
+	}
+
+	androidKeyInjectionMu.Lock()
+	defer androidKeyInjectionMu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for _, input := range [][2]string{
+		{"text", word},
+		{"keyevent", "KEYCODE_SPACE"},
+	} {
+		command := exec.CommandContext(ctx, appSupportKeyboardPath,
+			input[0], input[1])
+		command.Stdout = io.Discard
+		command.Stderr = io.Discard
+		if err := command.Run(); err != nil {
+			log.Printf("could not inject Android AppSupport swipe word: %v", err)
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+// EndAndroidKeyboard closes the host-forced keyboard and invalidates its
+// short-lived injection permission.  This lets the next Android application
+// establish a normal IME session and resize its window above the keyboard.
+func (service *service) EndAndroidKeyboard(sender dbus.Sender) *dbus.Error {
+	if !service.trustedNamedVaultCaller(sender, "com.jolla.keyboard") {
+		return dbus.MakeFailedError(errors.New("Maliit access required"))
+	}
+	showAndroidKeyboardMu.Lock()
+	forcedAppSupportUntil = time.Time{}
+	showAndroidKeyboardMu.Unlock()
+	if err := exec.Command("/usr/bin/dconf", "write", forcedAppSupportDconfPath,
+		"false").Run(); err != nil {
+		log.Printf("could not disable forced AppSupport key events: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, appSupportKeyboardPath, "hide")
+	command.Stdout = io.Discard
+	command.Stderr = io.Discard
+	if err := command.Run(); err != nil {
+		log.Printf("could not close forced Android AppSupport keyboard: %v", err)
+	}
+	// A host-forced AppSupport keyboard bypasses Android's ordinary IME state.
+	// After it closes, the first subsequent Maliit editor can otherwise inherit
+	// a stale connection and render keys without accepting input. Restart Maliit
+	// after this D-Bus call returns so the next editor starts cleanly.
+	maliitRecoveryMu.Lock()
+	if !maliitRecoveryRunning {
+		maliitRecoveryRunning = true
+		go func() {
+			defer func() {
+				maliitRecoveryMu.Lock()
+				maliitRecoveryRunning = false
+				maliitRecoveryMu.Unlock()
+			}()
+			time.Sleep(250 * time.Millisecond)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			command := exec.CommandContext(ctx, "/usr/bin/systemctl", "--user",
+				"restart", "maliit-server.service")
+			command.Stdout = io.Discard
+			command.Stderr = io.Discard
+			if err := command.Run(); err != nil {
+				log.Printf("could not reset Maliit after forced AppSupport input: %v", err)
+			}
+		}()
+	}
+	maliitRecoveryMu.Unlock()
+	return nil
 }
 
 var dconfQuotedValue = regexp.MustCompile(`'([^']*)'`)

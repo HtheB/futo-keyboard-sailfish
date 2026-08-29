@@ -216,7 +216,10 @@ CharacterKey {
     }
 
     function prepareSecondaryPopup() {
-        if (!pressed)
+		// A long-press timer may have been armed on the first letter before the
+		// gesture travelled far enough to become swipe typing.  Never let that
+		// stale timer open an accent/secondary-key popup during the swipe.
+		if (!pressed || gesturePreviewSuppressed)
             return
 
         var symbolBase = baseKeyText()
@@ -277,8 +280,11 @@ CharacterKey {
         }
     }
 
-    accents: popupChoices()
-    accentsShifted: popupChoices()
+    // Once a gesture is known to be swipe typing, do not expose alternatives
+    // to the platform Popper at all.  Popper caches hasAccents when its target
+    // changes, so FutoInputHandler also detaches that target at swipe start.
+    accents: gesturePreviewSuppressed ? "" : popupChoices()
+    accentsShifted: gesturePreviewSuppressed ? "" : popupChoices()
     keyText: popupHighlightedText !== "" ? popupHighlightedText : baseKeyText()
     pixelSize: Math.round(Theme.fontSizeLarge
                           * Math.max(0.8, Math.min(1.3, visualSettings.keyFontScale)))
@@ -315,6 +321,11 @@ CharacterKey {
         else
             cancelSecondaryPopup()
     }
+
+	onGesturePreviewSuppressedChanged: {
+		if (gesturePreviewSuppressed)
+			cancelSecondaryPopup()
+	}
 
     Rectangle {
         anchors.fill: parent

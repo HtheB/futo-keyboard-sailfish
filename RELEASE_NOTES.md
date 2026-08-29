@@ -1,30 +1,10 @@
-# FUTO Keyboard for Sailfish OS 0.2.0
+# FUTO Keyboard for Sailfish OS 0.2.1
 
-## New features
+## New feature
 
-- Added a new **Fn keyboard page** with arrow keys, Esc, Tab, Ctrl, Alt, AltGr,
-  the Sailfish key, F1-F12, Home, End, Page Up, Page Down, Insert, Delete, and
-  more.
-- Added an optional and customizable **extra-key row**.
-- Modifier keys can be used once for the next key or locked by tapping them
-  twice.
-- Added predictions for Greek, Russian, Serbian Cyrillic, and Serbian Latin.
-- Added Slovenian QWERTZ, Croatian/Serbian Latin QWERTZ, and Serbian Cyrillic
-  layouts.
-- Added a keyboard-sound toggle to Quick Settings.
-- Holding the language/layout item in Quick Settings can now switch to another
-  active Sailfish OS keyboard.
+- Added an optional **Show keyboard** action to the Sailfish OS Top Menu, allowing the keyboard to be opened in Android apps that normally do not show a keyboard.
 
-## Improvements
+## Fixes
 
-- Spacebar cursor control can now move the cursor horizontally and vertically.
-- A second finger can be held during cursor movement to select text.
-- Quick Settings and extra keys can be reordered by holding and dragging.
-- Added **Restore defaults** to the Quick Settings and extra-key organizers.
-- Improved typing compatibility in terminal and console applications.
-- Fixed predictions, swipe typing, and FUTO Settings being unavailable after
-  a new installation until the keyboard service was restarted.
-- Fixed the language/layout Quick Settings item being hidden when another
-  Sailfish keyboard was enabled but FUTO itself used only one letter layout.
-- Improved compatibility with Sailfish OS 5.1, fixing swipe typing, Quick
-  Settings, missing symbol and emoji tabs, and blank emojis.
+- Holding the language/layout button in Quick Settings now switches to another enabled Sailfish OS keyboard.
+- Secondary characters no longer appear when briefly holding over a letter during swipe typing.

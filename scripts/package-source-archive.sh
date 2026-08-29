@@ -5,8 +5,8 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 ARCH=${FUTO_ARCH:-aarch64}
 SOURCE_ARCHIVE=${1:?Usage: package-source-archive.sh /path/to/source.tar.gz}
 NAME=futo-keyboard-sailfish
-VERSION=0.2.0
-RELEASE=2
+VERSION=0.2.1
+RELEASE=1
 TOPDIR=$(mktemp -d)
 NORMALIZED=$(mktemp -d)
 

@@ -6,6 +6,11 @@ ARCH=${FUTO_ARCH:-aarch64}
 BUILD=${FUTO_BUILD_DIR:-$ROOT/build/$ARCH}
 SHARED_ROOT=${FUTO_SHARED_ROOT:-$ROOT/../shared}
 TARGET_LIB_ROOT=${FUTO_TARGET_LIB_ROOT:-${FUTO_PHONE_LIB_ROOT:-$SHARED_ROOT/futo-phone-sysroot}}
+TARGET_SYSROOT=${FUTO_TARGET_SYSROOT:-}
+TARGET_COMPILE_FLAGS=()
+if [[ -n "$TARGET_SYSROOT" ]]; then
+    TARGET_COMPILE_FLAGS=(--sysroot="$TARGET_SYSROOT")
+fi
 CROSS_ROOT=${FUTO_CROSS_ROOT:-}
 case "$ARCH" in
     aarch64)
@@ -101,7 +106,7 @@ fi
     }
 printf '%s\n' "$EXPECTED_STOCK_SHA256" > "$BUILD/stock-wayland.sha256"
 
-"$CXX" -std=c++11 -O2 -DNDEBUG -fPIC -DQT_SHARED -DQT_NO_DEBUG \
+"$CXX" "${TARGET_COMPILE_FLAGS[@]}" -std=c++11 -O2 -DNDEBUG -fPIC -DQT_SHARED -DQT_NO_DEBUG \
     -I"$INCLUDE" \
     -I"$INCLUDE/QtCore" \
     -I"$INCLUDE/QtCore/5.6.3" \
@@ -113,7 +118,7 @@ printf '%s\n' "$EXPECTED_STOCK_SHA256" > "$BUILD/stock-wayland.sha256"
     -DFUTO_WAYLAND_RELOCATION_OFFSET="0x$relocation" \
     -c "$ROOT/hardware/compose/futo_wayland_deadkey_hook.cpp" -o "$OBJECT"
 
-"$CXX" -shared \
+"$CXX" "${TARGET_COMPILE_FLAGS[@]}" -shared \
     -Wl,-soname,libQt5WaylandClient.so.5 \
     -Wl,--version-script="$ROOT/hardware/compose/qt5-wayland-hook.map" \
     -Wl,--no-as-needed "$OBJECT" \

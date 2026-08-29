@@ -173,10 +173,12 @@ InputHandler {
             keyboardSettings.predictionEnabled && activePredictionsAvailable
             && !passwordField && (!urlField || urlSuggestionFallbackActive)
             && !hardwareKeyboardSuppressed
+            && !keyboardSettings.forcedAppSupportKeyEvents
     readonly property bool urlHistoryStripEnabled:
             keyboardSettings.urlHistoryEnabled && urlField
             && !urlSuggestionFallbackActive
             && !passwordField && !incognitoMode && !hardwareKeyboardSuppressed
+            && !keyboardSettings.forcedAppSupportKeyEvents
     readonly property bool showUrlSuggestions: keyboardSettings.urlHistoryEnabled
             && !passwordField && !incognitoMode && urlSuggestionResultsActive
             && !hardwareKeyboardSuppressed
@@ -193,6 +195,7 @@ InputHandler {
         return false
     }
     readonly property bool showApplicationSuggestions: !hardwareKeyboardSuppressed
+            && !keyboardSettings.forcedAppSupportKeyEvents
             && !showUrlSuggestions
             && applicationSuggestionModel.count > 0
             && (MInputMethodQuick.surroundingText.length + preedit.length) < 1
@@ -206,6 +209,13 @@ InputHandler {
 
     signal suggestionsUpdated()
     signal typingContinued()
+
+	function endForcedAppSupportSession() {
+		if (!keyboardSettings.forcedAppSupportKeyEvents)
+			return
+		keyboardSettings.forcedAppSupportKeyEvents = false
+		helper.typedCall("EndAndroidKeyboard", [], function() {}, function() {})
+	}
 
     function setHardwareKeyboardState(state) {
         var available = String(state) === "available"
@@ -1443,6 +1453,10 @@ InputHandler {
         property bool keySoundEnabled: false
         property real keySoundVolume: 0.5
         property bool swipeTypingEnabled: true
+        // Set only by the Top Menu compatibility action. Android applications
+        // which suppress their IME remain in a hidden composition state, so
+        // this session must use hardware-style key events instead.
+        property bool forcedAppSupportKeyEvents: false
         property bool voiceTypingEnabled: false
         property bool voiceKeyVisible: true
 		property bool voicePushToTalkEnabled: false
@@ -1476,6 +1490,10 @@ InputHandler {
         onAutomaticLanguageDetectionChanged: futoHandler.requestSuggestionsSoon()
         onNextWordPredictionEnabledChanged: futoHandler.requestSuggestionsSoon()
         onPredictionEnabledChanged: futoHandler.requestSuggestionsSoon()
+        onForcedAppSupportKeyEventsChanged: {
+            if (forcedAppSupportKeyEvents)
+                futoHandler.resetSuggestionDisplay()
+        }
         onCorrectionLevelChanged: futoHandler.requestSuggestionsSoon()
         onShowTypedWordChanged: futoHandler.requestSuggestionsSoon()
         onSuggestionCountChanged: futoHandler.requestSuggestionsSoon()
@@ -3597,6 +3615,7 @@ InputHandler {
             commit(preedit)
         }
         if (!editorSessionActive) {
+			endForcedAppSupportSession()
 			cancelVoiceInput()
 			cancelSwipeSession()
 			clearDesktopModifiers()
@@ -3691,6 +3710,7 @@ InputHandler {
         target: MInputMethodQuick
         onActiveChanged: {
             if (!MInputMethodQuick.active) {
+				futoHandler.endForcedAppSupportSession()
 				if (futoHandler.passwordField) {
 					futoHandler.finalizeCredentialCapture()
 					futoHandler.offerCapturedCredential()
@@ -3704,6 +3724,8 @@ InputHandler {
         }
         onFocusTargetChanged: {
 			futoHandler.cancelSwipeSession()
+			if (!activeEditor)
+				futoHandler.endForcedAppSupportSession()
 			// A new editor must not inherit the fallback text buffer from the
 			// previous field. The authoritative surrounding text is synchronized
 			// below when the application exposes it.
@@ -4195,10 +4217,15 @@ InputHandler {
             var start = editingWordStart
             var length = editingWordLength
             var cursor = MInputMethodQuick.cursorPosition
+			var addEditingSpace = keyboardSettings.autoSpaceAfterSuggestion
+			        && !urlField && !passwordField
+			        && cursor === start + length
+			var replacementText = String(replacement)
+			        + (addEditingSpace ? " " : "")
             requestSerial++
             predictionTimer.stop()
             nextPredictionTimer.stop()
-            MInputMethodQuick.sendCommit(String(replacement), start - cursor, length)
+			MInputMethodQuick.sendCommit(replacementText, start - cursor, length)
             clearEditingWord()
 			swipeReplacementActive = false
 			swipePreviousWord = ""
@@ -4285,6 +4312,23 @@ InputHandler {
         if (keyboard.layout && keyboard.layout.emojiSearchMode
                 && keyboard.layout.handleEmojiSearchKey)
             return keyboard.layout.handleEmojiSearchKey(pressedKey)
+		if (keyboardSettings.forcedAppSupportKeyEvents
+				&& pressedKey
+				&& pressedKey.keyType !== KeyType.ShiftKey
+				&& pressedKey.keyType !== KeyType.SymbolKey
+				&& (pressedKey.key === Qt.Key_Backspace
+					|| pressedKey.key === Qt.Key_Space
+					|| pressedKey.key === Qt.Key_Return
+					|| pressedKey.key === Qt.Key_Enter
+					|| String(pressedKey.text || "").length > 0)) {
+			preedit = ""
+			clearEditingWord()
+			helper.typedCall("InjectAndroidKey", [
+				{ "type": "i", "value": pressedKey.key },
+				{ "type": "s", "value": String(pressedKey.text || "") }
+			], function() {}, function() {})
+			return true
+		}
 
         var handled = false
         var correctedSpaceIndex = -1
@@ -4478,8 +4522,10 @@ InputHandler {
 			return
 		}
 		var caption = String(key.caption)
-		if (caption === swipeLastKey)
+		if (caption === swipeLastKey) {
+			suppressSwipePopper(key)
 			return
+		}
 		var point = swipePointForKey(key)
 		if (point === "") {
 			resetSwipePath()
@@ -4489,6 +4535,18 @@ InputHandler {
 		nextPath.push(point)
 		swipePath = nextPath
 		swipeLastKey = caption
+		suppressSwipePopper(key)
+	}
+
+	function suppressSwipePopper(key) {
+		if (swipePath.length < 2 || !keyboard)
+			return
+		// KeyboardBase assigns every crossed letter to Popper.target before it
+		// calls the input handler.  Clearing only that visual target stops the
+		// platform's independent 500 ms accent timer; the active touch point
+		// retains its pressed key and still completes the swipe normally.
+		if (keyboard.lastPressedKey === key)
+			keyboard.lastPressedKey = null
 	}
 
 	function collectSwipeGeometry(item, result, seen) {
@@ -4638,6 +4696,32 @@ InputHandler {
 			if (suggestions.length < 1)
 				return
 			var word = suggestions[0]
+			if (keyboardSettings.forcedAppSupportKeyEvents) {
+				helper.typedCall("InjectAndroidSwipe", [
+					{ "type": "s", "value": word }
+				], function(inserted) {
+					if (!inserted || session !== futoHandler.swipeSessionSerial
+							|| !futoHandler.active || futoHandler.passwordField)
+						return
+					futoHandler.learnWithPrevious(previousWord, word)
+					futoHandler.candidateSpaceIndex = -1
+					futoHandler.swipeReplacementActive = false
+					futoHandler.swipePreviousWord = ""
+					futoHandler.clearEditingWord()
+					futoHandler.correctionQuery = ""
+					futoHandler.correctionCandidate = ""
+					futoHandler.nextWordMode = false
+					predictionModel.clear()
+					if (result.language)
+						futoHandler.detectedLanguage = String(result.language)
+					if (keyboard.shiftState !== ShiftState.LockedShift) {
+						keyboard.autocaps = false
+						keyboard.shiftState = ShiftState.AutoShift
+					}
+					futoHandler.suggestionsUpdated()
+				}, function() {})
+				return
+			}
 			var cursor = MInputMethodQuick.cursorPosition
 			MInputMethodQuick.sendCommit(word + " ")
 			futoHandler.swipePreviousWord = previousWord

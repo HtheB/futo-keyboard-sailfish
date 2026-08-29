@@ -39,6 +39,24 @@ grep -Fq 'trustedNamedVaultCaller(sender, "com.jolla.keyboard")' \
     "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
 grep -Fq '%attr(4755,root,root) %{_libexecdir}/futo-keyboard-focus' \
     "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"
+grep -Fq 'trusted_parent()' "$ROOT/vault/futo-keyboard-appsupport.c"
+grep -Fq 'AlienKeyboardService"' "$ROOT/vault/futo-keyboard-appsupport.c"
+grep -Fq 'ShowAndroidKeyboard()' \
+    "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+grep -Fq 'InjectAndroidKey' \
+    "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+grep -Fq 'InjectAndroidSwipe' \
+    "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+grep -Fq 'EndAndroidKeyboard' \
+    "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+grep -Fq 'restart", "maliit-server.service"' \
+    "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+grep -Fq 'KEYCODE_DEL' "$ROOT/vault/futo-keyboard-appsupport.c"
+grep -Fq 'forcedAppSupportKeyEvents' "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq '"remote-method": "ShowAndroidKeyboard"' \
+    "$ROOT/packaging/settings/futo-keyboard.json"
+grep -Fq '%attr(4755,root,root) %{_libexecdir}/futo-keyboard-appsupport' \
+    "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"
 grep -Fq 'credentialAutofillStage === 0' "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'Authenticator.Fingerprint' "$ROOT/qml/FutoDeviceAuthentication.qml"
 grep -Fq 'FutoDeviceLockInputPage.qml' "$ROOT/qml/FutoDeviceAuthentication.qml"

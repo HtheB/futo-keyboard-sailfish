@@ -59,7 +59,7 @@ bool isNonSpeechMarker(const std::string &value) {
 
 int main(int argc, char **argv) {
     if (argc == 2 && std::string(argv[1]) == "--version") {
-        std::cout << "futo-keyboard-voice 0.2.0" << std::endl;
+        std::cout << "futo-keyboard-voice 0.2.1" << std::endl;
         return 0;
     }
     if (argc != 4) {

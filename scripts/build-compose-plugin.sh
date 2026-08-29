@@ -7,6 +7,12 @@ BUILD=${FUTO_BUILD_DIR:-$ROOT/build/$ARCH}
 SHARED_ROOT=${FUTO_SHARED_ROOT:-$ROOT/../shared}
 QT_SOURCE=${FUTO_QT_SOURCE:-$SHARED_ROOT/qtbase-5.6.3}
 TARGET_LIB_ROOT=${FUTO_TARGET_LIB_ROOT:-${FUTO_PHONE_LIB_ROOT:-$SHARED_ROOT/futo-phone-sysroot}}
+TARGET_SYSROOT=${FUTO_TARGET_SYSROOT:-}
+if [ -n "$TARGET_SYSROOT" ]; then
+    TARGET_SYSROOT_OPTION="--sysroot=$TARGET_SYSROOT"
+else
+    TARGET_SYSROOT_OPTION=
+fi
 CROSS_ROOT=${FUTO_CROSS_ROOT:-}
 case "$ARCH" in
     aarch64) TOOL_PREFIX=aarch64-linux-gnu ;;
@@ -109,7 +115,7 @@ mkdir -p "$OUTPUT"
 compile() {
     source_file=$1
     object_file=$2
-    "$CXX" -std=c++11 -O2 -DNDEBUG -fPIC \
+    "$CXX" $TARGET_SYSROOT_OPTION -std=c++11 -O2 -DNDEBUG -fPIC \
         -DQT_PLUGIN -DQT_SHARED -DQT_NO_DEBUG '-DX11_PREFIX="/usr"' \
         -I"$OUTPUT" \
         -I"$SOURCE" -I"$SOURCE/generator" \
@@ -135,7 +141,7 @@ compile "$SOURCE/generator/qtablegenerator.cpp" \
     "$OUTPUT/qtablegenerator.o"
 compile "$WRAPPER_SOURCE" "$OUTPUT/futo_maliit_compose_wrapper.o"
 
-"$CXX" -shared \
+"$CXX" $TARGET_SYSROOT_OPTION -shared \
     -Wl,-soname,libcomposeplatforminputcontextplugin.so \
     -Wl,--allow-shlib-undefined \
     "$OUTPUT/qcomposeplatforminputcontextmain.o" \
@@ -150,7 +156,7 @@ compile "$WRAPPER_SOURCE" "$OUTPUT/futo_maliit_compose_wrapper.o"
     -o "$BUILD/libcomposeplatforminputcontextplugin.so"
 "$STRIP" "$BUILD/libcomposeplatforminputcontextplugin.so"
 
-"$CXX" -shared \
+"$CXX" $TARGET_SYSROOT_OPTION -shared \
     -Wl,-soname,libafutomaliitcomposewrapper.so \
     -Wl,--allow-shlib-undefined \
     "$OUTPUT/futo_maliit_compose_wrapper.o" \

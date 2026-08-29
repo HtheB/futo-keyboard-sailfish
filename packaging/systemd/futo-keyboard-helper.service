@@ -9,8 +9,10 @@ Restart=on-failure
 RestartSec=2s
 TimeoutStopSec=5s
 # The helper invokes package-owned set-user-ID bridges with fixed operations:
-# its root-owned encryption key and one Tab/Shift+Tab focus gesture. Both
-# independently validate this exact helper executable as their parent.
+# its root-owned encryption key, one Tab/Shift+Tab focus gesture, and restricted
+# Android AppSupport show/hide and compatibility-key requests. Sensitive D-Bus
+# calls validate Maliit as their caller, and every bridge independently validates
+# this exact helper executable as its parent.
 NoNewPrivileges=false
 PrivateTmp=true
 ProtectSystem=strict

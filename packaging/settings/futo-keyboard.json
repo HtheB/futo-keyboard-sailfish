@@ -9,6 +9,22 @@
         "params": {
             "source": "/usr/share/jolla-settings/pages/futo-keyboard-sailfish/main.qml"
         }
+    },
+    {
+        "path": "system_settings/look_and_feel/topmenu/actions/show_keyboard",
+        "title": "Show keyboard",
+        "title_short": "Keyboard",
+        "type": "action",
+        "icon": "image://theme/icon-m-keyboard",
+        "order": 57,
+        "params": {
+            "type": "grid",
+            "requires-package": "futo-keyboard-sailfish",
+            "remote-service": "org.hb.FutoKeyboard1",
+            "remote-path": "/org/hb/FutoKeyboard1",
+            "remote-interface": "org.hb.FutoKeyboard1",
+            "remote-method": "ShowAndroidKeyboard"
+        }
     }
     ]
 }

@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 ARCH=${FUTO_ARCH:-aarch64}
-VERSION=0.2.0
-RELEASE=2
+VERSION=0.2.1
+RELEASE=1
 NAME=futo-keyboard-sailfish
 TOPDIR=$(mktemp -d)
 STAGING=$(mktemp -d)
@@ -36,7 +36,7 @@ tar -C "$ROOT" \
 mkdir -p "$STAGING/$NAME-$VERSION/build/$ARCH"
 for file in \
     futo-keyboard-engine futo-keyboard-helper futo-keyboard-secrets \
-    futo-keyboard-keyring futo-keyboard-focus futo-keyboard-voice \
+    futo-keyboard-keyring futo-keyboard-focus futo-keyboard-appsupport futo-keyboard-voice \
     libfuto-maliit-policy.so.1 libcomposeplatforminputcontextplugin.so \
     libafutomaliitcomposewrapper.so libQt5WaylandClient.so.5.6.3 \
     libQt5WaylandClientFutoOriginal.so.5.6.3 stock-wayland.sha256; do
@@ -70,6 +70,7 @@ chmod 0755 "$STAGING/$NAME-$VERSION/scripts/"*.sh \
     "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-secrets" \
     "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-keyring" \
     "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-focus" \
+    "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-appsupport" \
     "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-voice" \
     "$STAGING/$NAME-$VERSION/build/$ARCH/libfuto-maliit-policy.so.1" \
     "$STAGING/$NAME-$VERSION/build/$ARCH/libcomposeplatforminputcontextplugin.so" \

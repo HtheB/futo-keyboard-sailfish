@@ -48,6 +48,11 @@ QT_SOURCE=${FUTO_QT_SOURCE:-$SHARED_ROOT/qtbase-5.6.3}
 QT_INCLUDE_ROOT=${FUTO_QT_INCLUDE_ROOT:-$QT_SOURCE/include}
 SECRETS_SOURCE=${FUTO_SECRETS_SOURCE:-$SHARED_ROOT/sailfish-secrets-upstream}
 TARGET_LIB_ROOT=${FUTO_TARGET_LIB_ROOT:-${FUTO_PHONE_LIB_ROOT:-$SHARED_ROOT/futo-phone-sysroot}}
+TARGET_SYSROOT=${FUTO_TARGET_SYSROOT:-}
+TARGET_COMPILE_FLAGS=()
+if [[ -n "$TARGET_SYSROOT" ]]; then
+    TARGET_COMPILE_FLAGS=(--sysroot="$TARGET_SYSROOT")
+fi
 
 mkdir -p "$BUILD" "$HOST_BUILD/dictionaries"
 
@@ -110,14 +115,14 @@ else
 fi
 
 if [[ ${FUTO_SKIP_CORE_BUILD:-0} != 1 ]]; then
-"$CXX" -std=c++17 -O2 -DNDEBUG \
+"$CXX" "${TARGET_COMPILE_FLAGS[@]}" -std=c++17 -O2 -DNDEBUG \
     -I"$ROOT/upstream/native" \
     "$ROOT/engine/futo_engine.cpp" \
     "$ROOT/upstream/native/utils/char_utils.cpp" \
     -o "$BUILD/futo-keyboard-engine"
 "$STRIP" "$BUILD/futo-keyboard-engine"
 
-"$CC" -std=c11 -O2 -DNDEBUG -fPIC -shared \
+"$CC" "${TARGET_COMPILE_FLAGS[@]}" -std=c11 -O2 -DNDEBUG -fPIC -shared \
     -Wl,-soname,libfuto-maliit-policy.so.1 \
     "$ROOT/hardware/futo_maliit_policy.c" -ldl \
     -o "$BUILD/libfuto-maliit-policy.so.1"
@@ -160,18 +165,18 @@ for source in ggml.c ggml-alloc.c ggml-backend.c ggml-quants.c; do
     if [[ "$source" == ggml.c ]]; then
         GGML_OPT_FLAGS+=(-fno-unroll-loops -fno-peel-loops -fno-loop-unroll-and-jam)
     fi
-    "$CC" -std=c11 "${GGML_OPT_FLAGS[@]}" "${VOICE_ARCH_FLAGS[@]}" \
+    "$CC" "${TARGET_COMPILE_FLAGS[@]}" -std=c11 "${GGML_OPT_FLAGS[@]}" "${VOICE_ARCH_FLAGS[@]}" \
         -DNDEBUG -D_GNU_SOURCE -pthread \
         -I"$VOICE_SOURCE" -c "$VOICE_SOURCE/$source" \
         -o "$VOICE_BUILD/${source%.c}.o"
 done
-"$CXX" -std=c++17 -O3 "${VOICE_ARCH_FLAGS[@]}" -DNDEBUG -pthread \
+"$CXX" "${TARGET_COMPILE_FLAGS[@]}" -std=c++17 -O3 "${VOICE_ARCH_FLAGS[@]}" -DNDEBUG -pthread \
     -I"$VOICE_SOURCE" -c "$VOICE_SOURCE/whisper.cpp" \
     -o "$VOICE_BUILD/whisper.o"
-"$CXX" -std=c++17 -O3 "${VOICE_ARCH_FLAGS[@]}" -DNDEBUG -pthread \
+"$CXX" "${TARGET_COMPILE_FLAGS[@]}" -std=c++17 -O3 "${VOICE_ARCH_FLAGS[@]}" -DNDEBUG -pthread \
     -I"$VOICE_SOURCE" -c "$ROOT/voice/futo_voice.cpp" \
     -o "$VOICE_BUILD/futo_voice.o"
-"$CXX" -pthread "$VOICE_BUILD"/*.o -lm -o "$BUILD/futo-keyboard-voice"
+"$CXX" "${TARGET_COMPILE_FLAGS[@]}" -pthread "$VOICE_BUILD"/*.o -lm -o "$BUILD/futo-keyboard-voice"
 "$STRIP" "$BUILD/futo-keyboard-voice"
 else
     test -x "$BUILD/futo-keyboard-voice" || {
@@ -204,7 +209,7 @@ for required in \
     test -s "$required" || { echo "Missing Sailfish Secrets build input: $required" >&2; exit 1; }
 done
 
-"$CXX" -std=c++17 -O2 -DNDEBUG -fPIC \
+"$CXX" "${TARGET_COMPILE_FLAGS[@]}" -std=c++17 -O2 -DNDEBUG -fPIC \
     -I"$QT_INCLUDE_ROOT" \
     -I"$QT_INCLUDE_ROOT/QtCore" \
     -I"$QT_INCLUDE_ROOT/QtDBus" \
@@ -218,21 +223,27 @@ done
     -o "$BUILD/futo-keyboard-secrets"
 "$STRIP" "$BUILD/futo-keyboard-secrets"
 
-"$CC" -std=c11 -O2 -DNDEBUG -fPIE -pie \
+"$CC" "${TARGET_COMPILE_FLAGS[@]}" -std=c11 -O2 -DNDEBUG -fPIE -pie \
     -Wall -Wextra -Werror \
     "$ROOT/vault/futo-keyboard-keyring.c" \
     -o "$BUILD/futo-keyboard-keyring"
 "$STRIP" "$BUILD/futo-keyboard-keyring"
 
-"$CC" -std=c11 -O2 -DNDEBUG -fPIE -pie \
+"$CC" "${TARGET_COMPILE_FLAGS[@]}" -std=c11 -O2 -DNDEBUG -fPIE -pie \
     -Wall -Wextra -Werror \
     "$ROOT/vault/futo-keyboard-focus.c" \
     -o "$BUILD/futo-keyboard-focus"
 "$STRIP" "$BUILD/futo-keyboard-focus"
 
+"$CC" "${TARGET_COMPILE_FLAGS[@]}" -std=c11 -O2 -DNDEBUG -fPIE -pie \
+    -Wall -Wextra -Werror \
+    "$ROOT/vault/futo-keyboard-appsupport.c" \
+    -o "$BUILD/futo-keyboard-appsupport"
+"$STRIP" "$BUILD/futo-keyboard-appsupport"
+
 file "$BUILD/futo-keyboard-engine" "$BUILD/futo-keyboard-helper" \
     "$BUILD/futo-keyboard-secrets" "$BUILD/futo-keyboard-keyring" \
-    "$BUILD/futo-keyboard-focus" \
+    "$BUILD/futo-keyboard-focus" "$BUILD/futo-keyboard-appsupport" \
     "$BUILD/futo-keyboard-voice" \
     "$BUILD/libfuto-maliit-policy.so.1" \
     "$BUILD/libcomposeplatforminputcontextplugin.so" \
