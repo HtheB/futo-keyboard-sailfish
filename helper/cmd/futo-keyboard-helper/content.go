@@ -224,9 +224,17 @@ func pathAvailable(value string) bool {
 func (manager *contentManager) installed(item contentItem) bool {
 	for _, relative := range item.Paths {
 		destination, err := manager.destination(relative)
-		if err != nil || !pathAvailable(destination) {
-			return false
+		if err == nil && pathAvailable(destination) {
+			continue
 		}
+		// A dictionary may also be provided system-wide by a package in
+		// bundledDictionaryDir; resolvedDictionaryPath already falls back to it.
+		if item.Kind == "dictionary" && strings.HasPrefix(relative, "dictionaries/") &&
+			pathAvailable(filepath.Join(bundledDictionaryDir,
+				strings.TrimPrefix(relative, "dictionaries/"))) {
+			continue
+		}
+		return false
 	}
 	return true
 }

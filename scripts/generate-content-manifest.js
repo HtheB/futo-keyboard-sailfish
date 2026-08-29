@@ -31,6 +31,7 @@ const languages = [
     ["RO", "Română", "ro.fksidx", "ro"],
     ["SL", "Slovenščina", "sl.fksidx", "sl"],
     ["HR", "Hrvatski", "hr.fksidx", "hr"],
+    ["HU", "Magyar", "hu.fksidx", "hu"],
     ["LV", "Latviešu", "lv.fksidx", "lv"],
     ["LT", "Lietuvių", "lt.fksidx", "lt"],
     ["EL", "Ελληνικά", "el.fksidx", "el"],

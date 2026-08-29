@@ -268,6 +268,7 @@ var supportedLanguages = []languageInfo{
 	{Code: "RO", File: "ro.fksidx", Name: "Română"},
 	{Code: "SL", File: "sl.fksidx", Name: "Slovenščina"},
 	{Code: "HR", File: "hr.fksidx", Name: "Hrvatski"},
+	{Code: "HU", File: "hu.fksidx", Name: "Magyar"},
 	{Code: "LV", File: "lv.fksidx", Name: "Latviešu"},
 	{Code: "LT", File: "lt.fksidx", Name: "Lietuvių"},
 	{Code: "EL", File: "el.fksidx", Name: "Ελληνικά"},
