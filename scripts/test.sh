@@ -6,6 +6,16 @@ ENGINE="$ROOT/build/futo-dictionary-compiler"
 
 node --check < "$ROOT/packaging/polkit/49-futo-keyboard-secrets.rules"
 node "$ROOT/scripts/check-symbol-data.js"
+test -s "$ROOT/dictionaries/hu_wordlist.combined.gz"
+gzip -t "$ROOT/dictionaries/hu_wordlist.combined.gz"
+echo '4f597b3c05346521c3f1cf8e9a8a5def8f75e0fa0351be6cf4fc42a2c68c3f53  dictionaries/hu_wordlist.combined.gz' |
+    (cd "$ROOT" && sha256sum -c -)
+gzip -dc "$ROOT/dictionaries/hu_wordlist.combined.gz" | sed -n '1p' |
+    grep -Fq 'dictionary=main:hu,locale=hu,description=Magyar'
+grep -Fq '525f9b560de45753a5ea01069454e72e9aa541c6' \
+    "$ROOT/dictionaries/README.md"
+grep -Fq 'Creative Commons Attribution-ShareAlike 4.0 International' \
+    "$ROOT/LICENSES/HUNGARIAN-DICTIONARY-ATTRIBUTION.md"
 grep -Fq 'QLibraryInfo::location(QLibraryInfo::PluginsPath)' \
     "$ROOT/hardware/compose/futo_maliit_compose_wrapper.cpp"
 ! grep -Fq '/usr/lib64/qt5/plugins/platforminputcontexts' \
@@ -377,12 +387,19 @@ russian_swipe_output=$(printf 'SWIPE\tRU\t5\t0\t%s\t%s\n' \
     | "$ENGINE" --dictionary "RU=$ROOT/build/dictionaries/ru.fksidx" 2>/dev/null)
 [[ $russian_swipe_output == $'OK\t[{"word":"привет",'* ]]
 
+hungarian_output=$(printf '%s\n' \
+    $'SUGGEST\tHU\t8\tszia' \
+    $'ANALYZE\tHU\t8\tmagyr' \
+    | "$ENGINE" --dictionary "HU=$ROOT/build/dictionaries/hu.fksidx" 2>/dev/null)
+grep -Fq $'OK\t["szia","Szia","sziasztok"' <<<"$hungarian_output"
+grep -Fq '"corrections":[{"word":"magyar"' <<<"$hungarian_output"
+
 language_files=(
     EN=en_US.fksidx EN_GB=en_GB.fksidx NL=nl.fksidx TR=tr.fksidx
     DE=de.fksidx FR=fr.fksidx ES=es.fksidx IT=it.fksidx
     PT_BR=pt_BR.fksidx PT_PT=pt_PT.fksidx SV=sv.fksidx NB=nb.fksidx
     DA=da.fksidx FI=fi.fksidx PL=pl.fksidx CS=cs.fksidx
-    RO=ro.fksidx SL=sl.fksidx HR=hr.fksidx LV=lv.fksidx LT=lt.fksidx
+    RO=ro.fksidx SL=sl.fksidx HR=hr.fksidx HU=hu.fksidx LV=lv.fksidx LT=lt.fksidx
     EL=el.fksidx RU=ru.fksidx SR=sr.fksidx SR_LATN=sr_Latn.fksidx
 )
 engine_arguments=()

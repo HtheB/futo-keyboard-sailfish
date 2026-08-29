@@ -8,6 +8,11 @@
   Serbian Cyrillic (`sr`), are compiled from the word lists in that same
   pinned upstream revision. Serbian Latin (`sr_Latn`) is deterministically
   transliterated from the pinned Serbian word list during the build.
+- Hungarian (`hu`) is built from separately pinned frequency and casing data
+  because the FUTO revision does not include it. Its exact sources, checksums,
+  transformation and CC BY-SA 4.0 terms are documented in
+  `dictionaries/README.md` and
+  `LICENSES/HUNGARIAN-DICTIONARY-ATTRIBUTION.md`.
 
 Keyboard layout definitions:
 

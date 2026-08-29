@@ -325,6 +325,20 @@
       "languageCode": "HR"
     },
     {
+      "id": "dictionary-hu",
+      "kind": "dictionary",
+      "name": "Magyar",
+      "version": "0.2.0-1",
+      "archive": "futo-content-dictionary-hu-0.2.0-1.tar.gz",
+      "sha256": "64ba0a7a57621a15fc5bae18ff5719914917c035b177b1d46720195871fa82fb",
+      "downloadBytes": 2885093,
+      "installedBytes": 11545363,
+      "paths": [
+        "dictionaries/hu.fksidx"
+      ],
+      "languageCode": "HU"
+    },
+    {
       "id": "dictionary-lv",
       "kind": "dictionary",
       "name": "Latviešu",

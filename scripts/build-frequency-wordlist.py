@@ -13,10 +13,11 @@ and quantile-mapped onto the f distribution of a reference AOSP list so the
 engine's ranking weights stay comparable across languages.
 
 Example (Hungarian):
-  curl -LO https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/hu/hu_full.txt
-  curl -L https://raw.githubusercontent.com/openboard-team/openboard/v1.4.5/dictionaries/hu_wordlist.combined.gz | gzip -dc > hu.combined
+  python3 -m pip install wordfreq==3.1.1
+  curl -LO https://raw.githubusercontent.com/hermitdave/FrequencyWords/525f9b560de45753a5ea01069454e72e9aa541c6/content/2018/hu/hu_full.txt
+  curl -L https://raw.githubusercontent.com/openboard-team/openboard/6c7582aae8577f2953a597a547924bbea3d832f4/dictionaries/hu_wordlist.combined.gz | gzip -dc > hu.combined
   gzip -dc upstream/dictionaries/de_wordlist.combined.gz > de.combined
-  scripts/build-frequency-wordlist.py --language hu --letters 'a-záéíóöőúüű' \
+  SOURCE_DATE_EPOCH=1788013310 scripts/build-frequency-wordlist.py --language hu --letters 'a-záéíóöőúüű' \
       --subtitles hu_full.txt --wordfreq hu --hunspell hu_HU --casing hu.combined \
       --reference de.combined --description Magyar --output hu_wordlist.combined
 
@@ -29,6 +30,7 @@ Example (German, Austrian and German spelling both accepted):
 import argparse
 import collections
 import math
+import os
 import re
 import subprocess
 import sys
@@ -218,8 +220,9 @@ def main():
     reference = load_reference_frequencies(args.reference)
     count = len(kept)
     with open(args.output, "w", encoding="utf-8") as handle:
+        generated = int(os.environ.get("SOURCE_DATE_EPOCH", str(int(time.time()))))
         handle.write(f"dictionary=main:{args.language},locale={args.language},"
-                     f"description={args.description},date={int(time.time())},version=1\n")
+                     f"description={args.description},date={generated},version=1\n")
         for index, (score, display, twin) in enumerate(kept):
             reference_index = min(len(reference) - 1, int(index * len(reference) / count))
             frequency = max(1, reference[reference_index] - (1 if twin else 0))
