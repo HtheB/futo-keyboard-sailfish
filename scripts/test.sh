@@ -86,6 +86,8 @@ grep -Fq 'Math.max(Theme.itemSizeLarge, height * 1.6)' \
     "$ROOT/layouts/FutoSpacebarKey.qml"
 grep -Fq 'opacity: root.cursorMoveMode ? 0 : 1' \
     "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'opacity: targetLayout && targetLayout.cursorMoveMode ? 0 : 1' \
+    "$ROOT/layouts/FutoNumpadLayout.qml"
 grep -Fq 'readonly property bool cursorStatusVisible: futoHandler.cursorMoveMode' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'Drag finger to move cursor' \

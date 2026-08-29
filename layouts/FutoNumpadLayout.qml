@@ -8,6 +8,7 @@ Column {
     property bool secondPage: false
     property bool followRowHeight: false
     height: targetLayout ? 4 * targetLayout.keyHeight : 0
+    opacity: targetLayout && targetLayout.cursorMoveMode ? 0 : 1
     spacing: 0
 
     function digit(value) {
