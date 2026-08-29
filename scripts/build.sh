@@ -80,7 +80,7 @@ fi
 
 LANGUAGES=(
     en_US en_GB nl tr de fr es it pt_BR pt_PT sv nb da fi pl cs ro sl hr lv lt
-    el ru sr sr_Latn
+    el ru sr sr_Latn hu
 )
 
 if [[ ${FUTO_SKIP_DICTIONARY_BUILD:-0} != 1 ]]; then
@@ -98,6 +98,10 @@ if [[ ${FUTO_SKIP_DICTIONARY_BUILD:-0} != 1 ]]; then
             node "$ROOT/scripts/generate-serbian-latin-dictionary.js" \
                 "$ROOT/upstream/dictionaries/sr_wordlist.combined.gz" \
                 "$source_file"
+        elif [[ -s "$ROOT/dictionaries/${language}_wordlist.combined.gz" ]]; then
+            # Word lists maintained in this repository for languages the
+            # pinned upstream revision does not cover (see dictionaries/).
+            gzip -dc "$ROOT/dictionaries/${language}_wordlist.combined.gz" > "$source_file"
         else
             gzip -dc "$ROOT/upstream/dictionaries/${language}_wordlist.combined.gz" > "$source_file"
         fi

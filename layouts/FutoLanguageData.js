@@ -16,6 +16,7 @@ var languages = [
     { code: "IT", name: "Italiano", prediction: true },
     { code: "LV", name: "Latviešu", prediction: true },
     { code: "LT", name: "Lietuvių", prediction: true },
+    { code: "HU", name: "Magyar", prediction: true },
     { code: "NL", name: "Nederlands", prediction: true },
     { code: "NB", name: "Norsk bokmål", prediction: true },
     { code: "PL", name: "Polski", prediction: true },

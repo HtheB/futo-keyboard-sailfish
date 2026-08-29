@@ -133,6 +133,7 @@ var languageDefaults = {
     "FI": 6,
     "FR": 2,
     "HR": 18,
+    "HU": 1,
     "IT": 0,
     "LT": 0,
     "LV": 0,

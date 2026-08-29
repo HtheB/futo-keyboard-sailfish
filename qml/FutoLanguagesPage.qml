@@ -265,6 +265,7 @@ Page {
         ListElement { code: "IT"; title: "Italiano" }
         ListElement { code: "LV"; title: "Latviešu" }
         ListElement { code: "LT"; title: "Lietuvių" }
+        ListElement { code: "HU"; title: "Magyar" }
         ListElement { code: "NL"; title: "Nederlands" }
         ListElement { code: "NB"; title: "Norsk bokmål" }
         ListElement { code: "PL"; title: "Polski" }
