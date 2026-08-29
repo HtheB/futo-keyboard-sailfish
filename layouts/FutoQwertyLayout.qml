@@ -31,6 +31,8 @@ FutoKeyboardLayout {
         property string manualLayoutAssignments: "{}"
         property int layoutDefaultsVersion: 2
         property string enabledLanguages: "EN,NL,TR"
+        property bool automaticLanguageDetection: true
+        property string manualPredictionLanguage: ""
         property int symbolNumberLayout: 0
         property int emojiStyle: 3
         property int emojiSkinTone: 0
@@ -71,12 +73,17 @@ FutoKeyboardLayout {
             ? !!keyboard.inputHandler.incognitoMode
             : (layoutSettings.incognitoMode || automaticPrivateInput)
     readonly property int enabledLetterLayoutCount: configuredLayoutGroups().length
+    readonly property int enabledLanguageCount: enabledPredictionLanguages().length
+    readonly property int languageSwitchCount: layoutSettings.automaticLanguageDetection
+            ? enabledLetterLayoutCount : enabledLanguageCount
     readonly property string currentLetterLayoutName: letterLayoutName(layoutVariant)
     readonly property string currentLetterLayoutMenuName: LetterLayouts.menuName(layoutVariant)
     readonly property string currentLayoutLanguages: languageNamesForLayout(layoutVariant)
     readonly property string currentLayoutLanguageCodes: languagesForLayout(layoutVariant).join("+")
     readonly property bool usesArabicDigits: LetterLayouts.script(layoutVariant) === "arabic"
     readonly property string currentLayoutMenuLanguageLabel: {
+        if (!layoutSettings.automaticLanguageDetection)
+            return selectedPredictionLanguage(layoutVariant)
         var languages = languagesForLayout(layoutVariant)
         return languages.length > 2 ? qsTr("MULTI") : languages.join("+")
     }
@@ -329,6 +336,11 @@ FutoKeyboardLayout {
     }
 
     function predictionLanguagesForLayout(layoutValue) {
+        if (!layoutSettings.automaticLanguageDetection) {
+            var selected = selectedPredictionLanguage(layoutValue)
+            return selected !== "" && LanguageData.predictionSupported(selected)
+                    ? selected : ""
+        }
         var languages = languagesForLayout(layoutValue)
         var result = []
         for (var i = 0; i < languages.length; ++i) {
@@ -336,6 +348,21 @@ FutoKeyboardLayout {
                 result.push(languages[i])
         }
         return result.join(",")
+    }
+
+    function selectedPredictionLanguage(layoutValue) {
+        var languages = languagesForLayout(layoutValue)
+        if (languages.length < 1)
+            return ""
+        var selected = String(layoutSettings.manualPredictionLanguage).trim()
+        if (languages.indexOf(selected) >= 0)
+            return selected
+        if (handler && handler.detectedLanguage !== undefined) {
+            var detected = String(handler.detectedLanguage)
+            if (languages.indexOf(detected) >= 0)
+                return detected
+        }
+        return languages[0]
     }
 
     function languageNamesForLayout(layoutValue) {
@@ -480,11 +507,37 @@ FutoKeyboardLayout {
         var languages = languagesForLayout(layoutVariant)
         if (languages.length < 1)
             return
+        if (!layoutSettings.automaticLanguageDetection) {
+            var selected = selectedPredictionLanguage(layoutVariant)
+            if (selected === "")
+                return
+            if (String(layoutSettings.manualPredictionLanguage) !== selected)
+                layoutSettings.manualPredictionLanguage = selected
+            if (String(handler.detectedLanguage) !== selected)
+                handler.detectedLanguage = selected
+            return
+        }
         if (languages.indexOf(String(handler.detectedLanguage)) < 0)
             handler.detectedLanguage = languages[0]
     }
 
     function cycleLetterLayout() {
+        if (!layoutSettings.automaticLanguageDetection) {
+            var languages = enabledPredictionLanguages()
+            if (languages.length < 2)
+                return
+            var selected = selectedPredictionLanguage(layoutVariant)
+            var currentLanguage = languages.indexOf(selected)
+            var nextLanguage = languages[(currentLanguage + 1 + languages.length)
+                                         % languages.length]
+            var nextLayout = layoutForLanguage(nextLanguage)
+            if (layoutVariant !== nextLayout)
+                layoutSettings.layoutVariant = nextLayout
+            layoutSettings.manualPredictionLanguage = nextLanguage
+            synchronizeDetectedLanguage()
+            controlTimeout.restart()
+            return
+        }
         var enabled = configuredLayoutGroups()
         if (enabled.length < 2) {
             return
@@ -904,6 +957,8 @@ FutoKeyboardLayout {
         }
         onEnabledLanguagesChanged: root.ensureLayoutAssignments()
         onLayoutAssignmentsChanged: root.ensureActiveLetterLayout()
+        onAutomaticLanguageDetectionChanged: root.synchronizeDetectedLanguage()
+        onManualPredictionLanguageChanged: root.synchronizeDetectedLanguage()
         onNumberRowEnabledChanged: root.updateSizes()
         onSymbolNumberLayoutChanged: root.updateSizes()
         onAutoCapitalizationEnabledChanged: root.applyConfiguredAutocaps()

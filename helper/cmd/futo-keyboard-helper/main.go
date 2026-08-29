@@ -3641,6 +3641,9 @@ func (service *service) analyzeContext(languagesCSV, word, context string,
 		limit = 20
 	}
 	languages := normalizeLanguages(languagesCSV)
+	if !automaticLanguageDetection && len(languages) > 1 {
+		languages = languages[:1]
+	}
 	previous := lastContextWord(context)
 	allKnown := false
 	ranked := make([]scoredWord, 0, int(limit)*len(languages))

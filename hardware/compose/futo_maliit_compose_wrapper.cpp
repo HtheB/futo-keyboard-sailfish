@@ -1,7 +1,9 @@
 #include <QPluginLoader>
 #include <QCoreApplication>
+#include <QDebug>
 #include <QFileInfo>
 #include <QKeyEvent>
+#include <QLibraryInfo>
 #include <QLocale>
 #include <QPointer>
 #include <QRectF>
@@ -16,6 +18,12 @@ static bool isLipstickCompositor()
                 QCoreApplication::applicationFilePath()).fileName()
             .compare(QStringLiteral("lipstick"), Qt::CaseInsensitive) == 0;
     return lipstick;
+}
+
+static QString inputContextPluginPath(const QString &fileName)
+{
+    return QLibraryInfo::location(QLibraryInfo::PluginsPath)
+            + QStringLiteral("/platforminputcontexts/") + fileName;
 }
 
 class FutoComposingInputContext : public QPlatformInputContext
@@ -208,8 +216,10 @@ class FutoMaliitComposeWrapperPlugin : public QPlatformInputContextPlugin
 
 public:
     FutoMaliitComposeWrapperPlugin()
-        : m_maliitLoader(QStringLiteral("/usr/lib64/qt5/plugins/platforminputcontexts/libmaliitplatforminputcontextplugin.so")),
-          m_composeLoader(QStringLiteral("/usr/lib64/qt5/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so"))
+        : m_maliitLoader(inputContextPluginPath(
+                             QStringLiteral("libmaliitplatforminputcontextplugin.so"))),
+          m_composeLoader(inputContextPluginPath(
+                              QStringLiteral("libcomposeplatforminputcontextplugin.so")))
     {
         m_maliitLoader.setLoadHints(QLibrary::PreventUnloadHint);
         m_composeLoader.setLoadHints(QLibrary::PreventUnloadHint);
@@ -223,18 +233,31 @@ public:
 
         QPlatformInputContextPlugin *maliitFactory =
                 qobject_cast<QPlatformInputContextPlugin *>(m_maliitLoader.instance());
-        if (!maliitFactory)
+        if (!maliitFactory) {
+            qWarning() << "FUTO keyboard could not load the Maliit input-context plugin"
+                       << m_maliitLoader.fileName() << m_maliitLoader.errorString();
             return nullptr;
+        }
 
         QPlatformInputContext *maliit = maliitFactory->create(system, parameters);
-        if (!maliit)
+        if (!maliit) {
+            qWarning() << "FUTO keyboard could not create the Maliit input context from"
+                       << m_maliitLoader.fileName();
             return nullptr;
+        }
 
         QPlatformInputContext *compose = nullptr;
         QPlatformInputContextPlugin *composeFactory =
                 qobject_cast<QPlatformInputContextPlugin *>(m_composeLoader.instance());
-        if (composeFactory)
+        if (composeFactory) {
             compose = composeFactory->create(QStringLiteral("compose"), QStringList());
+            if (!compose)
+                qWarning() << "FUTO keyboard could not create the Compose input context from"
+                           << m_composeLoader.fileName();
+        } else {
+            qWarning() << "FUTO keyboard could not load the Compose input-context plugin"
+                       << m_composeLoader.fileName() << m_composeLoader.errorString();
+        }
 
         return new FutoComposingInputContext(maliit, compose);
     }

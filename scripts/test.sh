@@ -6,6 +6,20 @@ ENGINE="$ROOT/build/futo-dictionary-compiler"
 
 node --check < "$ROOT/packaging/polkit/49-futo-keyboard-secrets.rules"
 node "$ROOT/scripts/check-symbol-data.js"
+grep -Fq 'QLibraryInfo::location(QLibraryInfo::PluginsPath)' \
+    "$ROOT/hardware/compose/futo_maliit_compose_wrapper.cpp"
+! grep -Fq '/usr/lib64/qt5/plugins/platforminputcontexts' \
+    "$ROOT/hardware/compose/futo_maliit_compose_wrapper.cpp"
+grep -Fq 'm_maliitLoader.errorString()' \
+    "$ROOT/hardware/compose/futo_maliit_compose_wrapper.cpp"
+grep -Fq 'property string manualPredictionLanguage: ""' \
+    "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'property int languageSwitchCount:' \
+    "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'layoutSettings.manualPredictionLanguage = nextLanguage' \
+    "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'keyboard.layout.languageSwitchCount' \
+    "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'org.hb.futo.keyboard.saved-login' \
     "$ROOT/packaging/polkit/org.hb.futo.keyboard.policy"
 grep -Fq '"--allow-user-interaction"' \

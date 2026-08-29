@@ -309,7 +309,8 @@ Page {
                 automaticCheck: false
                 checked: settings.automaticLanguageDetection
                 text: qsTr("Detect and rank active languages automatically")
-                description: qsTr("Languages sharing the current layout are checked together.")
+                description: qsTr("When disabled, use Switch language/layout in Quick Settings "
+                                  + "to choose one language at a time.")
                 onClicked: settings.automaticLanguageDetection = !checked
             }
 

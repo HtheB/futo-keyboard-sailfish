@@ -2113,10 +2113,15 @@ InputHandler {
 	}
 
     function quickSettingAvailable(actionId) {
-        if (actionId === "language")
+        if (actionId === "language") {
+            var localLanguageChoices = keyboard.layout
+                    && keyboard.layout.languageSwitchCount !== undefined
+                    ? Number(keyboard.layout.languageSwitchCount)
+                    : (keyboard.layout ? Number(keyboard.layout.enabledLetterLayoutCount) : 0)
             return keyboard.layout
-                    && (keyboard.layout.enabledLetterLayoutCount > 1
+                    && (localLanguageChoices > 1
                         || nextEnabledSailfishKeyboardIndex() >= 0)
+        }
         if (actionId === "clipboard")
             return keyboardSettings.clipboardHistoryEnabled
         if (actionId === "microphone")

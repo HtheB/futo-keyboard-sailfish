@@ -67,6 +67,7 @@ Page {
     function resetDefaults() {
         settings.enabledLanguages = "EN,NL,TR"
         settings.automaticLanguageDetection = true
+        settings.manualPredictionLanguage = ""
         settings.nextWordPredictionEnabled = true
         settings.predictionEnabled = true
         settings.autoCorrectionEnabled = false
@@ -160,6 +161,7 @@ Page {
         property string enabledLanguages: "EN,NL,TR"
         property int settingsVersion: 0
         property bool automaticLanguageDetection: true
+        property string manualPredictionLanguage: ""
         property bool nextWordPredictionEnabled: true
         property bool predictionEnabled: true
         property bool autoCorrectionEnabled: false
