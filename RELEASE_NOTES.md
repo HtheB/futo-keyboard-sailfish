@@ -1,10 +1,11 @@
-# FUTO Keyboard for Sailfish OS 0.2.1
+# FUTO Keyboard for Sailfish OS 0.2.2
 
-## New feature
+## New
 
-- Added an optional **Show keyboard** action to the Sailfish OS Top Menu, allowing the keyboard to be opened in Android apps that normally do not show a keyboard.
+- Added Hungarian predictions, available through Downloadable content.
+- When automatic language detection is disabled, the **Switch language/layout** action can now cycle through selected languages that use the same keyboard layout.
 
 ## Fixes
 
-- Holding the language/layout button in Quick Settings now switches to another enabled Sailfish OS keyboard.
-- Secondary characters no longer appear when briefly holding over a letter during swipe typing.
+- Fixed a startup problem that could prevent FUTO Keyboard from appearing on armv7hl and i486 devices.
+- Cursor-control mode now correctly hides the keys on the number and symbol pages.

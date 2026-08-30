@@ -41,13 +41,8 @@ Invoke-WebRequest -UseBasicParsing `
     -Uri "https://www.unicode.org/Public/17.0.0/emoji/emoji-test.txt" `
     -OutFile $emojiTest
 
-$bundledRoot = Join-Path $env:USERPROFILE ".cache\codex-runtimes\codex-primary-runtime\dependencies\node"
-$bundledNode = Join-Path $bundledRoot "bin\node.exe"
 $systemNode = Get-Command node -ErrorAction SilentlyContinue
-if (Test-Path -LiteralPath $bundledNode) {
-    $node = $bundledNode
-    $env:NODE_PATH = Join-Path $bundledRoot "node_modules"
-} elseif ($systemNode) {
+if ($systemNode) {
     $node = $systemNode.Source
 } else {
     throw "Node.js is required to generate the Emoji 17 dataset"

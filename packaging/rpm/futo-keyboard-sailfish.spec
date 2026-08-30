@@ -4,7 +4,7 @@
 %global _missing_build_ids_terminate_build 0
 
 Name:           futo-keyboard-sailfish
-Version:        0.2.1
+Version:        0.2.2
 Release:        1
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
 License:        LicenseRef-FUTO-Source-First-1.1-kb AND BSD-3-Clause AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND (LGPL-2.1-only OR LGPL-3.0-only)
@@ -35,7 +35,7 @@ Requires:       qt5-qtwayland-wayland_egl >= 5.6.3
 %description
 An independent, modified Sailfish OS integration using FUTO Keyboard dictionary
 data. It provides one native FUTO layout with simultaneous suggestions across
-25 selectable prediction languages, per-language visual layout assignment,
+26 selectable prediction languages, per-language visual layout assignment,
 automatic language weighting, context and next-word learning, configurable typo
 correction, keyboard-layout-aware swipe typing, optional offline FUTO voice typing,
 private clipboard history, an on-device personal dictionary, and
@@ -161,6 +161,13 @@ fi
 %{_userunitdir}/maliit-server.service.d/10-futo-hardware-policy.conf
 
 %changelog
+* Sun Aug 30 2026 HtheB - 0.2.2-1
+- Add Hungarian predictions as optional downloadable content.
+- Allow manual switching between selected languages which share a layout when
+  automatic language detection is disabled.
+- Fix keyboard startup on armv7hl and i486 devices.
+- Hide number and symbol keys during cursor-control mode.
+
 * Sat Aug 29 2026 HtheB - 0.2.1-1
 - Add an optional Top Menu action that can force the keyboard to appear in
   Android apps which normally do not show a keyboard.

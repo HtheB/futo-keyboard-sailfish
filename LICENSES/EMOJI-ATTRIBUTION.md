@@ -1,6 +1,6 @@
 # Emoji data and artwork attribution
 
-FUTO Keyboard for Sailfish OS 0.2.1 includes all 3,944 fully-qualified
+FUTO Keyboard for Sailfish OS 0.2.2 includes all 3,944 fully-qualified
 sequences in the Unicode Emoji 17.0 test data. The picker presents 1,914 base
 entries and keeps all 2,030 skin-tone sequences reachable through long-press
 choices. Each user-selectable style contains an image for every sequence.
