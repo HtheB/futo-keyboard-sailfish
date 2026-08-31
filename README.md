@@ -95,15 +95,19 @@ Saved passwords and protected learned data can be secured using the existing dev
 
 ## Building from source
 
-The included build script creates the Sailfish OS RPM and the separately downloadable content packages. Select the target architecture with `FUTO_ARCH`:
+Native builds need a matching Sailfish SDK target and cross compiler. Prepare
+the local target dependencies first, then build the RPM:
 
 ```sh
-FUTO_ARCH=aarch64 bash scripts/build-rpm.sh
-FUTO_ARCH=armv7hl bash scripts/build-rpm.sh
-FUTO_ARCH=i486 bash scripts/build-rpm.sh
+scripts/prepare-build-environment.sh --arch aarch64 \
+    --sysroot /path/to/Sailfish-SDK-target
+source build/dependencies/aarch64/environment.sh
+scripts/build-rpm.sh
 ```
 
-Build results are placed in the `build/` directory. Use the matching Sailfish SDK target and toolchain for each architecture.
+See [BUILDING.md](BUILDING.md) for the required packages, other architectures,
+toolchain overrides and engine-integration notes. Build results are placed in
+the ignored `build/` directory.
 
 ## Source and licensing
 

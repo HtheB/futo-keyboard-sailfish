@@ -712,7 +712,7 @@ func TestSelectedRenamedLearnedBackupImportsFromPickerPath(t *testing.T) {
 }
 
 func TestValidWord(t *testing.T) {
-	for _, word := range []string{"hello", "don't", "co-op", "Türkçe"} {
+	for _, word := range []string{"hello", "don't", "co-op", "Türkçe", "می\u200cروم"} {
 		if !validWord(word) {
 			t.Fatalf("expected %q to be a valid word", word)
 		}
@@ -781,6 +781,9 @@ func TestDistinctiveLettersPreferTheirLanguage(t *testing.T) {
 	}
 	if languageRuneBonus("SR_LATN", "ćirilica") <= languageRuneBonus("EN", "ćirilica") {
 		t.Fatal("Serbian Latin letters did not prefer Serbian Latin")
+	}
+	if languageRuneBonus("FA", "فارسی") <= languageRuneBonus("AR", "فارسی") {
+		t.Fatal("Persian letters did not prefer Persian")
 	}
 }
 
@@ -875,6 +878,24 @@ func TestHistorySuppressWordPersistsDictionaryBlock(t *testing.T) {
 	}
 	if got := reloaded.next("hello", 4); len(got) != 0 {
 		t.Fatalf("suppressed word remains in learned context: %#v", got)
+	}
+}
+
+func TestSwipeCorrectionLearningPersistsAndBoostsAlternative(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "history.json")
+	store := newHistoryStore(path, &secureFileCodec{})
+	if err := store.acceptSwipeCorrection("DE", "Denke", "Danke"); err != nil {
+		t.Fatal(err)
+	}
+	if got := store.swipeCorrectionBonus("DE", "denke", "danke"); got != 750000000 {
+		t.Fatalf("first correction bonus = %d", got)
+	}
+	if got := store.swipeCorrectionBonus("EN", "denke", "danke"); got != 0 {
+		t.Fatalf("correction leaked across languages: %d", got)
+	}
+	reloaded := newHistoryStore(path, &secureFileCodec{})
+	if got := reloaded.swipeCorrectionBonus("DE", "DENKE", "DANKE"); got != 750000000 {
+		t.Fatalf("persisted correction bonus = %d", got)
 	}
 }
 

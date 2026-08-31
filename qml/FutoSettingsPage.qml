@@ -67,6 +67,7 @@ Page {
     function resetDefaults() {
         settings.enabledLanguages = "EN,NL,TR"
         settings.automaticLanguageDetection = true
+		settings.mergeSameLayoutLanguages = true
         settings.manualPredictionLanguage = ""
         settings.nextWordPredictionEnabled = true
         settings.predictionEnabled = true
@@ -127,6 +128,7 @@ Page {
         settings.clipboardRetentionSeconds = 3600
         settings.clipboardReturnAfterPaste = true
         settings.keySoundEnabled = false
+		settings.keySoundFollowSystem = true
         settings.keySoundVolume = 0.5
         settings.keySoundMigrationDone = true
         settings.settingsVersion = 10
@@ -161,6 +163,7 @@ Page {
         property string enabledLanguages: "EN,NL,TR"
         property int settingsVersion: 0
         property bool automaticLanguageDetection: true
+		property bool mergeSameLayoutLanguages: true
         property string manualPredictionLanguage: ""
         property bool nextWordPredictionEnabled: true
         property bool predictionEnabled: true
@@ -221,6 +224,7 @@ Page {
         property int clipboardRetentionSeconds: 3600
         property bool clipboardReturnAfterPaste: true
         property bool keySoundEnabled: false
+		property bool keySoundFollowSystem: true
         property real keySoundVolume: 0.5
         property bool keySoundMigrationDone: false
     }

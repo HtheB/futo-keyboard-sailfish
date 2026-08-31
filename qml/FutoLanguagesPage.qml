@@ -219,6 +219,7 @@ Page {
         property string layoutAssignments: "{}"
         property string manualLayoutAssignments: "{}"
         property bool automaticLanguageDetection: true
+		property bool mergeSameLayoutLanguages: true
     }
 
     DBusInterface {
@@ -282,6 +283,7 @@ Page {
         ListElement { code: "RU"; title: "Русский" }
         ListElement { code: "SR"; title: "Српски (ћирилица)" }
         ListElement { code: "AR"; title: "العربية" }
+        ListElement { code: "FA"; title: "فارسی" }
     }
 
     SilicaFlickable {
@@ -314,6 +316,17 @@ Page {
                                   + "to choose one language at a time.")
                 onClicked: settings.automaticLanguageDetection = !checked
             }
+
+			TextSwitch {
+				width: parent.width
+				automaticCheck: false
+				checked: settings.mergeSameLayoutLanguages
+				text: qsTr("Combine languages that use the same layout")
+				description: checked
+					? qsTr("One keyboard can predict all languages assigned to that layout.")
+					: qsTr("Each language stays separate and can be selected with Switch language/layout.")
+				onClicked: settings.mergeSameLayoutLanguages = !checked
+			}
 
             Repeater {
                 model: languageModel
@@ -358,7 +371,7 @@ Page {
                             // compact label beside the switch. Giving Arabic the
                             // full row width would place it at the screen edge.
                             width: Math.min(implicitWidth, languageLabels.width)
-                            horizontalAlignment: code === "AR"
+                            horizontalAlignment: code === "AR" || code === "FA"
                                                  ? Text.AlignRight : Text.AlignLeft
                             color: languageToggleArea.pressed
                                    ? Theme.highlightColor : Theme.primaryColor

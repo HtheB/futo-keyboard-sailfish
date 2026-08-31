@@ -103,6 +103,11 @@ var layouts = [
         ["љ", "њ", "е", "р", "т", "з", "у", "и", "о", "п", "ш"],
         ["а", "с", "д", "ф", "г", "х", "ј", "к", "л", "ч", "ћ"],
         ["џ", "ђ", "ц", "в", "б", "н", "м", "ж"]
+    ] },
+    { name: "Persian", script: "persian", languages: ["FA"], rows: [
+        ["ض", "ص", "ث", "ق", "ف", "غ", "ع", "ه", "خ", "ح", "ج"],
+        ["ش", "س", "ی", "ب", "ل", "ا", "ت", "ن", "م", "ک", "گ"],
+        ["ظ", "ط", "ژ", "ز", "ر", "ذ", "د", "پ", "و", "چ"]
     ] }
 ]
 
@@ -114,7 +119,7 @@ var menuNames = [
     "QWERTY", "QWERTZ", "AZERTY", "TR-Q", "DE-QWERTZ", "ES-QWERTY",
     "SE/FI", "DA/NO", "RO-QWERTY", "COLEMAK", "COLEMAK-DH", "DVORAK",
     "WORKMAN", "ARABIC", "GREEK", "CYRILLIC", "TR-F", "SL-QWERTZ",
-    "HR/SR-QW", "SR-CYRL"
+    "HR/SR-QW", "SR-CYRL", "PERSIAN"
 ]
 
 // Match the first/best conventional layout offered for each language by the
@@ -130,6 +135,7 @@ var languageDefaults = {
     "EN": 0,
     "EN_GB": 0,
     "ES": 5,
+    "FA": 20,
     "FI": 6,
     "FR": 2,
     "HR": 18,
@@ -176,6 +182,8 @@ function languageScript(languageCode) {
         return "arabic"
     if (languageCode === "EL")
         return "greek"
+    if (languageCode === "FA")
+        return "persian"
     if (languageCode === "RU" || languageCode === "SR")
         return "cyrillic"
     return "latin"
@@ -190,6 +198,8 @@ function defaultForLanguage(languageCode) {
         return 13
     if (languageScriptValue === "greek")
         return 14
+    if (languageScriptValue === "persian")
+        return 20
     if (languageScriptValue === "cyrillic")
         return 15
     return 0
@@ -205,6 +215,8 @@ function legacyDefaultForLanguage(languageCode) {
         return 13
     if (languageScriptValue === "greek")
         return 14
+    if (languageScriptValue === "persian")
+        return 20
     if (languageScriptValue === "cyrillic")
         return 15
     return 0

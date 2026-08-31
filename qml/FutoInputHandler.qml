@@ -50,6 +50,8 @@ InputHandler {
 	property int swipeOutstanding: 0
 	property bool swipeReplacementActive: false
 	property string swipePreviousWord: ""
+	property string swipeOriginalWord: ""
+	property string swipeCorrectionLanguage: ""
 	// A Space-bar drag owns the complete touch sequence.  Without this guard,
 	// KeyboardBase starts feeding letter keys into swipe typing as soon as the
 	// finger leaves Space, which steals cursor-control gestures.
@@ -1218,6 +1220,15 @@ InputHandler {
         return suggestions.length
     }
 
+    function predictionSignature() {
+        var result = []
+        for (var i = 0; i < predictionModel.count; ++i) {
+            var item = predictionModel.get(i)
+            result.push(String(item.source || item.text || ""))
+        }
+        return result.join("\u001f")
+    }
+
     ProfileControl {
         id: systemFeedback
     }
@@ -1455,6 +1466,7 @@ InputHandler {
         property int clipboardRetentionSeconds: 3600
         property bool clipboardReturnAfterPaste: true
         property bool keySoundEnabled: false
+		property bool keySoundFollowSystem: true
         property real keySoundVolume: 0.5
         property bool swipeTypingEnabled: true
         // Set only by the Top Menu compatibility action. Android applications
@@ -1720,8 +1732,14 @@ InputHandler {
                         Math.round(configuredVolume * 10))) * 10
     }
 
+	function keySoundActive() {
+		return keyboardSettings.keySoundEnabled
+				&& (!keyboardSettings.keySoundFollowSystem
+				    || systemFeedback.touchscreenToneLevel !== 0)
+	}
+
     function playKeySound(soundKind) {
-        if (!keyboardSettings.keySoundEnabled || !soundKind)
+		if (!keySoundActive() || !soundKind)
             return
         helper.typedCall("PlayKeySound", [
             { "type": "s", "value": soundKind },
@@ -2158,7 +2176,7 @@ InputHandler {
             return "file:///usr/share/futo-keyboard-sailfish/icons/icon-m-emoji.svg"
         if (actionId === "microphone") return "image://theme/icon-m-browser-microphone"
         if (actionId === "sound")
-            return keyboardSettings.keySoundEnabled
+            return keySoundActive()
                     ? "image://theme/icon-m-speaker-on"
                     : "image://theme/icon-m-speaker-mute"
         if (actionId === "incognito") return "image://theme/icon-m-incognito"
@@ -3340,7 +3358,7 @@ InputHandler {
                                 || (actionId === "microphone"
                                     && futoHandler.voiceRecording)
                                 || (actionId === "sound"
-                                    && keyboardSettings.keySoundEnabled)
+								    && futoHandler.keySoundActive())
 								|| (actionId === "desktopkeys"
 								    && keyboardSettings.desktopToolbarEnabled)
                             width: configuredControlButtons.buttonWidth
@@ -3807,8 +3825,16 @@ InputHandler {
                     && futoHandler.committedSpaceExpectedCursor >= 0
                     && MInputMethodQuick.surroundingTextValid
                     && MInputMethodQuick.cursorPosition
-                       !== futoHandler.committedSpaceExpectedCursor)
-                futoHandler.clearCommittedSpace()
+                       !== futoHandler.committedSpaceExpectedCursor) {
+                var currentCursor = MInputMethodQuick.cursorPosition
+                var recentCommittedSpace = Date.now()
+                        - futoHandler.committedSpaceTimestamp <= 1200
+                        && currentCursor > 0
+                        && MInputMethodQuick.surroundingText.charAt(
+                               currentCursor - 1) === " "
+                if (!recentCommittedSpace)
+                    futoHandler.clearCommittedSpace()
+            }
             if (futoHandler.active && futoHandler.preedit === "") {
 				futoHandler.syncEditorTypedBuffer()
                 editorContextTimer.restart()
@@ -4252,10 +4278,26 @@ InputHandler {
         learnWithPrevious(lastWord(contextBeforeCursor()), word)
     }
 
+	function learnSwipeCorrection(source, replacement, language) {
+		if (!source || !replacement
+				|| String(source).toLocaleLowerCase()
+				   === String(replacement).toLocaleLowerCase()
+				|| !keyboardSettings.personalLearningEnabled
+				|| futoHandler.incognitoMode || urlField || passwordField)
+			return
+		helper.typedCall("AcceptSwipeCorrection", [
+			{ "type": "s", "value": language },
+			{ "type": "s", "value": String(source) },
+			{ "type": "s", "value": String(replacement) }
+		], function() {}, function() {})
+	}
+
     function applyPrediction(replacement) {
         if (preedit === "" && editingWord !== "") {
             var replacingSwipe = swipeReplacementActive
             var previousSwipeWord = swipePreviousWord
+			var originalSwipeWord = swipeOriginalWord
+			var correctionLanguage = swipeCorrectionLanguage
             var start = editingWordStart
             var length = editingWordLength
             var cursor = MInputMethodQuick.cursorPosition
@@ -4273,6 +4315,8 @@ InputHandler {
             clearEditingWord()
 			swipeReplacementActive = false
 			swipePreviousWord = ""
+			swipeOriginalWord = ""
+			swipeCorrectionLanguage = ""
             correctionQuery = ""
             correctionCandidate = ""
             nextWordMode = false
@@ -4280,6 +4324,8 @@ InputHandler {
             suggestionsUpdated()
             editorContextTimer.restart()
 			if (replacingSwipe) {
+				learnSwipeCorrection(originalSwipeWord, replacement,
+				                   correctionLanguage)
 				learnWithPrevious(previousSwipeWord, replacement)
 				scheduleNextWords(replacement)
 			}
@@ -4310,6 +4356,8 @@ InputHandler {
 		if (swipeReplacementActive) {
 			swipeReplacementActive = false
 			swipePreviousWord = ""
+			swipeOriginalWord = ""
+			swipeCorrectionLanguage = ""
 			clearEditingWord()
 		}
 		// Quick Settings intentionally stays open while its language button is
@@ -4659,6 +4707,8 @@ InputHandler {
 		swipeOutstanding = 0
 		swipeReplacementActive = false
 		swipePreviousWord = ""
+		swipeOriginalWord = ""
+		swipeCorrectionLanguage = ""
 		resetSwipePath()
 	}
 
@@ -4722,6 +4772,14 @@ InputHandler {
 		if (swipePath.length < 2 || !swipeKeyAllowed(pressedKey))
 			return false
 		var serializedPath = swipePath.join(";")
+		if (keyboard.layout && keyboard.layout.serializedSwipeTrace) {
+			var firstParts = String(swipePath[0]).split(":")
+			var lastParts = String(swipePath[swipePath.length - 1]).split(":")
+			var continuousPath = keyboard.layout.serializedSwipeTrace(
+			            Number(firstParts[0]), Number(lastParts[0]))
+			if (continuousPath !== "")
+				serializedPath = continuousPath
+		}
 		var geometry = swipeGeometry()
 		resetSwipePath()
 		if (geometry === "")
@@ -4779,6 +4837,8 @@ InputHandler {
 					futoHandler.candidateSpaceIndex = -1
 					futoHandler.swipeReplacementActive = false
 					futoHandler.swipePreviousWord = ""
+					futoHandler.swipeOriginalWord = ""
+					futoHandler.swipeCorrectionLanguage = ""
 					futoHandler.clearEditingWord()
 					futoHandler.correctionQuery = ""
 					futoHandler.correctionCandidate = ""
@@ -4798,6 +4858,9 @@ InputHandler {
 			MInputMethodQuick.sendCommit(word + " ")
 			futoHandler.armCommittedSpace(cursor + word.length + 1)
 			futoHandler.swipePreviousWord = previousWord
+			futoHandler.swipeOriginalWord = word
+			futoHandler.swipeCorrectionLanguage = result.language
+			        ? String(result.language) : futoHandler.detectedLanguage
 			futoHandler.learnWithPrevious(previousWord, word)
 			futoHandler.candidateSpaceIndex = cursor + word.length + 1
 			futoHandler.editingWord = word
@@ -4933,7 +4996,29 @@ InputHandler {
     }
 
     function isInputCharacter(character) {
-        return isLetterCharacter(character) || "'-’".indexOf(character) >= 0
+        return isLetterCharacter(character) || character === "\u200c"
+                || "'-’".indexOf(character) >= 0
+    }
+
+    function insertWordCharacter(text) {
+        text = String(text || "")
+        if (text === "")
+            return
+        clearCommittedSpace()
+        if (immediateCommitField) {
+            if (preedit !== "")
+                commit(preedit)
+            MInputMethodQuick.sendCommit(text)
+            clearEditingWord()
+        } else if (editingWord !== "") {
+            MInputMethodQuick.sendCommit(text)
+            clearEditingWord()
+            editorContextTimer.restart()
+        } else {
+            preedit += text
+            MInputMethodQuick.sendPreedit(preedit)
+            requestSuggestionsSoon()
+        }
     }
 
     function sendCursorSteps(horizontalSteps, verticalSteps) {

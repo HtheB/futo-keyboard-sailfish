@@ -10,6 +10,7 @@ PredictionListView {
     property int removalIndex: -1
     property real predictionItemsWidth: 0
     property bool resetPositionAfterGeometry: false
+    property string displayedPredictionSignature: ""
     readonly property real _maximumLabelWidth: width - (2 * Theme.paddingLarge)
     readonly property real centeredHeaderWidth: predictionSettings.centerPredictions
             && predictionItemsWidth > 0 && predictionItemsWidth < width
@@ -56,8 +57,12 @@ PredictionListView {
     }
 
     onPredictionsChanged: {
+        var nextSignature = handler && handler.predictionSignature
+                ? handler.predictionSignature() : ""
+        var contentChanged = nextSignature !== displayedPredictionSignature
+        displayedPredictionSignature = nextSignature
         cancelRemoval()
-        queuePredictionGeometry(true)
+        queuePredictionGeometry(contentChanged)
     }
     onCanRemoveChanged: {
         if (!canRemove)

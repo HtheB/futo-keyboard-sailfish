@@ -6,6 +6,7 @@ Item {
     id: emojiGrid
 
     property Item targetLayout
+    property int dataRevision
     property bool followRowHeight: false
     property Item toneSourceKey
     property var toneVariants: []
@@ -25,7 +26,10 @@ Item {
             result = Math.max(6, result - 1)
         return result
     }
-    readonly property var entries: targetLayout ? targetLayout.emojiEntriesForPage() : []
+    readonly property var entries: {
+        var revision = dataRevision
+        return targetLayout ? targetLayout.emojiEntriesForPage() : []
+    }
     readonly property bool split: targetLayout && targetLayout.splitActive
     readonly property real splitGap: split ? Number(targetLayout.avoidanceWidth) : 0
     height: targetLayout ? 3 * targetLayout.keyHeight : 0

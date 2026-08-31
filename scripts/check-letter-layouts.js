@@ -15,7 +15,7 @@ function assert(condition, message) {
         throw new Error(message);
 }
 
-assert(context.count === 20, "Expected twenty layouts");
+assert(context.count === 21, "Expected twenty-one layouts");
 for (let layout = 0; layout < context.count; ++layout) {
     assert(context.name(layout), "Layout " + layout + " has no name");
     for (let row = 0; row < 3; ++row)
@@ -31,6 +31,8 @@ assert(context.name(18) === "Croatian / Serbian Latin QWERTZ",
        "Croatian/Serbian Latin QWERTZ must be appended at index 18");
 assert(context.name(19) === "Serbian Cyrillic",
        "Serbian Cyrillic must be appended at index 19");
+assert(context.name(20) === "Persian",
+       "Persian must be appended at index 20");
 assert(context.menuNames.length === context.count,
        "Every layout must have a compact held-123 menu name");
 for (let layout = 0; layout < context.count; ++layout) {
@@ -76,9 +78,20 @@ assert(context.compatibleIndices("RU").length === 1
 assert(context.compatibleIndices("SR").length === 1
        && context.compatibleIndices("SR")[0] === 19,
        "Serbian Cyrillic must only offer its national layout");
+assert(context.compatibleIndices("FA").length === 1
+       && context.compatibleIndices("FA")[0] === 20,
+       "Persian must only offer the Persian layout");
+assert(context.letter(20, 0, 0) === "ض"
+       && context.letter(20, 1, 2) === "ی"
+       && context.letter(20, 1, 9) === "ک"
+       && context.letter(20, 1, 10) === "گ"
+       && context.letter(20, 2, 2) === "ژ"
+       && context.letter(20, 2, 7) === "پ"
+       && context.letter(20, 2, 9) === "چ",
+       "Persian national letters are incorrect");
 
 const expectedDefaults = {
-    AR: 13, CS: 1, DA: 7, DE: 4, EL: 14, EN: 0, EN_GB: 0, ES: 5,
+    AR: 13, CS: 1, DA: 7, DE: 4, EL: 14, EN: 0, EN_GB: 0, ES: 5, FA: 20,
     FI: 6, FR: 2, HR: 18, IT: 0, LT: 0, LV: 0, NB: 7, NL: 0,
     PL: 0, PT_BR: 5, PT_PT: 5, RO: 8, RU: 15, SL: 17,
     SR: 19, SR_LATN: 18, SV: 6, TR: 3

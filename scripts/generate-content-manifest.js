@@ -37,7 +37,8 @@ const languages = [
     ["EL", "Ελληνικά", "el.fksidx", "el"],
     ["RU", "Русский", "ru.fksidx", "ru"],
     ["SR", "Српски (ћирилица)", "sr.fksidx", "sr"],
-    ["SR_LATN", "Srpski (latinica)", "sr_Latn.fksidx", "sr-latn"]
+    ["SR_LATN", "Srpski (latinica)", "sr_Latn.fksidx", "sr-latn"],
+    ["FA", "فارسی", "fa.fksidx", "fa"]
 ];
 
 function recursiveSize(filename) {

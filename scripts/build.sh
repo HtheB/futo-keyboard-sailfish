@@ -6,6 +6,7 @@ ARCH=${FUTO_ARCH:-aarch64}
 BUILD=${FUTO_BUILD_DIR:-$ROOT/build/$ARCH}
 HOST_BUILD=${FUTO_HOST_BUILD_DIR:-$ROOT/build}
 CROSS_ROOT=${FUTO_CROSS_ROOT:-}
+TOOLCHAIN_DIRECTORY=${FUTO_TOOLCHAIN_DIR:-}
 case "$ARCH" in
     aarch64)
         TOOL_PREFIX=aarch64-linux-gnu
@@ -30,24 +31,34 @@ case "$ARCH" in
         exit 1
         ;;
 esac
-if [[ -n "$CROSS_ROOT" ]]; then
+TOOL_PREFIX=${FUTO_TOOL_PREFIX:-$TOOL_PREFIX}
+if [[ -n "$TOOLCHAIN_DIRECTORY" ]]; then
+    DEFAULT_CXX="$TOOLCHAIN_DIRECTORY/$TOOL_PREFIX-g++"
+    DEFAULT_CC="$TOOLCHAIN_DIRECTORY/$TOOL_PREFIX-gcc"
+    DEFAULT_STRIP="$TOOLCHAIN_DIRECTORY/$TOOL_PREFIX-strip"
+elif [[ -n "$CROSS_ROOT" && -x "$CROSS_ROOT/usr/bin/$TOOL_PREFIX-g++" ]]; then
     DEFAULT_CXX="$CROSS_ROOT/usr/bin/$TOOL_PREFIX-g++"
     DEFAULT_CC="$CROSS_ROOT/usr/bin/$TOOL_PREFIX-gcc"
     DEFAULT_STRIP="$CROSS_ROOT/usr/bin/$TOOL_PREFIX-strip"
+elif [[ -n "$CROSS_ROOT" ]]; then
+    DEFAULT_CXX="$CROSS_ROOT/bin/$TOOL_PREFIX-g++"
+    DEFAULT_CC="$CROSS_ROOT/bin/$TOOL_PREFIX-gcc"
+    DEFAULT_STRIP="$CROSS_ROOT/bin/$TOOL_PREFIX-strip"
 else
     DEFAULT_CXX="$TOOL_PREFIX-g++"
     DEFAULT_CC="$TOOL_PREFIX-gcc"
     DEFAULT_STRIP="$TOOL_PREFIX-strip"
 fi
-CXX=${FUTO_CXX:-${CXX_AARCH64:-$DEFAULT_CXX}}
-CC=${FUTO_CC:-${CC_AARCH64:-$DEFAULT_CC}}
-STRIP=${FUTO_STRIP:-${STRIP_AARCH64:-$DEFAULT_STRIP}}
+CXX=${FUTO_CXX:-$DEFAULT_CXX}
+CC=${FUTO_CC:-$DEFAULT_CC}
+STRIP=${FUTO_STRIP:-$DEFAULT_STRIP}
 HOST_CXX=${HOST_CXX:-g++}
-SHARED_ROOT=${FUTO_SHARED_ROOT:-$ROOT/../shared}
-QT_SOURCE=${FUTO_QT_SOURCE:-$SHARED_ROOT/qtbase-5.6.3}
-QT_INCLUDE_ROOT=${FUTO_QT_INCLUDE_ROOT:-$QT_SOURCE/include}
-SECRETS_SOURCE=${FUTO_SECRETS_SOURCE:-$SHARED_ROOT/sailfish-secrets-upstream}
-TARGET_LIB_ROOT=${FUTO_TARGET_LIB_ROOT:-${FUTO_PHONE_LIB_ROOT:-$SHARED_ROOT/futo-phone-sysroot}}
+DEPS_ROOT=${FUTO_DEPS_ROOT:-$ROOT/build/dependencies}
+QT_SOURCE=${FUTO_QT_SOURCE:-$DEPS_ROOT/sources/qtbase-5.6.3}
+QT_INCLUDE_ROOT=${FUTO_QT_INCLUDE_ROOT:-$BUILD/qt-compose-includes/include}
+QT_CONFIG_ROOT=${FUTO_QT_CONFIG_ROOT:-$DEPS_ROOT/$ARCH/qt-config}
+SECRETS_SOURCE=${FUTO_SECRETS_SOURCE:-$DEPS_ROOT/sources/sailfish-secrets-0.2.44}
+TARGET_LIB_ROOT=${FUTO_TARGET_LIB_ROOT:-${FUTO_PHONE_LIB_ROOT:-$DEPS_ROOT/$ARCH/lib}}
 TARGET_SYSROOT=${FUTO_TARGET_SYSROOT:-}
 TARGET_COMPILE_FLAGS=()
 if [[ -n "$TARGET_SYSROOT" ]]; then
@@ -78,9 +89,11 @@ if [[ -z "$STRIP" || ! -x "$STRIP" ]]; then
     exit 1
 fi
 
+"$ROOT/scripts/check-build-environment.sh"
+
 LANGUAGES=(
     en_US en_GB nl tr de fr es it pt_BR pt_PT sv nb da fi pl cs ro sl hr lv lt
-    el ru sr sr_Latn hu
+    el ru sr sr_Latn hu fa
 )
 
 if [[ ${FUTO_SKIP_DICTIONARY_BUILD:-0} != 1 ]]; then

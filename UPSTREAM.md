@@ -13,6 +13,10 @@
   transformation and CC BY-SA 4.0 terms are documented in
   `dictionaries/README.md` and
   `LICENSES/HUNGARIAN-DICTIONARY-ATTRIBUTION.md`.
+- Persian (`fa`) is built from separately pinned Persian frequency data and
+  the Apache-2.0 Lilak Hunspell dictionary. Exact inputs, hashes, transformation
+  and notices are documented in `dictionaries/README.md` and
+  `LICENSES/PERSIAN-DICTIONARY-ATTRIBUTION.md`.
 
 Keyboard layout definitions:
 
@@ -50,6 +54,17 @@ Password ZIP encryption:
 
 No exploratory prebuilt binaries are included. This project rebuilds its
 required native components from the recorded source files.
+
+Native Sailfish build dependencies:
+
+- Qt Base 5.6.3: https://github.com/qt/qtbase at
+  `e6f8b072d2bf15f8b82bede48ff29ce8ac8dbd9a`
+- Sailfish Secrets 0.2.44: https://github.com/sailfishos/sailfish-secrets at
+  `5a8d33e2eda2fe10a64acc42912dd3bedc736495`
+- Target Qt, xkbcommon and Sailfish Secrets libraries/configuration headers are
+  taken from the user's matching Sailfish SDK target by
+  `scripts/prepare-build-environment.sh`; these target binaries are never
+  committed or placed in source archives.
 
 The complete Unicode Emoji 17 data and artwork are regenerated with
 `scripts/fetch-full-emoji-set.ps1` from the pinned Unicode, Twemoji, OpenMoji,

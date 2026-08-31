@@ -49,3 +49,32 @@ The resulting list and the compiled `hu.fksidx` are derived from CC-BY-SA 4.0
 data and are distributed under CC-BY-SA 4.0 with the attributions above. The
 complete notice and license links are in
 `LICENSES/HUNGARIAN-DICTIONARY-ATTRIBUTION.md`.
+
+## fa_wordlist.combined.gz — Persian (فارسی)
+
+Built deterministically by `scripts/build-persian-wordlist.py` from these
+pinned inputs:
+
+- Persian OpenSubtitles word counts from `hermitdave/FrequencyWords` commit
+  `525f9b560de45753a5ea01069454e72e9aa541c6` (MIT). Input SHA-256:
+  `e46be953c3a0b3db74ea307c6f6a21ce2c72217bde0ab1d79b3809209ab52501`.
+- The normalized Lilak Persian Hunspell dictionary packaged by
+  `wooorm/dictionaries` commit
+  `8cfea406b505e4d7df52d5a19bce525df98c54ab` (Apache-2.0). Input hashes:
+  `fa_IR.aff` `dba0980816354ad969aa46dda0c040eeebda4a9381be331e17eae8647a2a1e1c`,
+  `fa_IR.dic` `314f31e059994f26e8016c834b14dfd10f74834b3f623a6040265b8f2a9dddab`.
+- The German reference-frequency distribution from the repository's pinned
+  FUTO Keyboard revision, used only to map ranks to the engine's existing
+  `f` scale.
+
+Arabic Yeh/Kaf compatibility forms are normalized to Persian Yeh/Kaf and
+duplicates are combined. Conversational frequency entries rank first; unique
+Hunspell base forms follow for broader spelling coverage. `SOURCE_DATE_EPOCH`
+is fixed to `1788134400`. The uncompressed output contains 210,000 entries and
+has SHA-256
+`59df1022f5b80a8815ce07378420bf40f44ca24505b96a5bdfce59e05635a267`;
+deterministic `gzip -9 -n` output has SHA-256
+`4c47a8410f2a5fdeb057d01859f252159446fcdaa228bea535a6f85264f93a49`.
+
+The complete notices are in
+`LICENSES/PERSIAN-DICTIONARY-ATTRIBUTION.md`.

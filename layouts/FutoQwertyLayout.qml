@@ -31,6 +31,7 @@ FutoKeyboardLayout {
         property int layoutDefaultsVersion: 2
         property string enabledLanguages: "EN,NL,TR"
         property bool automaticLanguageDetection: true
+		property bool mergeSameLayoutLanguages: true
         property string manualPredictionLanguage: ""
         property int symbolNumberLayout: 0
         property int emojiStyle: 3
@@ -58,6 +59,9 @@ FutoKeyboardLayout {
     readonly property real emojiSizeScale: clampedEmojiSizeScale(
                                                layoutSettings.emojiSizeScale)
     readonly property bool numberRowEnabled: layoutSettings.numberRowEnabled
+	readonly property real numberRowHeightScale: 0.67
+	readonly property real keyboardPanelHeight: (4 + (numberRowEnabled
+			? numberRowHeightScale : 0)) * keyHeight
     readonly property bool automaticPrivateInput: MInputMethodQuick.hiddenText
             || !MInputMethodQuick.predictionEnabled
             || !!MInputMethodQuick.extensions.privateMode
@@ -73,15 +77,24 @@ FutoKeyboardLayout {
             : (layoutSettings.incognitoMode || automaticPrivateInput)
     readonly property int enabledLetterLayoutCount: configuredLayoutGroups().length
     readonly property int enabledLanguageCount: enabledPredictionLanguages().length
-    readonly property int languageSwitchCount: layoutSettings.automaticLanguageDetection
+    readonly property bool languagesShareActiveLayout:
+		layoutSettings.automaticLanguageDetection
+		&& layoutSettings.mergeSameLayoutLanguages
+    readonly property int languageSwitchCount: languagesShareActiveLayout
             ? enabledLetterLayoutCount : enabledLanguageCount
     readonly property string currentLetterLayoutName: letterLayoutName(layoutVariant)
     readonly property string currentLetterLayoutMenuName: LetterLayouts.menuName(layoutVariant)
-    readonly property string currentLayoutLanguages: languageNamesForLayout(layoutVariant)
-    readonly property string currentLayoutLanguageCodes: languagesForLayout(layoutVariant).join("+")
+    readonly property string currentLayoutLanguages: languagesShareActiveLayout
+			? languageNamesForLayout(layoutVariant)
+			: LanguageData.name(selectedPredictionLanguage(layoutVariant))
+    readonly property string currentLayoutLanguageCodes: languagesShareActiveLayout
+			? languagesForLayout(layoutVariant).join("+")
+			: selectedPredictionLanguage(layoutVariant)
     readonly property bool usesArabicDigits: LetterLayouts.script(layoutVariant) === "arabic"
+    readonly property bool usesPersianDigits: LetterLayouts.script(layoutVariant) === "persian"
+    readonly property bool usesLocalizedDigits: usesArabicDigits || usesPersianDigits
     readonly property string currentLayoutMenuLanguageLabel: {
-        if (!layoutSettings.automaticLanguageDetection)
+        if (!languagesShareActiveLayout)
             return selectedPredictionLanguage(layoutVariant)
         var languages = languagesForLayout(layoutVariant)
         return languages.length > 2 ? qsTr("MULTI") : languages.join("+")
@@ -109,6 +122,8 @@ FutoKeyboardLayout {
             && keyboard.inputHandler.cursorMoveMode
     property bool recentEmojiViewActive: false
     property var recentEmojiViewEntries: []
+    property bool suppressNextLayoutSwipeCancel: false
+    property bool suppressNextLanguageSwipeCancel: false
 
     onEmojiModeChanged: {
         if (!emojiMode)
@@ -346,7 +361,7 @@ FutoKeyboardLayout {
     }
 
     function predictionLanguagesForLayout(layoutValue) {
-        if (!layoutSettings.automaticLanguageDetection) {
+        if (!languagesShareActiveLayout) {
             var selected = selectedPredictionLanguage(layoutValue)
             return selected !== "" && LanguageData.predictionSupported(selected)
                     ? selected : ""
@@ -428,17 +443,19 @@ FutoKeyboardLayout {
         // Shift/Backspace row, so sharing that width compresses the letters
         // into a narrow centred block. Let them consume each row's width.
         var activeScript = LetterLayouts.script(layoutVariant)
-        return activeScript === "arabic" || activeScript === "cyrillic"
+        return activeScript === "arabic" || activeScript === "persian"
+                || activeScript === "cyrillic"
                 || layoutVariant === 17 || layoutVariant === 18
     }
 
     function digitForLayout(value) {
         var digit = String(value)
-        if (!usesArabicDigits)
+        if (!usesLocalizedDigits)
             return digit
         var index = Number(digit)
         return isFinite(index) && index >= 0 && index <= 9
-                ? "٠١٢٣٤٥٦٧٨٩".charAt(index) : digit
+                ? (usesPersianDigits ? "۰۱۲۳۴۵۶۷۸۹" : "٠١٢٣٤٥٦٧٨٩").charAt(index)
+                : digit
     }
 
     function numberPageLabel() {
@@ -446,7 +463,7 @@ FutoKeyboardLayout {
     }
 
     function letterPageLabel() {
-        return usesArabicDigits ? "أبج" : "ABC"
+        return usesArabicDigits ? "أبج" : (usesPersianDigits ? "ابپ" : "ABC")
     }
 
     function secondarySymbolAt(row, column) {
@@ -461,7 +478,7 @@ FutoKeyboardLayout {
         // letter shortcuts.  If a dedicated Arabic number row is visible,
         // those shortcuts become Western digits so both forms stay one hold
         // away.  The actual 123 page itself always uses Western digits.
-        return row === 0 && column < 10 && usesArabicDigits
+        return row === 0 && column < 10 && usesLocalizedDigits
                 && !attributes.inSymView && !numberRowEnabled
                 ? digitForLayout(symbols[column]) : symbols[column]
     }
@@ -517,7 +534,7 @@ FutoKeyboardLayout {
         var languages = languagesForLayout(layoutVariant)
         if (languages.length < 1)
             return
-        if (!layoutSettings.automaticLanguageDetection) {
+        if (!languagesShareActiveLayout) {
             var selected = selectedPredictionLanguage(layoutVariant)
             if (selected === "")
                 return
@@ -532,7 +549,7 @@ FutoKeyboardLayout {
     }
 
     function cycleLetterLayout() {
-        if (!layoutSettings.automaticLanguageDetection) {
+        if (!languagesShareActiveLayout) {
             var languages = enabledPredictionLanguages()
             if (languages.length < 2)
                 return
@@ -541,8 +558,14 @@ FutoKeyboardLayout {
             var nextLanguage = languages[(currentLanguage + 1 + languages.length)
                                          % languages.length]
             var nextLayout = layoutForLanguage(nextLanguage)
-            if (layoutVariant !== nextLayout)
+            if (handler && handler.cancelSwipeSession)
+                handler.cancelSwipeSession()
+            if (layoutVariant !== nextLayout) {
+                suppressNextLayoutSwipeCancel = true
                 layoutSettings.layoutVariant = nextLayout
+            }
+            if (String(layoutSettings.manualPredictionLanguage) !== nextLanguage)
+                suppressNextLanguageSwipeCancel = true
             layoutSettings.manualPredictionLanguage = nextLanguage
             synchronizeDetectedLanguage()
             controlTimeout.restart()
@@ -553,6 +576,9 @@ FutoKeyboardLayout {
             return
         }
         var current = enabled.indexOf(layoutVariant)
+        if (handler && handler.cancelSwipeSession)
+            handler.cancelSwipeSession()
+        suppressNextLayoutSwipeCancel = true
         layoutSettings.layoutVariant = enabled[(current + 1 + enabled.length) % enabled.length]
         synchronizeDetectedLanguage()
         controlTimeout.restart()
@@ -957,8 +983,11 @@ FutoKeyboardLayout {
     Connections {
         target: layoutSettings
         onLayoutVariantChanged: {
-            if (root.handler && root.handler.cancelSwipeSession)
+            if (root.suppressNextLayoutSwipeCancel) {
+                root.suppressNextLayoutSwipeCancel = false
+            } else if (root.handler && root.handler.cancelSwipeSession) {
                 root.handler.cancelSwipeSession()
+            }
             root.updateSizes()
             root.synchronizeDetectedLanguage()
         }
@@ -966,8 +995,11 @@ FutoKeyboardLayout {
         onLayoutAssignmentsChanged: root.ensureActiveLetterLayout()
         onAutomaticLanguageDetectionChanged: root.synchronizeDetectedLanguage()
         onManualPredictionLanguageChanged: {
-            if (root.handler && root.handler.cancelSwipeSession)
+            if (root.suppressNextLanguageSwipeCancel) {
+                root.suppressNextLanguageSwipeCancel = false
+            } else if (root.handler && root.handler.cancelSwipeSession) {
                 root.handler.cancelSwipeSession()
+            }
             root.synchronizeDetectedLanguage()
         }
         onNumberRowEnabledChanged: root.updateSizes()
@@ -992,6 +1024,9 @@ FutoKeyboardLayout {
     }
 
     KeyboardRow {
+		id: compactNumberRow
+		followRowHeight: false
+		height: Math.round(root.keyHeight * root.numberRowHeightScale)
         opacity: root.cursorMoveMode ? 0 : 1
         visible: !root.emojiMode && !root.extendedSymbolMode
                  && !root.extraKeysMode
@@ -1124,21 +1159,21 @@ FutoKeyboardLayout {
     FutoLayoutEditor {
         visible: root.layoutEditorMode
         targetLayout: root
-        height: (layoutSettings.numberRowEnabled ? 5 : 4) * root.keyHeight
+		height: root.keyboardPanelHeight
     }
 
     FutoClipboardPanel {
         visible: root.clipboardMode
         targetLayout: root
         targetHandler: root.handler
-        height: (layoutSettings.numberRowEnabled ? 5 : 4) * root.keyHeight
+		height: root.keyboardPanelHeight
     }
 
 	FutoCredentialPanel {
 		visible: root.credentialMode
 		targetLayout: root
 		targetHandler: root.handler
-		height: (layoutSettings.numberRowEnabled ? 5 : 4) * root.keyHeight
+		height: root.keyboardPanelHeight
 	}
 
     KeyboardRow {

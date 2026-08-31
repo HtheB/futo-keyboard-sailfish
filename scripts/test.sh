@@ -20,6 +20,18 @@ grep -Fq 'LICENSES/HUNGARIAN-DICTIONARY-ATTRIBUTION.md' \
     "$ROOT/packaging/Makefile"
 grep -Fq '%license %{_licensedir}/%{name}/HUNGARIAN-DICTIONARY-ATTRIBUTION.md' \
     "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"
+test -s "$ROOT/dictionaries/fa_wordlist.combined.gz"
+gzip -t "$ROOT/dictionaries/fa_wordlist.combined.gz"
+echo '4c47a8410f2a5fdeb057d01859f252159446fcdaa228bea535a6f85264f93a49  dictionaries/fa_wordlist.combined.gz' |
+    (cd "$ROOT" && sha256sum -c -)
+gzip -dc "$ROOT/dictionaries/fa_wordlist.combined.gz" | sed -n '1p' |
+    grep -Fq 'dictionary=main:fa,locale=fa_IR,description=فارسی'
+grep -Fq '8cfea406b505e4d7df52d5a19bce525df98c54ab' \
+    "$ROOT/dictionaries/README.md"
+grep -Fq 'LICENSES/PERSIAN-DICTIONARY-ATTRIBUTION.md' \
+    "$ROOT/packaging/Makefile"
+grep -Fq '%license %{_licensedir}/%{name}/PERSIAN-DICTIONARY-ATTRIBUTION.md' \
+    "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"
 grep -Fq 'QLibraryInfo::location(QLibraryInfo::PluginsPath)' \
     "$ROOT/hardware/compose/futo_maliit_compose_wrapper.cpp"
 ! grep -Fq '/usr/lib64/qt5/plugins/platforminputcontexts' \
@@ -140,12 +152,18 @@ grep -Fq 'cursorSelectionMode ? Qt.ShiftModifier : 0' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'Drag finger to select text' \
     "$ROOT/qml/FutoInputHandler.qml"
-grep -Fq '"٠١٢٣٤٥٦٧٨٩".charAt(index)' \
+grep -Fq 'usesPersianDigits ? "۰۱۲۳۴۵۶۷۸۹" : "٠١٢٣٤٥٦٧٨٩"' \
     "$ROOT/layouts/FutoQwertyLayout.qml"
 grep -Fq 'case "١": return "1½¼¹⅛⅓"' \
     "$ROOT/layouts/FutoCharacterKey.qml"
-grep -Fq 'arabicAlternatives ? "١½¼¹⅛⅓"' \
+grep -Fq 'case "۱": return "1½¼¹⅛⅓"' \
     "$ROOT/layouts/FutoCharacterKey.qml"
+grep -Fq 'localizedAlternatives ? localizedDigits.charAt(1)' \
+    "$ROOT/layouts/FutoCharacterKey.qml"
+grep -Fq 'insertWordCharacter("\u200c")' "$ROOT/layouts/FutoShiftKey.qml"
+grep -Fq 'character === "\u200c"' "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'argv[i] === "--search-only"' \
+    "$ROOT/scripts/generate-full-emoji-set.js"
 grep -Fq 'targetLayout.numberPageLabel()' \
     "$ROOT/layouts/FutoSymbolKey.qml"
 grep -Fq 'targetLayout.letterPageLabel()' \
@@ -165,6 +183,11 @@ grep -Fq 'cache: false' "$ROOT/layouts/FutoEmojiKey.qml"
 grep -Fq 'source: "FutoEmojiPanel.qml"' "$ROOT/layouts/FutoQwertyLayout.qml"
 ! grep -Fq 'import "FutoEmojiData.js"' "$ROOT/layouts/FutoQwertyLayout.qml"
 grep -Fq 'import "FutoEmojiData.js"' "$ROOT/layouts/FutoEmojiPanel.qml"
+grep -Fq 'import "FutoEmojiSearchData.js"' \
+    "$ROOT/layouts/FutoEmojiSearchProvider.qml"
+grep -Fq 'active: panel.targetLayout && panel.targetLayout.emojiPage < 0' \
+    "$ROOT/layouts/FutoEmojiPanel.qml"
+grep -Fq 'layouts/FutoEmojiSearchData.js' "$ROOT/packaging/Makefile"
 grep -Fq 'layouts/FutoEmojiPanel.qml' "$ROOT/packaging/Makefile"
 grep -Fq 'signalsEnabled: true' "$ROOT/qml/FutoEmojiSettingsPage.qml"
 grep -Fq 'function contentChanged(packId, state)' \
@@ -301,6 +324,24 @@ grep -Fq 'id: quickSettingsRightOverflowFade' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'function switchToNextSailfishKeyboard()' \
     "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'function serializedSwipeTrace(startKey, endKey)' \
+    "$ROOT/layouts/FutoKeyboardLayout.qml"
+grep -Fq 'property var decoderPoints: []' \
+    "$ROOT/layouts/FutoKeyboardLayout.qml"
+grep -Fq 'keyboard.layout.serializedSwipeTrace(' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'helper.typedCall("AcceptSwipeCorrection"' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'property bool mergeSameLayoutLanguages: true' \
+    "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'Combine languages that use the same layout' \
+    "$ROOT/qml/FutoLanguagesPage.qml"
+grep -Fq 'readonly property real numberRowHeightScale: 0.67' \
+    "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'Follow Sailfish sound settings' "$ROOT/qml/FutoFeedbackPage.qml"
+grep -Fq 'function keySoundActive()' "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'function emojiStylePreviewSource(styleIndex, codepoint)' \
+    "$ROOT/qml/FutoEmojiSettingsPage.qml"
 grep -Fq 'canvas.layoutModel' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'canvas.switchLayout(index)' \
@@ -326,6 +367,25 @@ grep -Fq 'id: passwordClipboardPasteButton' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'futoHandler.paste(Clipboard.text)' \
     "$ROOT/qml/FutoInputHandler.qml"
+
+# Public builds must be reproducible without the maintainer's private staging
+# directories. Keep the documented setup, pinned source inputs and configurable
+# host build directory covered by the regular test suite.
+test -s "$ROOT/BUILDING.md"
+grep -Fq '[BUILDING.md](BUILDING.md)' "$ROOT/README.md"
+grep -Fq 'scripts/prepare-build-environment.sh' "$ROOT/BUILDING.md"
+grep -Fq '2379f234259c87ac87b7518243cc75c0bb6b8430d6c9f20d36052f4ad33bef1a' \
+    "$ROOT/scripts/prepare-build-environment.sh"
+grep -Fq 'aa1c07b1e8af5a692616160a48ac35114272e5efa2c3d106127ee3714c41ffe1' \
+    "$ROOT/scripts/prepare-build-environment.sh"
+grep -Fq 'HOST_BUILD=${FUTO_HOST_BUILD_DIR:-$ROOT/build}' \
+    "$ROOT/scripts/bootstrap-compose-moc.sh"
+! grep -Fq 'futo-phone-sysroot' "$ROOT/scripts/build.sh" \
+    "$ROOT/scripts/build-compose-plugin.sh" \
+    "$ROOT/scripts/build-wayland-deadkey-hook.sh"
+! git -C "$ROOT" grep -I -E \
+    'Users[/\\]HtheB|Documents[/\\]ChatGPT|SailfishOSHB' -- . \
+    ':(exclude)scripts/test.sh'
 
 if [[ ! -x "$ENGINE" ]]; then
     echo "Run scripts/build.sh before scripts/test.sh" >&2
@@ -397,6 +457,18 @@ short_swipe_output=$(printf 'SWIPE\tEN\t5\t0\t%s\t%s\n' \
     | "$ENGINE" --dictionary "EN=$ROOT/build/dictionaries/en_US.fksidx" 2>/dev/null)
 [[ $short_swipe_output == $'OK\t[{"word":"as",'* ]]
 
+# Dedicated German rows must retain their distinct umlaut key centres. Folding
+# Ü/Ö/Ä onto U/O/A used to overwrite the base centres and made even an ideal
+# "auto" gesture fail while unrelated long words could rank first.
+german_swipe_geometry='113:0.04545:0.10000;119:0.13636:0.10000;101:0.22727:0.10000;114:0.31818:0.10000;116:0.40909:0.10000;122:0.50000:0.10000;117:0.59091:0.10000;105:0.68182:0.10000;111:0.77273:0.10000;112:0.86364:0.10000;252:0.95455:0.10000;97:0.04545:0.50000;115:0.13636:0.50000;100:0.22727:0.50000;102:0.31818:0.50000;103:0.40909:0.50000;104:0.50000:0.50000;106:0.59091:0.50000;107:0.68182:0.50000;108:0.77273:0.50000;246:0.86364:0.50000;228:0.95455:0.50000;121:0.07143:0.90000;120:0.21429:0.90000;99:0.35714:0.90000;118:0.50000:0.90000;98:0.64286:0.90000;110:0.78571:0.90000;109:0.92857:0.90000'
+german_swipe_output=$(printf 'SWIPE\tDE\t5\t0\t%s\t%s\nSWIPE\tDE\t5\t0\t%s\t%s\n' \
+    '97:0.04545:0.50000;117:0.59091:0.10000;116:0.40909:0.10000;111:0.77273:0.10000' "$german_swipe_geometry" \
+    '100:0.22727:0.50000;97:0.04545:0.50000;110:0.78571:0.90000;107:0.68182:0.50000;101:0.22727:0.10000' "$german_swipe_geometry" \
+    | "$ENGINE" --dictionary "DE=$ROOT/build/dictionaries/de.fksidx" 2>/dev/null)
+mapfile -t german_swipe_lines <<<"$german_swipe_output"
+[[ ${german_swipe_lines[0]} == $'OK\t[{"word":"auto",'* ]]
+[[ ${german_swipe_lines[1]} == $'OK\t[{"word":"danke",'* ]]
+
 greek_swipe_geometry='59:0.05:0.10;962:0.15:0.10;949:0.25:0.10;961:0.35:0.10;964:0.45:0.10;965:0.55:0.10;952:0.65:0.10;953:0.75:0.10;959:0.85:0.10;960:0.95:0.10;945:0.10:0.50;963:0.20:0.50;948:0.30:0.50;966:0.40:0.50;947:0.50:0.50;951:0.60:0.50;958:0.70:0.50;954:0.80:0.50;955:0.90:0.50;950:0.20:0.90;967:0.30:0.90;968:0.40:0.90;969:0.50:0.90;946:0.60:0.90;957:0.70:0.90;956:0.80:0.90'
 greek_swipe_output=$(printf 'SWIPE\tEL\t5\t0\t%s\t%s\n' \
     '954:0.80:0.50;945:0.10:0.50;953:0.75:0.10' "$greek_swipe_geometry" \
@@ -421,13 +493,20 @@ hungarian_output=$(printf '%s\n' \
 grep -Fq $'OK\t["szia","Szia","sziasztok"' <<<"$hungarian_output"
 grep -Fq '"corrections":[{"word":"magyar"' <<<"$hungarian_output"
 
+persian_output=$(printf '%s\n' \
+    $'SUGGEST\tFA\t8\tسلا' \
+    $'ANALYZE\tFA\t8\tسلام' \
+    | "$ENGINE" --dictionary "FA=$ROOT/build/dictionaries/fa.fksidx" 2>/dev/null)
+grep -Fq $'OK\t["سلا","سال","سلام"' <<<"$persian_output"
+grep -Fq '"known":true' <<<"$persian_output"
+
 language_files=(
     EN=en_US.fksidx EN_GB=en_GB.fksidx NL=nl.fksidx TR=tr.fksidx
     DE=de.fksidx FR=fr.fksidx ES=es.fksidx IT=it.fksidx
     PT_BR=pt_BR.fksidx PT_PT=pt_PT.fksidx SV=sv.fksidx NB=nb.fksidx
     DA=da.fksidx FI=fi.fksidx PL=pl.fksidx CS=cs.fksidx
     RO=ro.fksidx SL=sl.fksidx HR=hr.fksidx HU=hu.fksidx LV=lv.fksidx LT=lt.fksidx
-    EL=el.fksidx RU=ru.fksidx SR=sr.fksidx SR_LATN=sr_Latn.fksidx
+    EL=el.fksidx RU=ru.fksidx SR=sr.fksidx SR_LATN=sr_Latn.fksidx FA=fa.fksidx
 )
 engine_arguments=()
 top_requests=()

@@ -275,6 +275,7 @@ var supportedLanguages = []languageInfo{
 	{Code: "RU", File: "ru.fksidx", Name: "Русский"},
 	{Code: "SR", File: "sr.fksidx", Name: "Српски (ћирилица)"},
 	{Code: "SR_LATN", File: "sr_Latn.fksidx", Name: "Srpski (latinica)"},
+	{Code: "FA", File: "fa.fksidx", Name: "فارسی"},
 }
 
 type scoredWord struct {
@@ -1033,9 +1034,10 @@ func (store *learnedStore) replace(words map[string]map[string]int) error {
 }
 
 type historyData struct {
-	Bigrams       map[string]map[string]int `json:"bigrams"`
-	LanguageWords map[string]map[string]int `json:"languageWords"`
-	Suppressed    map[string]bool           `json:"suppressed,omitempty"`
+	Bigrams          map[string]map[string]int `json:"bigrams"`
+	LanguageWords    map[string]map[string]int `json:"languageWords"`
+	SwipeCorrections map[string]map[string]int `json:"swipeCorrections,omitempty"`
+	Suppressed       map[string]bool           `json:"suppressed,omitempty"`
 }
 
 type historyStore struct {
@@ -1047,9 +1049,10 @@ type historyStore struct {
 
 func newHistoryStore(path string, codec *secureFileCodec) *historyStore {
 	store := &historyStore{path: path, codec: codec, data: historyData{
-		Bigrams:       make(map[string]map[string]int),
-		LanguageWords: make(map[string]map[string]int),
-		Suppressed:    make(map[string]bool),
+		Bigrams:          make(map[string]map[string]int),
+		LanguageWords:    make(map[string]map[string]int),
+		SwipeCorrections: make(map[string]map[string]int),
+		Suppressed:       make(map[string]bool),
 	}}
 	if err := store.reload(); err != nil && !os.IsNotExist(err) {
 		log.Printf("ignoring invalid prediction history: %v", err)
@@ -1070,6 +1073,9 @@ func (store *historyStore) reload() error {
 	}
 	if store.data.LanguageWords == nil {
 		store.data.LanguageWords = make(map[string]map[string]int)
+	}
+	if store.data.SwipeCorrections == nil {
+		store.data.SwipeCorrections = make(map[string]map[string]int)
 	}
 	if store.data.Suppressed == nil {
 		store.data.Suppressed = make(map[string]bool)
@@ -1122,6 +1128,45 @@ func (store *historyStore) bigramBonus(previous, word string) int64 {
 		count = 20
 	}
 	return int64(count) * 30000000
+}
+
+func swipeCorrectionKey(language, source string) string {
+	return strings.ToUpper(strings.TrimSpace(language)) + "\x1f" +
+		normalizedHistoryWord(source)
+}
+
+// acceptSwipeCorrection remembers the explicit alternative selected after a
+// swipe. Learning the confusion pair rather than exact touch coordinates is
+// resilient to small changes in finger speed and keyboard size.
+func (store *historyStore) acceptSwipeCorrection(language, source, replacement string) error {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	source = normalizedHistoryWord(source)
+	replacement = normalizedHistoryWord(replacement)
+	if source == "" || replacement == "" || source == replacement {
+		return nil
+	}
+	key := swipeCorrectionKey(language, source)
+	if store.data.SwipeCorrections[key] == nil {
+		store.data.SwipeCorrections[key] = make(map[string]int)
+	}
+	if store.data.SwipeCorrections[key][replacement] < 1000000 {
+		store.data.SwipeCorrections[key][replacement]++
+	}
+	return store.saveLocked()
+}
+
+func (store *historyStore) swipeCorrectionBonus(language, source, candidate string) int64 {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	count := store.data.SwipeCorrections[swipeCorrectionKey(language, source)][normalizedHistoryWord(candidate)]
+	if count > 8 {
+		count = 8
+	}
+	// One deliberate correction should resolve close geometric ties. Repeated
+	// selections strengthen the preference without overruling a clearly
+	// different gesture forever.
+	return int64(count) * 750000000
 }
 
 func (store *historyStore) dominantLanguage(word string, allowed []string) string {
@@ -1258,6 +1303,9 @@ func (store *historyStore) replace(data historyData) error {
 	if data.LanguageWords == nil {
 		data.LanguageWords = make(map[string]map[string]int)
 	}
+	if data.SwipeCorrections == nil {
+		data.SwipeCorrections = make(map[string]map[string]int)
+	}
 	if data.Suppressed == nil {
 		data.Suppressed = make(map[string]bool)
 	}
@@ -1269,8 +1317,9 @@ func (store *historyStore) clear() error {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	store.data = historyData{Bigrams: make(map[string]map[string]int),
-		LanguageWords: make(map[string]map[string]int),
-		Suppressed:    make(map[string]bool)}
+		LanguageWords:    make(map[string]map[string]int),
+		SwipeCorrections: make(map[string]map[string]int),
+		Suppressed:       make(map[string]bool)}
 	if err := os.Remove(store.path); err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -3347,10 +3396,12 @@ func normalizeLanguages(value string) []string {
 }
 
 func languageRuneBonus(language, word string) int64 {
-	if language == "EL" || language == "RU" || language == "SR" {
+	if language == "EL" || language == "RU" || language == "SR" || language == "FA" {
 		script := unicode.Greek
 		if language == "RU" || language == "SR" {
 			script = unicode.Cyrillic
+		} else if language == "FA" {
+			script = unicode.Arabic
 		}
 		var bonus int64
 		for _, character := range word {
@@ -3447,7 +3498,8 @@ func validWord(word string) bool {
 	count := 0
 	for _, character := range word {
 		count++
-		if !(unicode.IsLetter(character) || character == '\'' || character == '-' || character == '’') {
+		if !(unicode.IsLetter(character) || character == '\'' || character == '-' ||
+			character == '’' || character == '\u200c') {
 			return false
 		}
 	}
@@ -3618,7 +3670,7 @@ func (service *service) Correct(language, word string) (string, *dbus.Error) {
 func contextWords(context string) []string {
 	return strings.FieldsFunc(context, func(character rune) bool {
 		return !(unicode.IsLetter(character) || character == '\'' || character == '’' ||
-			character == '-')
+			character == '-' || character == '\u200c')
 	})
 }
 
@@ -3817,6 +3869,19 @@ func (service *service) SwipeSuggestions(languagesCSV, path, geometry, context s
 			ranked = append(ranked, candidate)
 		}
 	}
+	// Apply gesture corrections only after every language has contributed its
+	// raw candidates. The uncorrected winner identifies the confusion that the
+	// user previously corrected (for example German "denke" -> "danke").
+	if len(ranked) > 1 {
+		sort.SliceStable(ranked, func(i, j int) bool {
+			return ranked[i].Score > ranked[j].Score
+		})
+		source := ranked[0].Word
+		for index := range ranked {
+			ranked[index].Score += service.history.swipeCorrectionBonus(
+				ranked[index].Language, source, ranked[index].Word)
+		}
+	}
 	sort.SliceStable(ranked, func(i, j int) bool {
 		if ranked[i].Score != ranked[j].Score {
 			return ranked[i].Score > ranked[j].Score
@@ -3843,6 +3908,18 @@ func (service *service) SwipeSuggestions(languagesCSV, path, geometry, context s
 		return "", dbus.MakeFailedError(err)
 	}
 	return string(data), nil
+}
+
+func (service *service) AcceptSwipeCorrection(language, source, replacement string) (bool, *dbus.Error) {
+	language, ok := normalizeLanguage(language)
+	if !ok || !validWord(source) || !validWord(replacement) ||
+		normalizedHistoryWord(source) == normalizedHistoryWord(replacement) {
+		return false, nil
+	}
+	if err := service.history.acceptSwipeCorrection(language, source, replacement); err != nil {
+		return false, dbus.MakeFailedError(err)
+	}
+	return true, nil
 }
 
 func (service *service) NextWords(languagesCSV, context string, limit int32,
@@ -4363,6 +4440,8 @@ func mergeNestedHistoryCounts(current, imported map[string]map[string]int) map[s
 func mergeHistory(current, imported historyData) historyData {
 	current.Bigrams = mergeNestedHistoryCounts(current.Bigrams, imported.Bigrams)
 	current.LanguageWords = mergeNestedHistoryCounts(current.LanguageWords, imported.LanguageWords)
+	current.SwipeCorrections = mergeNestedHistoryCounts(
+		current.SwipeCorrections, imported.SwipeCorrections)
 	if current.Suppressed == nil {
 		current.Suppressed = make(map[string]bool)
 	}
@@ -5262,7 +5341,7 @@ func validAndroidSwipeWord(word string) bool {
 	}
 	for _, character := range word {
 		if !(unicode.IsLetter(character) || character == '\'' ||
-			character == '’' || character == '-') {
+			character == '’' || character == '-' || character == '\u200c') {
 			return false
 		}
 	}

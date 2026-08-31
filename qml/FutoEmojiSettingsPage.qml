@@ -48,6 +48,15 @@ Page {
              : styleIndex === 0 ? "Twemoji" : qsTr("Sailfish OS (built-in)")
     }
 
+	function emojiStylePreviewSource(styleIndex, codepoint) {
+		if (styleIndex < 0 || styleIndex > 2)
+			return ""
+		var style = styleIndex === 1 ? "openmoji"
+		          : styleIndex === 2 ? "noto" : "twemoji"
+		return "file:///usr/share/futo-keyboard-sailfish/content-previews/emoji/"
+				+ style + "/" + codepoint + (style === "noto" ? ".png" : ".svg")
+	}
+
     // Preserve the existing stored style values while presenting the built-in
     // Sailfish style first in the user-facing list.
     function comboIndexToStyle(comboIndex) {
@@ -203,10 +212,48 @@ Page {
                         page.chooseEmojiStyle(page.comboIndexToStyle(currentIndex))
                 }
                 menu: ContextMenu {
-                    MenuItem { text: qsTr("Sailfish OS (built-in)") }
-                    MenuItem { text: "Twemoji" }
-                    MenuItem { text: "OpenMoji Color" }
-                    MenuItem { text: "Noto Color Emoji" }
+					MenuItem {
+						text: qsTr("Sailfish OS (built-in)")
+						Label {
+							anchors.left: parent.left
+							anchors.verticalCenter: parent.verticalCenter
+							text: "😀  👍  ♥"
+							font.pixelSize: Theme.fontSizeSmall
+						}
+					}
+					MenuItem {
+						text: "Twemoji"
+						Row {
+							anchors.left: parent.left
+							anchors.verticalCenter: parent.verticalCenter
+							spacing: 2
+							Image { width: Theme.iconSizeSmall; height: width; source: page.emojiStylePreviewSource(0, "1f600"); fillMode: Image.PreserveAspectFit }
+							Image { width: Theme.iconSizeSmall; height: width; source: page.emojiStylePreviewSource(0, "1f44d"); fillMode: Image.PreserveAspectFit }
+							Image { width: Theme.iconSizeSmall; height: width; source: page.emojiStylePreviewSource(0, "2764"); fillMode: Image.PreserveAspectFit }
+						}
+					}
+					MenuItem {
+						text: "OpenMoji Color"
+						Row {
+							anchors.left: parent.left
+							anchors.verticalCenter: parent.verticalCenter
+							spacing: 2
+							Image { width: Theme.iconSizeSmall; height: width; source: page.emojiStylePreviewSource(1, "1f600"); fillMode: Image.PreserveAspectFit }
+							Image { width: Theme.iconSizeSmall; height: width; source: page.emojiStylePreviewSource(1, "1f44d"); fillMode: Image.PreserveAspectFit }
+							Image { width: Theme.iconSizeSmall; height: width; source: page.emojiStylePreviewSource(1, "2764"); fillMode: Image.PreserveAspectFit }
+						}
+					}
+					MenuItem {
+						text: "Noto Color Emoji"
+						Row {
+							anchors.left: parent.left
+							anchors.verticalCenter: parent.verticalCenter
+							spacing: 2
+							Image { width: Theme.iconSizeSmall; height: width; source: page.emojiStylePreviewSource(2, "1f600"); fillMode: Image.PreserveAspectFit }
+							Image { width: Theme.iconSizeSmall; height: width; source: page.emojiStylePreviewSource(2, "1f44d"); fillMode: Image.PreserveAspectFit }
+							Image { width: Theme.iconSizeSmall; height: width; source: page.emojiStylePreviewSource(2, "2764"); fillMode: Image.PreserveAspectFit }
+						}
+					}
                 }
             }
 

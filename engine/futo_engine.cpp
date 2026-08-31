@@ -34,6 +34,9 @@ namespace {
 struct Entry {
     std::string display;
     std::vector<uint32_t> normalized;
+    // Lower-case spelling with diacritics preserved. Dictionary lookup folds
+    // accents, but swipe geometry must distinguish U from Ü, A from Ä, etc.
+    std::vector<uint32_t> gesture;
     int probability;
 };
 
@@ -74,6 +77,25 @@ std::vector<uint32_t> normalize(const std::vector<uint32_t> &input) {
                 static_cast<int>(codePoint))));
     }
     return output;
+}
+
+std::vector<uint32_t> gestureSpelling(const std::vector<uint32_t> &input) {
+    std::vector<uint32_t> output;
+    output.reserve(input.size());
+    for (uint32_t codePoint : input) {
+        output.push_back(static_cast<uint32_t>(latinime::CharUtils::toLowerCase(
+                static_cast<int>(codePoint))));
+    }
+    return output;
+}
+
+std::vector<uint32_t> gestureSpelling(const std::string &utf8,
+        const std::vector<uint32_t> &fallback) {
+    try {
+        return gestureSpelling(codepoints_from_utf8(utf8));
+    } catch (const std::exception &) {
+        return fallback;
+    }
 }
 
 uint32_t unicodeUppercase(uint32_t codePoint) {
@@ -246,7 +268,7 @@ std::vector<SwipePoint> parseSwipePoints(const std::string &serialized) {
                 if (std::isfinite(x) && std::isfinite(y) && x >= -0.1 && x <= 1.1
                         && y >= -0.1 && y <= 1.1) {
                     const uint32_t normalizedKey = static_cast<uint32_t>(
-                            latinime::CharUtils::toBaseLowerCase(static_cast<int>(key)));
+                            latinime::CharUtils::toLowerCase(static_cast<int>(key)));
                     points.push_back({normalizedKey, x, y});
                 }
             } catch (const std::exception &) {
@@ -303,6 +325,44 @@ double swipeCurveLength(const std::vector<SwipePoint> &points) {
         result += pointDistance(points[i - 1], points[i]);
     }
     return result;
+}
+
+double orderedSwipeVisitCost(const std::vector<SwipePoint> &letters,
+        const std::vector<SwipePoint> &observed) {
+    if (letters.empty() || observed.empty()) {
+        return std::numeric_limits<double>::max();
+    }
+    const double infinity = std::numeric_limits<double>::max() / 8.0;
+    std::vector<double> previous(observed.size(), infinity);
+    std::vector<double> current(observed.size(), infinity);
+    auto alignmentCost = [&](std::size_t letter, std::size_t sample) {
+        const double distance = pointDistance(letters[letter], observed[sample]);
+        const double expectedProgress = letters.size() > 1
+                ? static_cast<double>(letter) / static_cast<double>(letters.size() - 1)
+                : 0.0;
+        const double observedProgress = observed.size() > 1
+                ? static_cast<double>(sample) / static_cast<double>(observed.size() - 1)
+                : 0.0;
+        const double progress = expectedProgress - observedProgress;
+        return distance * distance + progress * progress * 0.08;
+    };
+
+    for (std::size_t sample = 0; sample < observed.size(); ++sample) {
+        previous[sample] = alignmentCost(0, sample);
+    }
+    for (std::size_t letter = 1; letter < letters.size(); ++letter) {
+        double bestPrevious = infinity;
+        for (std::size_t sample = 0; sample < observed.size(); ++sample) {
+            // Non-decreasing sample indices preserve the spelling order while
+            // still allowing repeated letters to occupy the same key centre.
+            bestPrevious = std::min(bestPrevious, previous[sample]);
+            current[sample] = bestPrevious + alignmentCost(letter, sample);
+        }
+        previous.swap(current);
+        std::fill(current.begin(), current.end(), infinity);
+    }
+    return *std::min_element(previous.begin(), previous.end())
+            / static_cast<double>(letters.size());
 }
 
 bool firstIsUppercase(const std::vector<uint32_t> &codePoints) {
@@ -490,23 +550,29 @@ public:
         std::vector<ScoredWord> ranked;
         ranked.reserve(256);
         for (const Entry &entry : mEntries) {
-            if (entry.normalized.size() < 2 || entry.normalized.size() > 32
-                    || entry.normalized.front() != observed.front().key
-                    || entry.normalized.back() != observed.back().key) {
+            if (entry.gesture.size() < 2 || entry.gesture.size() > 32) {
                 continue;
             }
             std::vector<SwipePoint> candidate;
-            candidate.reserve(entry.normalized.size());
+            candidate.reserve(entry.gesture.size());
             bool complete = true;
-            for (uint32_t codePoint : entry.normalized) {
-                const auto center = keyCenters.find(codePoint);
+            for (uint32_t codePoint : entry.gesture) {
+                auto center = keyCenters.find(codePoint);
+                if (center == keyCenters.end()) {
+                    const uint32_t base = static_cast<uint32_t>(
+                            latinime::CharUtils::toBaseLowerCase(
+                                static_cast<int>(codePoint)));
+                    center = keyCenters.find(base);
+                }
                 if (center == keyCenters.end()) {
                     complete = false;
                     break;
                 }
                 candidate.push_back(center->second);
             }
-            if (!complete || candidate.size() < 2) {
+            if (!complete || candidate.size() < 2
+                    || candidate.front().key != observed.front().key
+                    || candidate.back().key != observed.back().key) {
                 continue;
             }
 
@@ -518,31 +584,27 @@ public:
             }
             shapeCost /= static_cast<double>(observedSamples.size());
 
-            double visitCost = 0.0;
-            for (const SwipePoint &letter : candidate) {
-                double closest = std::numeric_limits<double>::max();
-                for (const SwipePoint &point : observedSamples) {
-                    closest = std::min(closest, pointDistance(letter, point));
-                }
-                visitCost += closest * closest;
-            }
-            visitCost /= static_cast<double>(candidate.size());
+            // A candidate must visit its letters in spelling order. The old
+            // independent-nearest-point metric could rank a long word highly
+            // when all of its letters happened to lie somewhere near a much
+            // shorter curve, even if they occurred in the wrong order.
+            const double visitCost = orderedSwipeVisitCost(candidate, observedSamples);
 
             const double candidateLength = swipeCurveLength(candidate);
             const double lengthCost = std::abs(std::log(
                     (candidateLength + 0.01) / (observedLength + 0.01)));
             // Reject curves that merely share their first and last letters.  The
             // relatively generous limits still allow a finger to cut corners.
-            if (shapeCost > 0.09 || visitCost > 0.055 || lengthCost > 1.25) {
+            if (shapeCost > 0.09 || visitCost > 0.065 || lengthCost > 1.10) {
                 continue;
             }
 
             const std::int64_t score = 7000000000LL
                     - static_cast<std::int64_t>(shapeCost * 40000000000.0)
-                    - static_cast<std::int64_t>(visitCost * 12000000000.0)
-                    - static_cast<std::int64_t>(lengthCost * 350000000.0)
+                    - static_cast<std::int64_t>(visitCost * 18000000000.0)
+                    - static_cast<std::int64_t>(lengthCost * 650000000.0)
                     + static_cast<std::int64_t>(std::max(0, entry.probability)) * 500000LL
-                    - static_cast<std::int64_t>(entry.normalized.size()) * 1000LL;
+                    - static_cast<std::int64_t>(entry.gesture.size()) * 1000LL;
             ranked.push_back({formatDisplay(entry.display, capitalize), score});
         }
 
@@ -825,7 +887,7 @@ private:
             if (display.empty() || display.size() > MAX_WORD_LENGTH) {
                 continue;
             }
-            mEntries.push_back({word, normalize(display), probability});
+            mEntries.push_back({word, normalize(display), gestureSpelling(display), probability});
         }
     }
 
@@ -873,7 +935,9 @@ private:
             std::vector<uint32_t> normalized(normalizedSize);
             copyBytes(&display[0], displaySize);
             copyBytes(normalized.data(), normalized.size() * sizeof(uint32_t));
-            mEntries.push_back({std::move(display), std::move(normalized), probability});
+            std::vector<uint32_t> gesture = gestureSpelling(display, normalized);
+            mEntries.push_back({std::move(display), std::move(normalized),
+                                std::move(gesture), probability});
         }
     }
 

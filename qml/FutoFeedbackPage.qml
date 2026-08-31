@@ -13,6 +13,7 @@ Page {
         id: settings
         path: "/sailfish/text_input/futo_keyboard"
         property bool keySoundEnabled: false
+		property bool keySoundFollowSystem: true
         property bool keySoundMigrationDone: false
         property real keySoundVolume: 0.5
     }
@@ -38,7 +39,9 @@ Page {
     }
 
     function previewKeySound() {
-        if (!settings.keySoundEnabled)
+        if (!settings.keySoundEnabled
+				|| (settings.keySoundFollowSystem
+				    && systemFeedback.touchscreenToneLevel === 0))
             return
         helper.typedCall("PlayKeySound", [
             { "type": "s", "value": "letter" },
@@ -102,6 +105,15 @@ Page {
                         page.previewKeySound()
                 }
             }
+
+			TextSwitch {
+				width: parent.width
+				automaticCheck: false
+				checked: settings.keySoundFollowSystem
+				text: qsTr("Follow Sailfish sound settings")
+				description: qsTr("Mute keyboard sounds whenever Sailfish key tones are muted.")
+				onClicked: settings.keySoundFollowSystem = !checked
+			}
 
             Slider {
                 width: parent.width

@@ -421,6 +421,20 @@
         "dictionaries/sr_Latn.fksidx"
       ],
       "languageCode": "SR_LATN"
+    },
+    {
+      "id": "dictionary-fa",
+      "kind": "dictionary",
+      "name": "فارسی",
+      "version": "0.2.0-1",
+      "archive": "futo-content-dictionary-fa-0.2.0-1.tar.gz",
+      "sha256": "2d4cc8a7542a844aa25cb34d5dd8525d0a73da10c46ac7b4f5dd8161ad232bb8",
+      "downloadBytes": 2034080,
+      "installedBytes": 9564000,
+      "paths": [
+        "dictionaries/fa.fksidx"
+      ],
+      "languageCode": "FA"
     }
   ]
 }

@@ -9,8 +9,12 @@ ShiftKey {
 
     property Item targetLayout
     property bool held
+    readonly property bool persianLetterMode: targetLayout
+            && targetLayout.usesPersianDigits !== undefined
+            && targetLayout.usesPersianDigits
+            && !attributes.inSymView
 
-    caption: attributes.inSymView
+    caption: persianLetterMode ? "ن‌پ" : attributes.inSymView
              ? (attributes.inSymView2
                 ? "Fn"
                 : "{&=") : ""
@@ -47,7 +51,7 @@ ShiftKey {
 
     MouseArea {
         anchors.fill: parent
-        visible: attributes.inSymView
+        visible: attributes.inSymView || shiftKey.persianLetterMode
         preventStealing: true
 
         onPressed: {
@@ -55,12 +59,17 @@ ShiftKey {
                 keyboard.inputHandler.playManualKeyFeedback(shiftKey, "option")
             shiftKey.held = false
             shiftKey.pressed = true
-            symbolPickerTimer.restart()
+            if (attributes.inSymView)
+                symbolPickerTimer.restart()
         }
         onReleased: {
             symbolPickerTimer.stop()
             shiftKey.pressed = false
-            if (!shiftKey.held && shiftKey.targetLayout) {
+            if (shiftKey.persianLetterMode) {
+                if (keyboard.inputHandler
+                        && keyboard.inputHandler.insertWordCharacter)
+                    keyboard.inputHandler.insertWordCharacter("\u200c")
+            } else if (!shiftKey.held && shiftKey.targetLayout) {
                 if (attributes.inSymView2
                         && shiftKey.targetLayout.showDesktopKeysPage)
                     shiftKey.targetLayout.showDesktopKeysPage()

@@ -37,6 +37,8 @@ LAYOUT_FILES := \
 	layouts/FutoEmojiKey.qml \
 	layouts/FutoEmojiPanel.qml \
 	layouts/FutoEmojiData.js \
+	layouts/FutoEmojiSearchProvider.qml \
+	layouts/FutoEmojiSearchData.js \
 	layouts/FutoExtendedSymbolGrid.qml \
 	layouts/FutoExtendedSymbolKey.qml \
 	layouts/FutoExtendedSymbolsKey.qml \
@@ -105,7 +107,7 @@ DICTIONARY_FILES := \
 	es.fksidx it.fksidx pt_BR.fksidx pt_PT.fksidx sv.fksidx nb.fksidx \
 	da.fksidx fi.fksidx pl.fksidx cs.fksidx ro.fksidx sl.fksidx \
 	hr.fksidx lv.fksidx lt.fksidx el.fksidx ru.fksidx sr.fksidx \
-	sr_Latn.fksidx
+	sr_Latn.fksidx fa.fksidx
 
 EMOJI_STYLES := twemoji openmoji noto
 EMOJI_EXPECTED_FILES := 3944
@@ -187,6 +189,7 @@ check:
 	@test -s LICENSES/NOTO-EMOJI-SVG-LICENSE.txt || exit 1
 	@test -s LICENSES/UNICODE-LICENSE.txt || exit 1
 	@test -s LICENSES/FUTO-LAYOUTS-ATTRIBUTION.md || exit 1
+	@test -s LICENSES/PERSIAN-DICTIONARY-ATTRIBUTION.md || exit 1
 	@test -s LICENSES/LIBX11-COMPOSE-LICENSE.txt || exit 1
 	@test -s LICENSES/QT-COMPOSE-NOTICE.md || exit 1
 	@test -s LICENSES/FUTO-VOICE-SOURCE-FIRST-LICENSE.md || exit 1
@@ -314,6 +317,8 @@ install: check
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/FUTO-LAYOUTS-ATTRIBUTION.md"
 	install -Dm0644 LICENSES/HUNGARIAN-DICTIONARY-ATTRIBUTION.md \
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/HUNGARIAN-DICTIONARY-ATTRIBUTION.md"
+	install -Dm0644 LICENSES/PERSIAN-DICTIONARY-ATTRIBUTION.md \
+		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/PERSIAN-DICTIONARY-ATTRIBUTION.md"
 	install -Dm0644 LICENSES/LIBX11-COMPOSE-LICENSE.txt \
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/LIBX11-COMPOSE-LICENSE.txt"
 	install -Dm0644 LICENSES/QT-COMPOSE-NOTICE.md \

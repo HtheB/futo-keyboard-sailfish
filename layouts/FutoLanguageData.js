@@ -10,6 +10,7 @@ var languages = [
     { code: "EN_GB", name: "English (UK)", prediction: true },
     { code: "EN", name: "English (US)", prediction: true },
     { code: "ES", name: "Español", prediction: true },
+    { code: "FA", name: "فارسی", prediction: true },
     { code: "FR", name: "Français", prediction: true },
     { code: "EL", name: "Ελληνικά", prediction: true },
     { code: "HR", name: "Hrvatski", prediction: true },

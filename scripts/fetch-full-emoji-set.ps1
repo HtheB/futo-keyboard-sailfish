@@ -27,7 +27,7 @@ $openmoji = Get-SparseRepository "openmoji" "https://github.com/hfg-gmuend/openm
 $noto = Get-SparseRepository "noto-emoji" "https://github.com/googlefonts/noto-emoji.git" `
     "v2.051" @("png/128")
 $cldrLocales = @("en", "en-GB", "nl", "tr", "de", "fr", "es", "it", "pt", "pt-PT", `
-    "sv", "no", "da", "fi", "pl", "cs", "ro", "sl", "hr", "lv", "lt")
+    "sv", "no", "da", "fi", "pl", "cs", "ro", "sl", "hr", "lv", "lt", "fa")
 $cldrPaths = @()
 foreach ($locale in $cldrLocales) {
     $cldrPaths += "cldr-json/cldr-annotations-full/annotations/$locale"

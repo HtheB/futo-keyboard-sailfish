@@ -12,10 +12,16 @@ const path = require("path");
 
 function argumentsByName(argv) {
     const result = {};
-    for (let i = 0; i < argv.length; i += 2) {
+    for (let i = 0; i < argv.length;) {
+        if (argv[i] === "--search-only") {
+            result.searchOnly = true;
+            i++;
+            continue;
+        }
         if (!argv[i].startsWith("--") || i + 1 >= argv.length)
             throw new Error("Expected --name value arguments");
         result[argv[i].slice(2)] = path.resolve(argv[i + 1]);
+        i += 2;
     }
     return result;
 }
@@ -127,7 +133,8 @@ const cldrLocales = {
     SL: ["sl"],
     HR: ["hr"],
     LV: ["lv"],
-    LT: ["lt"]
+    LT: ["lt"],
+    FA: ["fa"]
 };
 
 function normalizedEmojiText(text) {
@@ -197,13 +204,14 @@ function jsonForQml(value) {
 async function main() {
     const args = argumentsByName(process.argv.slice(2));
     const projectRoot = path.resolve(__dirname, "..");
+    const searchOnly = args.searchOnly === true;
     const emojiTestPath = required(args, "emoji-test");
-    const twemojiDirectory = required(args, "twemoji");
-    const openMojiDirectory = required(args, "openmoji");
     const openMojiDataPath = required(args, "openmoji-data");
-    const notoDirectory = required(args, "noto");
     const cldrAnnotationsRoot = required(args, "cldr-annotations");
     const cldrDerivedRoot = required(args, "cldr-derived");
+    const twemojiDirectory = searchOnly ? "" : required(args, "twemoji");
+    const openMojiDirectory = searchOnly ? "" : required(args, "openmoji");
+    const notoDirectory = searchOnly ? "" : required(args, "noto");
 
     const emojiTest = fs.readFileSync(emojiTestPath, "utf8");
     const emojiTestHash = crypto.createHash("sha256").update(emojiTest).digest("hex");
@@ -261,53 +269,65 @@ async function main() {
     if (baseCount + attachedVariants !== userItems.length)
         throw new Error("Not every user-facing Emoji 17 sequence is reachable");
 
-    const twemoji = scanAssets(twemojiDirectory, ".svg", false);
-    const openmoji = scanAssets(openMojiDirectory, ".svg", false);
-    const noto = scanAssets(notoDirectory, ".png", true);
     const stage = path.join(projectRoot, "build", "emoji-17-stage");
-    fs.rmSync(stage, { recursive: true, force: true });
-    for (const style of ["twemoji", "openmoji", "noto"])
-        fs.mkdirSync(path.join(stage, style), { recursive: true });
-
-    let sharp = null;
     const fallbacks = { twemoji: 0, openmoji: 0, noto: 0 };
-    const uniqueItems = Object.create(null);
-    for (const item of userItems)
-        uniqueItems[item.code] = item;
+    if (!searchOnly) {
+        const twemoji = scanAssets(twemojiDirectory, ".svg", false);
+        const openmoji = scanAssets(openMojiDirectory, ".svg", false);
+        const noto = scanAssets(notoDirectory, ".png", true);
+        fs.rmSync(stage, { recursive: true, force: true });
+        for (const style of ["twemoji", "openmoji", "noto"])
+            fs.mkdirSync(path.join(stage, style), { recursive: true });
 
-    for (const code of Object.keys(uniqueItems).sort()) {
-        const twemojiSource = twemoji[code] || openmoji[code];
-        if (!twemojiSource)
-            throw new Error("No SVG artwork for Emoji 17 sequence " + code);
-        if (!twemoji[code])
-            fallbacks.twemoji++;
-        fs.copyFileSync(twemojiSource, path.join(stage, "twemoji", code + ".svg"));
+        let sharp = null;
+        const uniqueItems = Object.create(null);
+        for (const item of userItems)
+            uniqueItems[item.code] = item;
 
-        const openMojiSource = openmoji[code] || twemoji[code];
-        if (!openMojiSource)
-            throw new Error("No OpenMoji/Twemoji artwork for " + code);
-        if (!openmoji[code])
-            fallbacks.openmoji++;
-        fs.copyFileSync(openMojiSource, path.join(stage, "openmoji", code + ".svg"));
+        for (const code of Object.keys(uniqueItems).sort()) {
+            const twemojiSource = twemoji[code] || openmoji[code];
+            if (!twemojiSource)
+                throw new Error("No SVG artwork for Emoji 17 sequence " + code);
+            if (!twemoji[code])
+                fallbacks.twemoji++;
+            fs.copyFileSync(twemojiSource, path.join(stage, "twemoji", code + ".svg"));
 
-        const notoTarget = path.join(stage, "noto", code + ".png");
-        if (noto[code]) {
-            fs.copyFileSync(noto[code], notoTarget);
-        } else {
-            if (!sharp)
-                sharp = require("sharp");
-            fallbacks.noto++;
-            await sharp(twemojiSource, { density: 160 })
-                .resize(96, 96, { fit: "contain" }).png().toFile(notoTarget);
+            const openMojiSource = openmoji[code] || twemoji[code];
+            if (!openMojiSource)
+                throw new Error("No OpenMoji/Twemoji artwork for " + code);
+            if (!openmoji[code])
+                fallbacks.openmoji++;
+            fs.copyFileSync(openMojiSource, path.join(stage, "openmoji", code + ".svg"));
+
+            const notoTarget = path.join(stage, "noto", code + ".png");
+            if (noto[code]) {
+                fs.copyFileSync(noto[code], notoTarget);
+            } else {
+                if (!sharp)
+                    sharp = require("sharp");
+                fallbacks.noto++;
+                await sharp(twemojiSource, { density: 160 })
+                    .resize(96, 96, { fit: "contain" }).png().toFile(notoTarget);
+            }
+        }
+
+        for (const style of ["twemoji", "openmoji", "noto"]) {
+            const files = fs.readdirSync(path.join(stage, style));
+            if (files.length !== userItems.length)
+                throw new Error(style + " staged " + files.length + " assets; expected " + userItems.length);
         }
     }
 
-    for (const style of ["twemoji", "openmoji", "noto"]) {
-        const files = fs.readdirSync(path.join(stage, style));
-        if (files.length !== userItems.length)
-            throw new Error(style + " staged " + files.length + " assets; expected " + userItems.length);
-    }
-
+    const visualCategories = categories.map((category) => category.map((entry) => ({
+        t: entry.t,
+        c: entry.c,
+        v: entry.v
+    })));
+    const searchEntries = categories.flatMap((category) => category.map((entry) => ({
+        c: entry.c,
+        n: entry.n,
+        l: entry.l
+    })));
     const dataSource = [
         "// Generated from Unicode Emoji 17.0; do not edit by hand.",
         "var categoryNames = " + jsonForQml(groups) + ";",
@@ -315,17 +335,20 @@ async function main() {
             "1f600", "1f44b", "1f43b", "1f354", "1f697",
             "26bd", "1f4a1", "2764", "1f3f3"
         ]) + ";",
-        "var categories = " + jsonForQml(categories) + ";",
+        "var categories = " + jsonForQml(visualCategories) + ";",
         "var byCode = {};",
-        "var allEntries = [];",
         "for (var categoryIndex = 0; categoryIndex < categories.length; ++categoryIndex) {",
         "    for (var itemIndex = 0; itemIndex < categories[categoryIndex].length; ++itemIndex) {",
         "        var entry = categories[categoryIndex][itemIndex];",
         "        byCode[entry.c] = entry;",
-        "        allEntries.push(entry);",
         "    }",
         "}",
         "function entryForCode(code) { return byCode[String(code)] || null; }",
+        ""
+    ].join("\n");
+    const searchDataSource = [
+        "// Generated from Unicode Emoji 17.0; do not edit by hand.",
+        "var allEntries = " + jsonForQml(searchEntries) + ";",
         "function standardFold(value) {",
         "    return String(value).toLowerCase().replace(/\\u0307/g, \"\");",
         "}",
@@ -338,7 +361,7 @@ async function main() {
         "}",
         "function search(query, languages) {",
         "    var rawQuery = String(query).trim();",
-        "    if (rawQuery === \"\") return allEntries;",
+        "    if (rawQuery === \"\") return allEntries.map(function(entry) { return entry.c; });",
         "    var selected = languages && languages.length ? languages : [\"EN\"];",
         "    var matches = [];",
         "    for (var i = 0; i < allEntries.length; ++i) {",
@@ -358,14 +381,26 @@ async function main() {
         "            }",
         "            if (languageMatched) { matched = true; break; }",
         "        }",
-        "        if (matched) matches.push(allEntries[i]);",
+        "        if (matched) matches.push(allEntries[i].c);",
         "    }",
         "    return matches;",
         "}",
         ""
     ].join("\n");
+    if (searchOnly) {
+        fs.writeFileSync(path.join(projectRoot, "layouts", "FutoEmojiSearchData.js"),
+                         searchDataSource, "utf8");
+        process.stdout.write(JSON.stringify({
+            unicodeVersion: "17.0",
+            searchEntries: searchEntries.length,
+            languages: Object.keys(cldrLocales)
+        }, null, 2) + "\n");
+        return;
+    }
     const dataStage = path.join(stage, "FutoEmojiData.js");
+    const searchDataStage = path.join(stage, "FutoEmojiSearchData.js");
     fs.writeFileSync(dataStage, dataSource, "utf8");
+    fs.writeFileSync(searchDataStage, searchDataSource, "utf8");
 
     const manifest = {
         unicodeVersion: "17.0",
@@ -393,6 +428,8 @@ async function main() {
         fs.renameSync(path.join(stage, style), target);
     }
     fs.copyFileSync(dataStage, path.join(projectRoot, "layouts", "FutoEmojiData.js"));
+    fs.copyFileSync(searchDataStage,
+                    path.join(projectRoot, "layouts", "FutoEmojiSearchData.js"));
     fs.copyFileSync(path.join(stage, "manifest.json"), path.join(emojiRoot, "manifest.json"));
     fs.rmSync(stage, { recursive: true, force: true });
 

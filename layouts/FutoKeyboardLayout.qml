@@ -36,6 +36,13 @@ Column {
     // the suggestion strip, emoji grid, symbol pages, or empty space.
     property bool allowSwipeGesture: false
     property bool loaderVisible
+
+    // The visible trail deliberately keeps only a short fading tail.  Swipe
+    // decoding needs the complete finger curve, exposed separately here so a
+    // fast gesture is not reduced to the handful of key centres it crossed.
+    function serializedSwipeTrace(startKey, endKey) {
+        return swipeTrail.serializedDecoderPath(startKey, endKey)
+    }
 	readonly property int activeKeyboardMode: Math.max(0, Math.min(3,
 			portraitMode ? modeSettings.portraitKeyboardMode
 			             : modeSettings.landscapeKeyboardMode))
@@ -287,6 +294,7 @@ Column {
         z: 2000
         property var touchSource: null
         property var trailPoints: []
+        property var decoderPoints: []
         property bool trackingSwipe: false
         property real trailOpacity: 1.0
 		property int normalMaximumTouchPoints: -1
@@ -393,12 +401,36 @@ Column {
             trailOpacity = 1.0
             trackingSwipe = false
             trailPoints = [point]
+            decoderPoints = [point]
         }
 
         function appendTouch(touchPoints) {
             var point = firstPoint(touchPoints)
             if (!point)
                 return
+            var decoder = decoderPoints.slice(0)
+            if (decoder.length < 1) {
+                decoder.push(point)
+            } else {
+                var decoderPrevious = decoder[decoder.length - 1]
+                var decoderDeltaX = point.x - decoderPrevious.x
+                var decoderDeltaY = point.y - decoderPrevious.y
+                if (Math.sqrt(decoderDeltaX * decoderDeltaX
+                              + decoderDeltaY * decoderDeltaY) >= 2)
+                    decoder.push(point)
+            }
+            // Bound pathological event streams without losing either endpoint
+            // or the overall curve. Normal gestures remain well below this.
+            if (decoder.length > 192) {
+                var thinned = [decoder[0]]
+                for (var decoderIndex = 2;
+                        decoderIndex < decoder.length - 1; decoderIndex += 2)
+                    thinned.push(decoder[decoderIndex])
+                thinned.push(decoder[decoder.length - 1])
+                decoder = thinned
+            }
+            decoderPoints = decoder
+
             var points = trailPoints.slice(0)
             if (points.length < 1) {
                 points.push(point)
@@ -427,6 +459,27 @@ Column {
                 trackingSwipe = true
         }
 
+        function serializedDecoderPath(startKey, endKey) {
+            if (!touchSource || decoderPoints.length < 2
+                    || keyboardLayout.width <= 0 || keyboardLayout.height <= 0)
+                return ""
+            var result = []
+            for (var i = 0; i < decoderPoints.length; ++i) {
+                var point = decoderPoints[i]
+                var mapped = touchSource.mapToItem(keyboardLayout,
+                                                   point.x, point.y)
+                var x = Math.max(0, Math.min(1,
+                            Number(mapped.x) / keyboardLayout.width))
+                var y = Math.max(0, Math.min(1,
+                            Number(mapped.y) / keyboardLayout.height))
+                var key = i === 0 ? startKey
+                        : (i === decoderPoints.length - 1 ? endKey : 0)
+                result.push(String(key) + ":" + x.toFixed(5)
+                            + ":" + y.toFixed(5))
+            }
+            return result.join(";")
+        }
+
         function finishTouch() {
             if (trackingSwipe && trailPoints.length > 1)
                 releaseFade.restart()
@@ -437,6 +490,7 @@ Column {
         function clearTouch() {
             trackingSwipe = false
             trailPoints = []
+            decoderPoints = []
             trailOpacity = 1.0
         }
 
@@ -475,8 +529,10 @@ Column {
 					swipeTrail.appendTouch(touchPoints)
 			}
 			onReleased: {
-				if (!swipeTrail.endCursorSecondaryTouch(touchPoints))
+				if (!swipeTrail.endCursorSecondaryTouch(touchPoints)) {
+					swipeTrail.appendTouch(touchPoints)
 					swipeTrail.finishTouch()
+				}
 			}
 			onCanceled: {
 				if (!swipeTrail.endCursorSecondaryTouch(touchPoints))

@@ -35,7 +35,7 @@ Requires:       qt5-qtwayland-wayland_egl >= 5.6.3
 %description
 An independent, modified Sailfish OS integration using FUTO Keyboard dictionary
 data. It provides one native FUTO layout with simultaneous suggestions across
-26 selectable prediction languages, per-language visual layout assignment,
+selectable prediction languages, per-language visual layout assignment,
 automatic language weighting, context and next-word learning, configurable typo
 correction, keyboard-layout-aware swipe typing, optional offline FUTO voice typing,
 private clipboard history, an on-device personal dictionary, and
@@ -89,6 +89,7 @@ fi
 %license %{_licensedir}/%{name}/UNICODE-LICENSE.txt
 %license %{_licensedir}/%{name}/FUTO-LAYOUTS-ATTRIBUTION.md
 %license %{_licensedir}/%{name}/HUNGARIAN-DICTIONARY-ATTRIBUTION.md
+%license %{_licensedir}/%{name}/PERSIAN-DICTIONARY-ATTRIBUTION.md
 %license %{_licensedir}/%{name}/LIBX11-COMPOSE-LICENSE.txt
 %license %{_licensedir}/%{name}/QT-COMPOSE-NOTICE.md
 %license %{_licensedir}/%{name}/AMIRI-FONT-LICENSE.txt
@@ -128,6 +129,8 @@ fi
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoEmojiKey.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoEmojiPanel.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoEmojiData.js
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoEmojiSearchProvider.qml
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoEmojiSearchData.js
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoExtendedSymbolGrid.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoExtendedSymbolKey.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoExtendedSymbolsKey.qml

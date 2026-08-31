@@ -2,7 +2,8 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-HOST_ROOT="$ROOT/build/qt-compose-host"
+HOST_BUILD=${FUTO_HOST_BUILD_DIR:-$ROOT/build}
+HOST_ROOT="$HOST_BUILD/qt-compose-host"
 DEB="$HOST_ROOT/qtbase5-dev-tools_5.5.1+dfsg-16ubuntu7.7_amd64.deb"
 EXTRACTED="$HOST_ROOT/root55"
 MOC="$EXTRACTED/usr/lib/x86_64-linux-gnu/qt5/bin/moc"

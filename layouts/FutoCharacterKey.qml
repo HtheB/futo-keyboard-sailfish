@@ -46,19 +46,24 @@ CharacterKey {
         var arabicAlternatives = keyboard && keyboard.layout
                 && keyboard.layout.usesArabicDigits !== undefined
                 && keyboard.layout.usesArabicDigits
+        var persianAlternatives = keyboard && keyboard.layout
+                && keyboard.layout.usesPersianDigits !== undefined
+                && keyboard.layout.usesPersianDigits
+        var localizedAlternatives = arabicAlternatives || persianAlternatives
+        var localizedDigits = persianAlternatives ? "۰۱۲۳۴۵۶۷۸۹" : "٠١٢٣٤٥٦٧٨٩"
         switch (base) {
         case "$": return "£€\uFDFC₺¥¢"
         case "€": return "£$\uFDFC₺¥¢"
-        case "0": return arabicAlternatives ? "٠" : ""
-        case "1": return arabicAlternatives ? "١½¼¹⅛⅓" : "½¼¹⅛⅓"
-        case "2": return arabicAlternatives ? "٢⅔²" : "⅔²"
-        case "3": return arabicAlternatives ? "٣¾³⅜" : "¾³⅜"
-        case "4": return arabicAlternatives ? "٤⁴" : "⁴"
-        case "5": return arabicAlternatives ? "٥⅝ⁿ" : "⅝ⁿ"
-        case "6": return arabicAlternatives ? "٦" : ""
-        case "7": return arabicAlternatives ? "٧" : ""
-        case "8": return arabicAlternatives ? "٨" : ""
-        case "9": return arabicAlternatives ? "٩" : ""
+        case "0": return localizedAlternatives ? localizedDigits.charAt(0) : ""
+        case "1": return (localizedAlternatives ? localizedDigits.charAt(1) : "") + "½¼¹⅛⅓"
+        case "2": return (localizedAlternatives ? localizedDigits.charAt(2) : "") + "⅔²"
+        case "3": return (localizedAlternatives ? localizedDigits.charAt(3) : "") + "¾³⅜"
+        case "4": return (localizedAlternatives ? localizedDigits.charAt(4) : "") + "⁴"
+        case "5": return (localizedAlternatives ? localizedDigits.charAt(5) : "") + "⅝ⁿ"
+        case "6": return localizedAlternatives ? localizedDigits.charAt(6) : ""
+        case "7": return localizedAlternatives ? localizedDigits.charAt(7) : ""
+        case "8": return localizedAlternatives ? localizedDigits.charAt(8) : ""
+        case "9": return localizedAlternatives ? localizedDigits.charAt(9) : ""
         case "٠": return "0"
         case "١": return "1½¼¹⅛⅓"
         case "٢": return "2⅔²"
@@ -69,6 +74,16 @@ CharacterKey {
         case "٧": return "7"
         case "٨": return "8"
         case "٩": return "9"
+        case "۰": return "0"
+        case "۱": return "1½¼¹⅛⅓"
+        case "۲": return "2⅔²"
+        case "۳": return "3¾³⅜"
+        case "۴": return "4⁴"
+        case "۵": return "5⅝ⁿ"
+        case "۶": return "6"
+        case "۷": return "7"
+        case "۸": return "8"
+        case "۹": return "9"
         case ".": return "…•"
         case "*": return "×"
         case "\"": return "„“«»”"
@@ -88,19 +103,24 @@ CharacterKey {
         var arabicAlternatives = keyboard && keyboard.layout
                 && keyboard.layout.usesArabicDigits !== undefined
                 && keyboard.layout.usesArabicDigits
+        var persianAlternatives = keyboard && keyboard.layout
+                && keyboard.layout.usesPersianDigits !== undefined
+                && keyboard.layout.usesPersianDigits
+        var localizedAlternatives = arabicAlternatives || persianAlternatives
+        var localizedDigits = persianAlternatives ? "۰۱۲۳۴۵۶۷۸۹" : "٠١٢٣٤٥٦٧٨٩"
         switch (base) {
         case "$": return "€"
         case "€": return "$"
-        case "0": return arabicAlternatives ? "٠" : ""
-        case "1": return arabicAlternatives ? "١" : "¹"
-        case "2": return arabicAlternatives ? "٢" : "²"
-        case "3": return arabicAlternatives ? "٣" : "³"
-        case "4": return arabicAlternatives ? "٤" : ""
-        case "5": return arabicAlternatives ? "٥" : ""
-        case "6": return arabicAlternatives ? "٦" : ""
-        case "7": return arabicAlternatives ? "٧" : ""
-        case "8": return arabicAlternatives ? "٨" : ""
-        case "9": return arabicAlternatives ? "٩" : ""
+        case "0": return localizedAlternatives ? localizedDigits.charAt(0) : ""
+        case "1": return localizedAlternatives ? localizedDigits.charAt(1) : "¹"
+        case "2": return localizedAlternatives ? localizedDigits.charAt(2) : "²"
+        case "3": return localizedAlternatives ? localizedDigits.charAt(3) : "³"
+        case "4": return localizedAlternatives ? localizedDigits.charAt(4) : ""
+        case "5": return localizedAlternatives ? localizedDigits.charAt(5) : ""
+        case "6": return localizedAlternatives ? localizedDigits.charAt(6) : ""
+        case "7": return localizedAlternatives ? localizedDigits.charAt(7) : ""
+        case "8": return localizedAlternatives ? localizedDigits.charAt(8) : ""
+        case "9": return localizedAlternatives ? localizedDigits.charAt(9) : ""
         case "٠": return "0"
         case "١": return "1"
         case "٢": return "2"
@@ -111,6 +131,16 @@ CharacterKey {
         case "٧": return "7"
         case "٨": return "8"
         case "٩": return "9"
+        case "۰": return "0"
+        case "۱": return "1"
+        case "۲": return "2"
+        case "۳": return "3"
+        case "۴": return "4"
+        case "۵": return "5"
+        case "۶": return "6"
+        case "۷": return "7"
+        case "۸": return "8"
+        case "۹": return "9"
         case ".": return "…"
         case "\"": return "“"
         case "(": return "<"
