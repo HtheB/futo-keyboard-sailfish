@@ -7,7 +7,6 @@ import Nemo.Configuration 1.0
 import com.jolla.keyboard 1.0
 import com.meego.maliitquick 1.0
 import ".."
-import "FutoEmojiData.js" as EmojiData
 import "FutoSymbolData.js" as SymbolData
 import "FutoLetterLayouts.js" as LetterLayouts
 import "FutoLanguageData.js" as LanguageData
@@ -116,7 +115,18 @@ FutoKeyboardLayout {
             endRecentEmojiView()
     }
 
-    readonly property int emojiCategoryCount: EmojiData.categories.length + 1
+    // Keep only the tiny category metadata in the always-loaded layout. The
+    // full Emoji 17 database and grid live behind emojiPanelLoader.
+    readonly property int emojiCategoryCount: 10
+    readonly property var emojiCategoryNames: [
+        "Smileys & Emotion", "People & Body", "Animals & Nature",
+        "Food & Drink", "Travel & Places", "Activities", "Objects",
+        "Symbols", "Flags"
+    ]
+    readonly property var emojiCategoryIconCodes: [
+        "1f600", "1f44b", "1f43b", "1f354", "1f697", "26bd",
+        "1f4a1", "2764", "1f3f3"
+    ]
     readonly property int extendedSymbolCategoryCount: SymbolData.categories.length
 
     function extendedSymbolEntriesForPage() {
@@ -563,7 +573,7 @@ FutoKeyboardLayout {
     }
 
     function emojiTabIconCode(pageIndex) {
-        return pageIndex === 0 ? "1f550" : EmojiData.categoryIconCodes[pageIndex - 1]
+        return pageIndex === 0 ? "1f550" : emojiCategoryIconCodes[pageIndex - 1]
     }
 
 	function emojiTabAssetPath(pageIndex) {
@@ -572,10 +582,10 @@ FutoKeyboardLayout {
 	}
 
     function emojiTabName(pageIndex) {
-        return pageIndex === 0 ? qsTr("Recent") : EmojiData.categoryNames[pageIndex - 1]
+        return pageIndex === 0 ? qsTr("Recent") : emojiCategoryNames[pageIndex - 1]
     }
 
-    function recentEmojiEntries() {
+    function recentEmojiCodes() {
         var codes
         try {
             codes = JSON.parse(String(layoutSettings.recentEmojis))
@@ -584,17 +594,13 @@ FutoKeyboardLayout {
         }
         if (!codes || codes.length === undefined)
             codes = []
-        var result = []
-        for (var i = 0; i < codes.length; ++i) {
-            var entry = EmojiData.entryForCode(String(codes[i]))
-            if (entry)
-                result.push(entry)
-        }
-        return result
+        return codes
     }
 
     function beginRecentEmojiView() {
-        recentEmojiViewEntries = recentEmojiEntries()
+        // Snapshot codes rather than the large EmojiData objects. Selecting an
+        // emoji must not reorder the visible history until the view changes.
+        recentEmojiViewEntries = recentEmojiCodes()
         recentEmojiViewActive = true
     }
 
@@ -604,14 +610,13 @@ FutoKeyboardLayout {
     }
 
     function emojiEntriesForPage() {
-        if (emojiPage < 0)
-            return EmojiData.search(emojiSearchQuery, enabledPredictionLanguages())
-        if (emojiPage === 0)
-            return recentEmojiViewActive ? recentEmojiViewEntries
-                                         : recentEmojiEntries()
-        var categoryIndex = Math.max(0, Math.min(EmojiData.categories.length - 1,
-                                                 emojiPage - 1))
-        return EmojiData.categories[categoryIndex]
+        var provider = emojiPanelLoader.item
+        if (!provider)
+            return []
+        var recentCodes = recentEmojiViewActive ? recentEmojiViewEntries
+                                                : recentEmojiCodes()
+        return provider.entriesForPage(emojiPage, emojiSearchQuery,
+                                       enabledPredictionLanguages(), recentCodes)
     }
 
     function recordEmoji(baseCode) {
@@ -644,7 +649,7 @@ FutoKeyboardLayout {
 		credentialMode = false
         emojiSearchMode = false
         emojiSearchQuery = ""
-        emojiPage = recentEmojiEntries().length > 0 ? 0 : 1
+        emojiPage = recentEmojiCodes().length > 0 ? 0 : 1
         if (emojiPage === 0)
             beginRecentEmojiView()
         else
@@ -729,7 +734,7 @@ FutoKeyboardLayout {
     function cancelEmojiSearch() {
         emojiSearchQuery = ""
         emojiSearchMode = false
-        emojiPage = recentEmojiEntries().length > 0 ? 0 : 1
+        emojiPage = recentEmojiCodes().length > 0 ? 0 : 1
         if (emojiPage === 0)
             beginRecentEmojiView()
         else
@@ -952,13 +957,19 @@ FutoKeyboardLayout {
     Connections {
         target: layoutSettings
         onLayoutVariantChanged: {
+            if (root.handler && root.handler.cancelSwipeSession)
+                root.handler.cancelSwipeSession()
             root.updateSizes()
             root.synchronizeDetectedLanguage()
         }
         onEnabledLanguagesChanged: root.ensureLayoutAssignments()
         onLayoutAssignmentsChanged: root.ensureActiveLetterLayout()
         onAutomaticLanguageDetectionChanged: root.synchronizeDetectedLanguage()
-        onManualPredictionLanguageChanged: root.synchronizeDetectedLanguage()
+        onManualPredictionLanguageChanged: {
+            if (root.handler && root.handler.cancelSwipeSession)
+                root.handler.cancelSwipeSession()
+            root.synchronizeDetectedLanguage()
+        }
         onNumberRowEnabledChanged: root.updateSizes()
         onSymbolNumberLayoutChanged: root.updateSizes()
         onAutoCapitalizationEnabledChanged: root.applyConfiguredAutocaps()
@@ -1090,9 +1101,14 @@ FutoKeyboardLayout {
         secondPage: attributes.inSymView2
     }
 
-    FutoEmojiGrid {
+    Loader {
+        id: emojiPanelLoader
+        active: root.emojiMode || root.emojiSearchMode
         visible: root.emojiMode
-        targetLayout: root
+        asynchronous: false
+        source: "FutoEmojiPanel.qml"
+
+        onLoaded: item.targetLayout = root
     }
 
     FutoExtendedSymbolGrid {

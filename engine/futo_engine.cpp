@@ -76,12 +76,37 @@ std::vector<uint32_t> normalize(const std::vector<uint32_t> &input) {
     return output;
 }
 
-std::string formatDisplay(const std::string &word, bool capitalizeFirst) {
-    std::string output(word);
-    if (capitalizeFirst && !output.empty() && output[0] >= 'a' && output[0] <= 'z') {
-        output[0] -= ('a' - 'A');
+uint32_t unicodeUppercase(uint32_t codePoint) {
+    if (codePoint >= 'a' && codePoint <= 'z') {
+        return codePoint - ('a' - 'A');
     }
-    return output;
+    // LatinIME already ships a Unicode lower-case mapping for Latin, Greek,
+    // and Cyrillic. Build its inverse once so capitalization is not limited to
+    // ASCII and remains consistent with dictionary normalization.
+    static const std::unordered_map<uint32_t, uint32_t> upperByLower = []() {
+        std::unordered_map<uint32_t, uint32_t> result;
+        for (uint32_t candidate = 0x80; candidate <= 0xFFFF; ++candidate) {
+            const uint32_t lower = static_cast<uint32_t>(
+                    latinime::CharUtils::toLowerCase(static_cast<int>(candidate)));
+            if (lower != candidate && result.find(lower) == result.end()) {
+                result.emplace(lower, candidate);
+            }
+        }
+        return result;
+    }();
+    const auto found = upperByLower.find(codePoint);
+    return found == upperByLower.end() ? codePoint : found->second;
+}
+
+std::string formatDisplay(const std::string &word, bool capitalizeFirst) {
+    if (!capitalizeFirst || word.empty()) {
+        return word;
+    }
+    std::vector<uint32_t> output = codepoints_from_utf8(word);
+    if (!output.empty()) {
+        output[0] = unicodeUppercase(output[0]);
+    }
+    return codepoints_to_utf8(output);
 }
 
 bool startsWith(const std::vector<uint32_t> &word, const std::vector<uint32_t> &prefix) {
@@ -448,7 +473,7 @@ public:
         const int limit = std::max(1, std::min(requestedLimit, 20));
         const std::vector<SwipePoint> observed = parseSwipePoints(pathData);
         const std::vector<SwipePoint> geometry = parseSwipePoints(geometryData);
-        if (observed.size() < 3 || geometry.size() < 20) {
+        if (observed.size() < 2 || geometry.size() < 20) {
             return {};
         }
 
@@ -755,11 +780,7 @@ private:
             }
             phrase << best->words[i];
         }
-        std::string output = phrase.str();
-        if (capitalizeFirst && !output.empty() && output[0] >= 'a' && output[0] <= 'z') {
-            output[0] -= ('a' - 'A');
-        }
-        return output;
+        return formatDisplay(phrase.str(), capitalizeFirst);
     }
 
     void loadEntries(const std::string &path) {
@@ -920,7 +941,7 @@ void printJsonAnalysis(const Analysis &analysis) {
 
 int main(int argc, char **argv) {
     if (argc == 2 && std::string(argv[1]) == "--version") {
-        std::cout << "futo-keyboard-sailfish-engine 0.2.2" << std::endl;
+        std::cout << "futo-keyboard-sailfish-engine 0.2.3" << std::endl;
         return 0;
     }
     if (argc == 4 && std::string(argv[1]) == "--compile") {

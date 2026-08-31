@@ -1,4 +1,3 @@
-.pragma library
 // Generated from Unicode Emoji 17.0; do not edit by hand.
 var categoryNames = ["Smileys & Emotion","People & Body","Animals & Nature","Food & Drink","Travel & Places","Activities","Objects","Symbols","Flags"];
 var categoryIconCodes = ["1f600","1f44b","1f43b","1f354","1f697","26bd","1f4a1","2764","1f3f3"];

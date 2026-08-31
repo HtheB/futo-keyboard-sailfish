@@ -17,6 +17,10 @@ InputHandler {
     id: futoHandler
 
     property int candidateSpaceIndex: -1
+    property bool committedSpaceArmed: false
+    property bool committedSpaceAllowsPeriod: false
+    property double committedSpaceTimestamp: 0
+    property int committedSpaceExpectedCursor: -1
     property string preedit: ""
     property int requestSerial: 0
     property int urlRequestSerial: 0
@@ -2437,6 +2441,16 @@ InputHandler {
 			readonly property bool voiceStatusVisible: futoHandler.voiceRecording
 			        || futoHandler.voiceBusy || futoHandler.voiceMessage !== ""
 			readonly property bool credentialSaveVisible: false
+			// The live system clipboard is separate from FUTO's optional,
+			// persistent clipboard history. Password fields suppress predictions,
+			// but must keep the ordinary one-shot Paste action available without
+			// recording the copied value in FUTO's history.
+			readonly property bool passwordClipboardPasteVisible:
+			        futoHandler.passwordField && Clipboard.hasText
+			        && !cursorStatusVisible && !modifierStatusVisible
+			        && !emojiTabsVisible && !emojiSearchVisible && !symbolTabsVisible
+			        && !controlsVisible && !voiceStatusVisible
+			        && !keyboardLayout.credentialMode
 			readonly property bool passwordVaultVisible:
 			        keyboardSettings.passwordSavingEnabled
 			        && !cursorStatusVisible
@@ -2473,6 +2487,7 @@ InputHandler {
 			        || controlsVisible || voiceStatusVisible || credentialSaveVisible
 			        || futoHandler.ordinaryPredictionStripEnabled
 			        || futoHandler.urlHistoryStripEnabled
+					|| passwordClipboardPasteVisible
 					|| passwordVaultVisible
 			        || predictionContentAvailable)
             height: !futoHandler.hardwareKeyboardSuppressed && stripRequired
@@ -2543,6 +2558,18 @@ InputHandler {
                     onSuggestionsUpdated: predictionList.predictionsChanged()
                 }
             }
+
+			PasteButton {
+				id: passwordClipboardPasteButton
+				anchors.left: parent.left
+				height: parent.height
+				z: 20
+				visible: topStrip.passwordClipboardPasteVisible
+				onClicked: {
+					futoHandler.paste(Clipboard.text)
+					keyboard.expandedPaste = false
+				}
+			}
 
             Label {
                 anchors.fill: parent
@@ -2736,6 +2763,8 @@ InputHandler {
 
 			BackgroundItem {
 				anchors.fill: parent
+				anchors.leftMargin: topStrip.passwordClipboardPasteVisible
+				        ? passwordClipboardPasteButton.width : 0
 				z: 4
 				visible: topStrip.passwordVaultVisible
 				onClicked: futoHandler.openPasswordVault()
@@ -3620,6 +3649,7 @@ InputHandler {
             commit(preedit)
         }
         if (!editorSessionActive) {
+			clearCommittedSpace()
 			endForcedAppSupportSession()
 			cancelVoiceInput()
 			cancelSwipeSession()
@@ -3729,6 +3759,7 @@ InputHandler {
         }
         onFocusTargetChanged: {
 			futoHandler.cancelSwipeSession()
+			futoHandler.clearCommittedSpace()
 			if (!activeEditor)
 				futoHandler.endForcedAppSupportSession()
 			// A new editor must not inherit the fallback text buffer from the
@@ -3772,6 +3803,12 @@ InputHandler {
 			futoHandler.refreshApplicationSuggestions()
         }
         onCursorPositionChanged: {
+            if (futoHandler.committedSpaceArmed
+                    && futoHandler.committedSpaceExpectedCursor >= 0
+                    && MInputMethodQuick.surroundingTextValid
+                    && MInputMethodQuick.cursorPosition
+                       !== futoHandler.committedSpaceExpectedCursor)
+                futoHandler.clearCommittedSpace()
             if (futoHandler.active && futoHandler.preedit === "") {
 				futoHandler.syncEditorTypedBuffer()
                 editorContextTimer.restart()
@@ -4231,6 +4268,8 @@ InputHandler {
             predictionTimer.stop()
             nextPredictionTimer.stop()
 			MInputMethodQuick.sendCommit(replacementText, start - cursor, length)
+            if (addEditingSpace)
+                armCommittedSpace(start + replacementText.length)
             clearEditingWord()
 			swipeReplacementActive = false
 			swipePreviousWord = ""
@@ -4249,8 +4288,13 @@ InputHandler {
         var addSpace = keyboardSettings.autoSpaceAfterSuggestion
         candidateSpaceIndex = addSpace && MInputMethodQuick.surroundingTextValid
                 ? MInputMethodQuick.cursorPosition + replacement.length + 1 : -1
+        var cursorBeforeSuggestion = MInputMethodQuick.surroundingTextValid
+                ? MInputMethodQuick.cursorPosition : -1
         learn(replacement)
         commit(replacement + (addSpace ? " " : ""))
+        if (addSpace)
+            armCommittedSpace(cursorBeforeSuggestion < 0 ? -1
+                              : cursorBeforeSuggestion + replacement.length + 1)
         if (keyboard.shiftState !== ShiftState.LockedShift) {
             keyboard.shiftState = addSpace ? ShiftState.AutoShift : ShiftState.NoShift
         }
@@ -4267,6 +4311,15 @@ InputHandler {
 			swipeReplacementActive = false
 			swipePreviousWord = ""
 			clearEditingWord()
+		}
+		// Quick Settings intentionally stays open while its language button is
+		// tapped repeatedly. The first subsequent letter touch must close that
+		// overlay and begin the gesture immediately instead of consuming the
+		// user's first swipe after the language change.
+		if (keyboard.layout && keyboard.layout.controlMode
+				&& pressedKey && pressedKey.swipeTypingKey === true
+				&& keyboard.layout.hideControlStrip) {
+			keyboard.layout.hideControlStrip()
 		}
 		// KeyboardBase treats a downward drag as a dismissal before the swipe
 		// decoder can finish.  A press that can begin word swiping owns the
@@ -4337,6 +4390,11 @@ InputHandler {
 
         var handled = false
         var correctedSpaceIndex = -1
+        var punctuationText = pressedKey && pressedKey.text
+                ? String(pressedKey.text) : ""
+        var punctuationKey = ",.?!:;".indexOf(punctuationText) >= 0
+        if (pressedKey.key !== Qt.Key_Space && !punctuationKey)
+            clearCommittedSpace()
         keyboard.expandedPaste = false
 
         if (pressedKey.key !== Qt.Key_Backspace)
@@ -4357,6 +4415,8 @@ InputHandler {
                 var cursorBeforeCommit = MInputMethodQuick.cursorPosition
                 learn(accepted)
                 commit(accepted + " ")
+                armCommittedSpace(MInputMethodQuick.surroundingTextValid
+                                  ? cursorBeforeCommit + accepted.length + 1 : -1)
                 scheduleNextWords(accepted)
                 if (corrected && keyboardSettings.undoCorrectionEnabled
                         && MInputMethodQuick.surroundingTextValid) {
@@ -4368,18 +4428,24 @@ InputHandler {
                 }
                 keyboard.autocaps = false
             } else if (keyboardSettings.doubleSpacePeriodEnabled
-                       && MInputMethodQuick.surroundingTextValid
-                       && MInputMethodQuick.cursorPosition >= 2
-                       && MInputMethodQuick.surroundingText.charAt(
-                           MInputMethodQuick.cursorPosition - 1) === " "
-                       && ".?!".indexOf(MInputMethodQuick.surroundingText.charAt(
-                           MInputMethodQuick.cursorPosition - 2)) < 0) {
+                       && committedSpaceIsCurrent()
+                       && committedSpaceAllowsPeriod
+                       && smartPunctuationField()) {
                 nextContextOverride = contextBeforeCursor()
                 MInputMethodQuick.sendCommit(". ", -1, 1)
+                clearCommittedSpace()
                 nextPredictionTimer.restart()
             } else {
                 scheduleNextWords("")
+                var cursorBeforeSpace = MInputMethodQuick.surroundingTextValid
+                        ? MInputMethodQuick.cursorPosition : -1
+                var previousCharacter = cursorBeforeSpace > 0
+                        ? MInputMethodQuick.surroundingText.charAt(cursorBeforeSpace - 1) : ""
+                var periodAllowed = previousCharacter !== ""
+                        && ".?! \n\t".indexOf(previousCharacter) < 0
                 MInputMethodQuick.sendCommit(" ")
+                armCommittedSpace(cursorBeforeSpace < 0 ? -1
+                                  : cursorBeforeSpace + 1, periodAllowed)
             }
             if (keyboard.shiftState !== ShiftState.LockedShift)
                 keyboard.shiftState = ShiftState.AutoShift
@@ -4437,15 +4503,14 @@ InputHandler {
                     learn(preedit)
                     commit(preedit + pressedKey.text)
                 } else if (keyboardSettings.smartPunctuationEnabled
-                           && candidateSpaceIndex > 0
-                           && candidateSpaceIndex === MInputMethodQuick.cursorPosition
-                           && ",.?!".indexOf(pressedKey.text) >= 0
-                           && MInputMethodQuick.surroundingText.charAt(
-                               MInputMethodQuick.cursorPosition - 1) === " ") {
+                           && punctuationKey && smartPunctuationField()
+                           && spaceImmediatelyBeforeCursor()) {
                     MInputMethodQuick.sendCommit(pressedKey.text + " ", -1, 1)
                     preedit = ""
+                    clearCommittedSpace()
                 } else {
                     MInputMethodQuick.sendCommit(pressedKey.text)
+                    clearCommittedSpace()
                 }
                 handled = true
             }
@@ -4652,7 +4717,9 @@ InputHandler {
 	}
 
 	function finishSwipeGesture() {
-		if (swipePath.length < 3 || !swipeKeyAllowed(pressedKey))
+		// Two-letter words such as "as" are valid gestures. Requiring three
+		// crossed keys made them impossible regardless of dictionary quality.
+		if (swipePath.length < 2 || !swipeKeyAllowed(pressedKey))
 			return false
 		var serializedPath = swipePath.join(";")
 		var geometry = swipeGeometry()
@@ -4729,6 +4796,7 @@ InputHandler {
 			}
 			var cursor = MInputMethodQuick.cursorPosition
 			MInputMethodQuick.sendCommit(word + " ")
+			futoHandler.armCommittedSpace(cursor + word.length + 1)
 			futoHandler.swipePreviousWord = previousWord
 			futoHandler.learnWithPrevious(previousWord, word)
 			futoHandler.candidateSpaceIndex = cursor + word.length + 1
@@ -4754,6 +4822,45 @@ InputHandler {
 		})
 		return true
 	}
+
+    function clearCommittedSpace() {
+        committedSpaceArmed = false
+        committedSpaceAllowsPeriod = false
+        committedSpaceTimestamp = 0
+        committedSpaceExpectedCursor = -1
+    }
+
+    function armCommittedSpace(expectedCursor, allowPeriod) {
+        committedSpaceArmed = true
+        committedSpaceAllowsPeriod = allowPeriod === undefined ? true : !!allowPeriod
+        committedSpaceTimestamp = Date.now()
+        committedSpaceExpectedCursor = Number(expectedCursor)
+    }
+
+    function committedSpaceIsCurrent() {
+        if (!committedSpaceArmed
+                || Date.now() - committedSpaceTimestamp > 1200)
+            return false
+        // Native and Android editors can publish their cursor update one event
+        // late. Trust the space we just committed, but reject it once an
+        // authoritative cursor position says the user moved elsewhere.
+        return committedSpaceExpectedCursor < 0
+                || !MInputMethodQuick.surroundingTextValid
+                || MInputMethodQuick.cursorPosition === committedSpaceExpectedCursor
+    }
+
+    function spaceImmediatelyBeforeCursor() {
+        if (committedSpaceIsCurrent())
+            return true
+        return MInputMethodQuick.surroundingTextValid
+                && MInputMethodQuick.cursorPosition > 0
+                && MInputMethodQuick.surroundingText.charAt(
+                    MInputMethodQuick.cursorPosition - 1) === " "
+    }
+
+    function smartPunctuationField() {
+        return !passwordField && !urlField && !immediateCommitField
+    }
 
     function clearUndoCorrection() {
         undoCorrectionAvailable = false
@@ -4926,6 +5033,7 @@ InputHandler {
 
     function reset() {
 		cancelSwipeSession()
+        clearCommittedSpace()
         requestSerial++
         urlRequestSerial++
         predictionTimer.stop()
@@ -4946,6 +5054,7 @@ InputHandler {
     }
 
     function commit(text) {
+        clearCommittedSpace()
         requestSerial++
         predictionTimer.stop()
         nextPredictionTimer.stop()

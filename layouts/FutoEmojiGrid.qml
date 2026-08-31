@@ -184,6 +184,7 @@ Item {
                     fillMode: Image.PreserveAspectFit
                     smooth: true
                     asynchronous: true
+                    cache: false
                     source: !toneDelegate.variant ? ""
                             : emojiGrid.toneAssetPath(toneDelegate.variant.c,
                                                       toneDelegate.bundledFallback)

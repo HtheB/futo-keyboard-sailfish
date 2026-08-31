@@ -309,7 +309,6 @@ async function main() {
     }
 
     const dataSource = [
-        ".pragma library",
         "// Generated from Unicode Emoji 17.0; do not edit by hand.",
         "var categoryNames = " + jsonForQml(groups) + ";",
         "var categoryIconCodes = " + jsonForQml([

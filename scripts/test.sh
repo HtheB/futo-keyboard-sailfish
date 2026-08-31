@@ -161,6 +161,11 @@ grep -Fq 'EMOJI_TAB_CODEPOINTS :=' "$ROOT/packaging/Makefile"
 grep -Fq '1f550 1f600 1f44b 1f43b 1f354 1f697 26bd 1f4a1 2764 1f3f3' \
     "$ROOT/scripts/build-rpm.sh"
 grep -Fq 'asynchronous: false' "$ROOT/layouts/FutoEmojiKey.qml"
+grep -Fq 'cache: false' "$ROOT/layouts/FutoEmojiKey.qml"
+grep -Fq 'source: "FutoEmojiPanel.qml"' "$ROOT/layouts/FutoQwertyLayout.qml"
+! grep -Fq 'import "FutoEmojiData.js"' "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'import "FutoEmojiData.js"' "$ROOT/layouts/FutoEmojiPanel.qml"
+grep -Fq 'layouts/FutoEmojiPanel.qml' "$ROOT/packaging/Makefile"
 grep -Fq 'signalsEnabled: true' "$ROOT/qml/FutoEmojiSettingsPage.qml"
 grep -Fq 'function contentChanged(packId, state)' \
     "$ROOT/qml/FutoEmojiSettingsPage.qml"
@@ -313,6 +318,14 @@ grep -Fq 'readonly property bool immediateCommitField: !urlField' \
 grep -Fq 'function terminalInputApplication()' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'if (immediateCommitField)' "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'readonly property bool passwordClipboardPasteVisible:' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'futoHandler.passwordField && Clipboard.hasText' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'id: passwordClipboardPasteButton' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'futoHandler.paste(Clipboard.text)' \
+    "$ROOT/qml/FutoInputHandler.qml"
 
 if [[ ! -x "$ENGINE" ]]; then
     echo "Run scripts/build.sh before scripts/test.sh" >&2
@@ -379,6 +392,11 @@ mapfile -t swipe_lines <<<"$swipe_output"
 [[ ${swipe_lines[1]} == $'OK\t[{"word":"hello",'* ]]
 [[ ${swipe_lines[2]} == $'OK\t[{"word":"keyboard",'* ]]
 
+short_swipe_output=$(printf 'SWIPE\tEN\t5\t0\t%s\t%s\n' \
+    '97:0.05:0.50;115:0.15:0.50' "$swipe_geometry" \
+    | "$ENGINE" --dictionary "EN=$ROOT/build/dictionaries/en_US.fksidx" 2>/dev/null)
+[[ $short_swipe_output == $'OK\t[{"word":"as",'* ]]
+
 greek_swipe_geometry='59:0.05:0.10;962:0.15:0.10;949:0.25:0.10;961:0.35:0.10;964:0.45:0.10;965:0.55:0.10;952:0.65:0.10;953:0.75:0.10;959:0.85:0.10;960:0.95:0.10;945:0.10:0.50;963:0.20:0.50;948:0.30:0.50;966:0.40:0.50;947:0.50:0.50;951:0.60:0.50;958:0.70:0.50;954:0.80:0.50;955:0.90:0.50;950:0.20:0.90;967:0.30:0.90;968:0.40:0.90;969:0.50:0.90;946:0.60:0.90;957:0.70:0.90;956:0.80:0.90'
 greek_swipe_output=$(printf 'SWIPE\tEL\t5\t0\t%s\t%s\n' \
     '954:0.80:0.50;945:0.10:0.50;953:0.75:0.10' "$greek_swipe_geometry" \
@@ -390,6 +408,11 @@ russian_swipe_output=$(printf 'SWIPE\tRU\t5\t0\t%s\t%s\n' \
     '1087:0.41:0.50;1088:0.50:0.50;1080:0.50:0.90;1074:0.23:0.50;1077:0.41:0.10;1090:0.60:0.90' "$russian_swipe_geometry" \
     | "$ENGINE" --dictionary "RU=$ROOT/build/dictionaries/ru.fksidx" 2>/dev/null)
 [[ $russian_swipe_output == $'OK\t[{"word":"привет",'* ]]
+
+russian_capital_swipe_output=$(printf 'SWIPE\tRU\t5\t1\t%s\t%s\n' \
+    '1087:0.41:0.50;1088:0.50:0.50;1080:0.50:0.90;1074:0.23:0.50;1077:0.41:0.10;1090:0.60:0.90' "$russian_swipe_geometry" \
+    | "$ENGINE" --dictionary "RU=$ROOT/build/dictionaries/ru.fksidx" 2>/dev/null)
+[[ $russian_capital_swipe_output == $'OK\t[{"word":"Привет",'* ]]
 
 hungarian_output=$(printf '%s\n' \
     $'SUGGEST\tHU\t8\tszia' \

@@ -261,7 +261,7 @@ CharacterKey {
         if (base === undefined || base.length !== 1)
             return ""
         switch (base) {
-        case "a": return shifted ? "ÄÁÀÂÃÅÆ" : "äáàâãåæ"
+        case "a": return shifted ? "ÄÁÀÂÃÅÆĄ" : "äáàâãåæą"
         case "c": return shifted ? "ÇČĆ" : "çčć"
         case "d": return shifted ? "ĎĐÐ" : "ďđð"
         case "e": return shifted ? "ÉÈÊËĚĒĘ" : "éèêëěēę"

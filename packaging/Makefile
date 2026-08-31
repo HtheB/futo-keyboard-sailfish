@@ -35,6 +35,7 @@ LAYOUT_FILES := \
 	layouts/FutoEmojiBackKey.qml \
 	layouts/FutoEmojiGrid.qml \
 	layouts/FutoEmojiKey.qml \
+	layouts/FutoEmojiPanel.qml \
 	layouts/FutoEmojiData.js \
 	layouts/FutoExtendedSymbolGrid.qml \
 	layouts/FutoExtendedSymbolKey.qml \

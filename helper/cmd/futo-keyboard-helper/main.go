@@ -51,7 +51,7 @@ const (
 	forcedAppSupportDconfPath = "/sailfish/text_input/futo_keyboard/forcedAppSupportKeyEvents"
 	vaultAuthAction           = "org.hb.futo.keyboard.saved-login"
 	vaultSaveAuthAction       = "org.hb.futo.keyboard.save-login"
-	version                   = "0.2.2"
+	version                   = "0.2.3"
 )
 
 func zeroBytes(data []byte) {

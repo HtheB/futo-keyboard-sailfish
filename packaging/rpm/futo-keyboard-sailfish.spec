@@ -4,7 +4,7 @@
 %global _missing_build_ids_terminate_build 0
 
 Name:           futo-keyboard-sailfish
-Version:        0.2.2
+Version:        0.2.3
 Release:        1
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
 License:        LicenseRef-FUTO-Source-First-1.1-kb AND BSD-3-Clause AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND (LGPL-2.1-only OR LGPL-3.0-only)
@@ -126,6 +126,7 @@ fi
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoEmojiBackKey.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoEmojiGrid.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoEmojiKey.qml
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoEmojiPanel.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoEmojiData.js
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoExtendedSymbolGrid.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoExtendedSymbolKey.qml
@@ -161,6 +162,14 @@ fi
 %{_userunitdir}/maliit-server.service.d/10-futo-hardware-policy.conf
 
 %changelog
+* Mon Aug 31 2026 HtheB - 0.2.3-1
+- Reduce memory use while opening and browsing the emoji picker.
+- Keep the prediction strip in place while scrolling through suggestions.
+- Fix the first swipe after switching languages and support two-letter swipes.
+- Capitalize swiped Cyrillic and Greek words correctly.
+- Add the missing Polish A-ogonek character and improve punctuation spacing.
+- Keep direct system-clipboard Paste available in password fields.
+
 * Sun Aug 30 2026 HtheB - 0.2.2-1
 - Add Hungarian predictions as optional downloadable content.
 - Allow manual switching between selected languages which share a layout when

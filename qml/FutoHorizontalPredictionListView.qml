@@ -9,6 +9,7 @@ PredictionListView {
 
     property int removalIndex: -1
     property real predictionItemsWidth: 0
+    property bool resetPositionAfterGeometry: false
     readonly property real _maximumLabelWidth: width - (2 * Theme.paddingLarge)
     readonly property real centeredHeaderWidth: predictionSettings.centerPredictions
             && predictionItemsWidth > 0 && predictionItemsWidth < width
@@ -23,7 +24,12 @@ PredictionListView {
         onCenterPredictionsChanged: geometryTimer.restart()
     }
 
-    function refreshPredictionGeometry() {
+    function queuePredictionGeometry(resetPosition) {
+        resetPositionAfterGeometry = resetPositionAfterGeometry || resetPosition
+        geometryTimer.restart()
+    }
+
+    function refreshPredictionGeometry(resetPosition) {
         var total = 0
         var items = contentItem ? contentItem.children : []
         for (var i = 0; i < items.length; ++i) {
@@ -31,7 +37,8 @@ PredictionListView {
                 total += Number(items[i].width)
         }
         predictionItemsWidth = total
-        positionViewAtBeginning()
+        if (resetPosition)
+            positionViewAtBeginning()
     }
 
     function cancelRemoval() {
@@ -50,7 +57,7 @@ PredictionListView {
 
     onPredictionsChanged: {
         cancelRemoval()
-        geometryTimer.restart()
+        queuePredictionGeometry(true)
     }
     onCanRemoveChanged: {
         if (!canRemove)
@@ -83,7 +90,10 @@ PredictionListView {
         height: view.height
 
         Behavior on width { NumberAnimation { duration: 100 } }
-        onWidthChanged: geometryTimer.restart()
+        // Font and translation metrics can settle after a delegate appears.
+        // Recalculate centering without snapping a user's horizontal scroll
+        // back to the first prediction.
+        onWidthChanged: view.queuePredictionGeometry(false)
 
         onClicked: {
             if (view.removalIndex >= 0) {
@@ -161,13 +171,17 @@ PredictionListView {
     Timer {
         id: positionerTimer
         interval: 10
-        onTriggered: view.refreshPredictionGeometry()
+        onTriggered: view.refreshPredictionGeometry(false)
     }
 
     Timer {
         id: geometryTimer
         interval: 1
         repeat: false
-        onTriggered: view.refreshPredictionGeometry()
+        onTriggered: {
+            var resetPosition = view.resetPositionAfterGeometry
+            view.resetPositionAfterGeometry = false
+            view.refreshPredictionGeometry(resetPosition)
+        }
     }
 }

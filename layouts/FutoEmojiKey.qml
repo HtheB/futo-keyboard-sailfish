@@ -129,7 +129,9 @@ CharacterKey {
 		// these small local assets synchronously avoids Qt 5.6's slow serial
 		// asynchronous SVG queue when changing categories.
 		asynchronous: false
-		cache: true
+		// Do not retain every decoded emoji visited while scrolling. The grid is
+		// virtualized and local assets are cheap to reload when they return.
+		cache: false
         source: !emojiKey.effectiveVariant ? ""
                 : emojiKey.assetPath(emojiKey.effectiveVariant.c, bundledFallback)
         onStatusChanged: {
