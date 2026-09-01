@@ -1602,6 +1602,19 @@ InputHandler {
         onTriggered: futoHandler.resetSwipePath()
     }
 
+	Timer {
+		id: layoutChangeRestoreTimer
+		interval: 0
+		repeat: false
+		onTriggered: {
+			if (keyboard && keyboard.layoutChangeAllowed !== undefined) {
+				keyboard.layoutChangeAllowed = Qt.binding(function() {
+					return keyboard.mode === "common"
+				})
+			}
+		}
+	}
+
     Timer {
         id: voiceLimitTimer
         interval: keyboardSettings.voiceStopAfterSilence
@@ -4348,11 +4361,17 @@ InputHandler {
             scheduleNextWords(replacement)
     }
 
-    function handleKeyPress() {
+	function handleKeyPress() {
 		if (spacebarGestureActive) {
 			resetSwipePath()
 			return true
 		}
+		// KeyboardBase starts its independent language-selection timer after
+		// _handleKeyPress() whenever the current touch crosses Space.  During a
+		// word swipe that is merely another point along the same finger path; it
+		// must never become a long-pressed Space key and open another keyboard.
+		if (swipeCrossesSpacebar(pressedKey))
+			suppressSpacebarLanguageSwitch()
 		if (swipeReplacementActive) {
 			swipeReplacementActive = false
 			swipePreviousWord = ""
@@ -4637,6 +4656,10 @@ InputHandler {
 	function captureSwipeKey(key) {
 		swipeReleaseTimer.stop()
 		if (!swipeKeyAllowed(key)) {
+			// Preserve the collected letters while the same swipe briefly travels
+			// over Space. Moving back to a letter continues the gesture normally.
+			if (swipeCrossesSpacebar(key))
+				return
 			resetSwipePath()
 			return
 		}
@@ -4655,6 +4678,20 @@ InputHandler {
 		swipePath = nextPath
 		swipeLastKey = caption
 		suppressSwipePopper(key)
+	}
+
+	function swipeCrossesSpacebar(key) {
+		return swipePath.length > 1 && key && key.key === Qt.Key_Space
+	}
+
+	function suppressSpacebarLanguageSwitch() {
+		if (!keyboard || keyboard.layoutChangeAllowed === undefined)
+			return
+		// updatePressedKey() checks this property immediately after returning
+		// from our handler. Restore the platform's original binding on the next
+		// event-loop turn, after that check has safely been skipped.
+		keyboard.layoutChangeAllowed = false
+		layoutChangeRestoreTimer.restart()
 	}
 
 	function suppressSwipePopper(key) {
