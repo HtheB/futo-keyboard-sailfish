@@ -26,6 +26,7 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -76,6 +77,68 @@ uint32_t lowerCodepoint(uint32_t codepoint) {
 uint32_t upperCodepoint(uint32_t codepoint) {
     const wint_t upper = std::towupper(static_cast<wint_t>(codepoint));
     return upper == WEOF ? codepoint : static_cast<uint32_t>(upper);
+}
+
+bool isGestureJoiner(uint32_t codepoint) {
+    switch (codepoint) {
+    case '\'':
+    case '`':
+    case '-':
+    case 0x00B4: // acute accent used as an apostrophe
+    case 0x02BC: // modifier letter apostrophe
+    case 0x200C: // zero-width non-joiner
+    case 0x2010: // hyphen
+    case 0x2011: // non-breaking hyphen
+    case 0x2012: // figure dash
+    case 0x2013: // en dash
+    case 0x2014: // em dash
+    case 0x2018: // left single quotation mark
+    case 0x2019: // right single quotation mark
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool isCommonEnglishContraction(const std::string &word) {
+    std::string normalized;
+    for (int codepoint : swipe_decoder::utf8_to_codepoints(word)) {
+        const uint32_t lower = lowerCodepoint(static_cast<uint32_t>(codepoint));
+        if (lower == 0x00B4 || lower == 0x02BC || lower == 0x2018
+                || lower == 0x2019 || lower == '`') {
+            normalized.push_back('\'');
+        } else {
+            swipe_decoder::utf8_encode_one(static_cast<int>(lower), normalized);
+        }
+    }
+    if (normalized.size() >= 3
+            && normalized.compare(normalized.size() - 3, 3, "n't") == 0) {
+        return true;
+    }
+    const std::size_t apostrophe = normalized.find('\'');
+    if (apostrophe == std::string::npos) {
+        return false;
+    }
+    static const std::unordered_set<std::string> bases = {
+        "i", "you", "we", "they", "he", "she", "it", "that", "what",
+        "who", "there", "here", "where", "when", "why", "how", "let"
+    };
+    static const std::unordered_set<std::string> suffixes = {
+        "'m", "'re", "'ve", "'ll", "'d", "'s"
+    };
+    return bases.find(normalized.substr(0, apostrophe)) != bases.end()
+            && suffixes.find(normalized.substr(apostrophe)) != suffixes.end();
+}
+
+uint32_t lastGestureLetter(const std::string &word) {
+    const std::vector<int> codepoints = swipe_decoder::utf8_to_codepoints(word);
+    for (auto iterator = codepoints.rbegin(); iterator != codepoints.rend(); ++iterator) {
+        const uint32_t codepoint = lowerCodepoint(static_cast<uint32_t>(*iterator));
+        if (!isGestureJoiner(codepoint)) {
+            return codepoint;
+        }
+    }
+    return 0;
 }
 
 std::string capitalizeFirst(const std::string &word) {
@@ -355,8 +418,19 @@ private:
             bool usable = true;
             for (std::size_t index = 0; index < entry.normalized.size(); ++index) {
                 uint32_t codepoint = lowerCodepoint(entry.normalized[index]);
+                uint32_t displayCodepoint = 0;
                 if (index < display.size()) {
-                    const uint32_t displayCodepoint = lowerCodepoint(display[index]);
+                    displayCodepoint = lowerCodepoint(display[index]);
+                }
+                // FUTO Swipe traverses an alpha form of each dictionary word:
+                // punctuation which cannot be traced on the keyboard is not a
+                // trie edge, while get_word() still returns the original
+                // surface form.  Keep "can't" and "I'm" as display results,
+                // but decode their gestures as c-a-n-t and i-m.
+                if (isGestureJoiner(codepoint) || isGestureJoiner(displayCodepoint)) {
+                    continue;
+                }
+                if (displayCodepoint != 0) {
                     if (characterIndices.find(displayCodepoint) != characterIndices.end()) {
                         codepoint = displayCodepoint;
                     }
@@ -581,6 +655,38 @@ public:
             std::vector<swipe_decoder::DecodedWord> decoded = engine_.recognize(
                     x.data(), y.data(), t.data(), x.size(), context,
                     static_cast<int>(requestedLimit), 300);
+            // The English context model can strongly prefer an uncontracted
+            // neighbour even when the user clearly releases on the final key
+            // of a contraction (for example i->m becoming "in").  FUTO's
+            // alpha trie deliberately keeps apostrophes out of the gesture,
+            // so use the explicit release key as a small, bounded tie-breaker.
+            uint32_t releaseKey = lowerCodepoint(path.back().key);
+            if (releaseKey == 0) {
+                float nearestDistance = std::numeric_limits<float>::max();
+                for (int index = 0; index < layout.num_keys; ++index) {
+                    const float deltaX = x.back() - layout.key_cx[index];
+                    const float deltaY = y.back() - layout.key_cy[index];
+                    const float distance = deltaX * deltaX + deltaY * deltaY;
+                    if (distance < nearestDistance) {
+                        nearestDistance = distance;
+                        releaseKey = lowerCodepoint(static_cast<uint32_t>(
+                                layout.code_points[index]));
+                    }
+                }
+            }
+            if (english && releaseKey != 0) {
+                for (swipe_decoder::DecodedWord &candidate : decoded) {
+                    if (isCommonEnglishContraction(candidate.word)
+                            && lastGestureLetter(candidate.word) == releaseKey) {
+                        candidate.final_score += 0.75f;
+                    }
+                }
+                std::stable_sort(decoded.begin(), decoded.end(),
+                        [](const swipe_decoder::DecodedWord &left,
+                                const swipe_decoder::DecodedWord &right) {
+                            return left.final_score > right.final_score;
+                        });
+            }
             std::cout << "OK\t[";
             for (std::size_t index = 0; index < decoded.size(); ++index) {
                 if (index) {

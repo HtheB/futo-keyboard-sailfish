@@ -940,6 +940,30 @@ func TestMergeRankedSuggestionsDeduplicatesAcrossLanguages(t *testing.T) {
 	}
 }
 
+func TestMergeRankedSuggestionsKeepsEnglishPronounCapitalization(t *testing.T) {
+	candidates := []scoredWord{
+		{Word: "I", Score: 4000000196},
+		{Word: "in", Score: 3209999000},
+	}
+	got := mergeRankedSuggestions("i", true, []string{"is"}, candidates, 4)
+	want := []string{"i", "I", "is", "in"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("mergeRankedSuggestions() = %#v, want %#v", got, want)
+	}
+}
+
+func TestMergeRankedSuggestionsKeepsDictionaryCapitalization(t *testing.T) {
+	candidates := []scoredWord{
+		{Word: "Deutschland", Score: 4000000120},
+		{Word: "deutschen", Score: 3209999000},
+	}
+	got := mergeRankedSuggestions("deutschland", true, nil, candidates, 4)
+	want := []string{"deutschland", "Deutschland", "deutschen"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("mergeRankedSuggestions() = %#v, want %#v", got, want)
+	}
+}
+
 func TestLegacyLayoutsMapToUnifiedFuto(t *testing.T) {
 	for _, legacy := range []string{"futo_en.qml", "futo_nl.qml", "futo_tr.qml"} {
 		if got := replaceLegacyLayout(legacy); got != "futo.qml" {

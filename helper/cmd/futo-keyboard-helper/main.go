@@ -3766,16 +3766,37 @@ func mergeRankedSuggestions(typed string, showTyped bool, personal []string,
 	})
 	result := make([]string, 0, maximum)
 	seen := make(map[string]bool)
+	seenExact := make(map[string]bool)
+	caseCorrections := make(map[string]bool)
+	typedLower := strings.ToLower(typed)
 	appendWord := func(word string) {
 		key := strings.ToLower(word)
-		if len(result) >= maximum || word == "" || seen[key] {
+		// A dictionary's canonical capitalization is a real correction, not a
+		// duplicate of lower-case input.  Preserve one such spelling for every
+		// language (for example i -> I or deutschland -> Deutschland), while
+		// continuing to fold repeated candidates from multiple dictionaries.
+		caseCorrection := typed != "" && typed == typedLower && word != typed &&
+			key == typedLower && !seenExact[word] && !caseCorrections[key]
+		if len(result) >= maximum || word == "" || (seen[key] && !caseCorrection) {
 			return
 		}
 		seen[key] = true
+		seenExact[word] = true
+		if caseCorrection {
+			caseCorrections[key] = true
+		}
 		result = append(result, word)
 	}
 	if showTyped {
 		appendWord(typed)
+	}
+	if typed == "i" {
+		for _, candidate := range candidates {
+			if candidate.Word == "I" {
+				appendWord(candidate.Word)
+				break
+			}
+		}
 	}
 	for _, word := range personal {
 		appendWord(word)
@@ -3905,6 +3926,18 @@ func (service *service) analyzeContext(languagesCSV, word, context string,
 				!service.history.isSuppressed(phrase) {
 				ranked = append(ranked, scoredWord{Word: phrase,
 					Score: 3900000000 + contextBonus + runeBonus, Language: language})
+			}
+		}
+	}
+	// English "I" is a grammatical capitalization, not a different learned
+	// word. Always offer it for a lower-case single-letter input, even if an
+	// older suppression entry folded the two spellings together.
+	if word == "i" {
+		for _, language := range languages {
+			if language == "EN" || language == "EN_GB" {
+				ranked = append(ranked, scoredWord{Word: "I", Score: 5000000000,
+					Language: language})
+				break
 			}
 		}
 	}

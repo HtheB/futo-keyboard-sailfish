@@ -28,19 +28,24 @@ const lmVocab = process.env.FUTO_SWIPE_LM_VOCAB
 
 const allCases = [
     ["AR", "مرحبا"], ["CS", "ahoj"], ["DA", "hej"], ["DE", "danke"],
-    ["EL", "γεια"], ["EN", "as"], ["EN_GB", "thanks"], ["ES", "hola"],
-    ["FA", "میکنم"], ["FI", "kiitos"], ["FR", "merci"], ["HR", "hvala"],
-    ["HU", "szia"], ["IT", "ciao"], ["LT", "labas"], ["LV", "sveiki"],
-    ["NB", "hei"], ["NL", "hallo"], ["PL", "część"],
+    ["EL", "γεια"], ["EN", "as"], ["EN", "I'm"], ["EN", "can't"],
+    ["EN", "don't"], ["EN", "you're"],
+    ["EN_GB", "thanks"], ["ES", "hola"],
+    ["FA", "میکنم"], ["FI", "kiitos"], ["FR", "merci"], ["FR", "d'une"],
+    ["HR", "hvala"], ["HU", "szia"], ["IT", "ciao"], ["IT", "l'anno"],
+    ["LT", "labas"], ["LV", "sveiki"], ["NB", "hei"], ["NL", "hallo"],
+    ["NL", "zo'n"], ["PL", "część"],
     ["PT_BR", "obrigado"], ["PT_PT", "obrigado"], ["RO", "salut"],
     ["RU", "привет"], ["SL", "hvala"], ["SR", "хвала"],
-    ["SR_LATN", "hvala"], ["SV", "tack"], ["TR", "merhaba"]
+    ["SR_LATN", "hvala"], ["SV", "tack"], ["TR", "merhaba"],
+    ["TR", "e-posta"]
 ];
 const requestedLanguages = new Set((process.env.FUTO_SWIPE_TEST_LANGUAGES || "")
     .split(",").map(value => value.trim()).filter(Boolean));
 const cases = requestedLanguages.size
     ? allCases.filter(([language]) => requestedLanguages.has(language))
     : allCases;
+const mustRankFirst = new Set(["EN\tI'm", "EN\tcan't"]);
 
 function loadLayouts() {
     let source = fs.readFileSync(path.join(root, "layouts", "FutoLetterLayouts.js"), "utf8");
@@ -86,7 +91,9 @@ function baseLetter(character) {
 }
 
 function traceFor(word, keys) {
-    const centers = Array.from(word, character => {
+    const gestureCharacters = Array.from(word).filter(character =>
+        !["'", "’", "‘", "ʼ", "`", "´", "-"].includes(character));
+    const centers = gestureCharacters.map(character => {
         const lower = character.toLowerCase();
         return keys.get(lower) || keys.get(baseLetter(lower));
     });
@@ -192,7 +199,8 @@ async function main() {
         const rank = suggestions.indexOf(expected);
         console.log(`${language.padEnd(7)} ${expected.padEnd(10)} rank=${rank < 0 ? "-" : rank + 1}`
                     + `  ${suggestions.slice(0, 5).join(", ")}`);
-        if (suggestions.length === 0 || rank < 0)
+        if (suggestions.length === 0 || rank < 0
+                || (mustRankFirst.has(`${language}\t${expected}`) && rank !== 0))
             failures++;
     }
     child.stdin.end();
