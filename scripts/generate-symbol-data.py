@@ -26,15 +26,42 @@ REQUIRED_SYMBOLS = set(
     "←↑→↓↔↕↨∂∆∏∑∙√∞▀▄█▌▐░▒▓■□▪▫▬▲►▼◄◊○◌●◘◙◦☺☻ﷲﷴﷺﷻ﷽"
 )
 
-# Keep the most useful numeric forms complete and in a predictable order.
-# Some superscripts are also normal long-press alternatives, but omitting
-# them here made the picker start with ⁰⁵⁶⁷⁸⁹, which looked broken.
+# Keep the most useful families complete and in a predictable order. These
+# intentionally duplicate a handful of normal long-press alternatives: an
+# exhaustive picker should not make the user hunt across two interfaces.
+CURRENCY_PRIORITY = "$£€﷼₺¥¢"
 NUMBER_PRIORITY = (
-    "$£€﷼₺¥¢"
-    "⁰¹²³⁴⁵⁶⁷⁸⁹"
+    "⁰¹²³⁴⁵⁶⁷⁸⁹ⁿ"
     "₀₁₂₃₄₅₆₇₈₉"
     "٠١٢٣٤٥٦٧٨٩"  # Arabic-Indic digits
     "۰۱۲۳۴۵۶۷۸۹"  # Eastern Arabic/Persian digits
+    "½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⅟"
+)
+BRACKET_QUOTE_PRIORITY = (
+    "‘’“”«»‹›()[]{}<>⟨⟩⌈⌉⌊⌋"
+    "〈〉《》「」『』【】〔〕〖〗"
+)
+PUNCTUATION_PRIORITY = "¡¿‽…·•※—–‐′″"
+TAB_PRIORITIES = {
+    "arrows": "←↑→↓↔↕↨↶↷↺↻⇐⇑⇒⇓⇔►◄",
+    "math": "±×÷=≠≈<>≤≥∑∏√∞∫∂∆∈∉∩∪⊂⊃∧∨",
+    "numbers": NUMBER_PRIORITY,
+    "currency": CURRENCY_PRIORITY,
+    "punctuation": PUNCTUATION_PRIORITY,
+    "brackets_quotes": BRACKET_QUOTE_PRIORITY,
+    "boxes_blocks": "─│┌┐└┘┼═║╬▀▄█░▒▓",
+    "shapes": "■□▪▫▬▲△▼◆◇◊○◌●◘◙◦★☆",
+    "technical": "⌘⌥⌫⌦⌧⏎⎋⏏⎙⌀",
+    "letterlike": "℃℉№℗℞℠℡℧",
+    "enclosed": "Ⓐⓐ⒜",
+    "music": "♩♪♫♬♭♮♯",
+    "games": "♔♕♖♗♘♙♚♛♜♝♞♟",
+    "cultural": "☯☦☥☰",
+    "marks_misc": "¨´¸˘˙˚˛˜˝",
+}
+EXPLICIT_TEXT_SYMBOLS = set().union(
+    REQUIRED_SYMBOLS,
+    *(set(values) for values in TAB_PRIORITIES.values()),
 )
 
 # Present the Arabic religious ligatures by practical meaning rather than by
@@ -51,16 +78,23 @@ CATEGORIES = OrderedDict([
     ("favorites", ("Favorites", "☆")),
     ("arrows", ("Arrows", "→")),
     ("math", ("Math", "∑")),
-    ("currency_numbers", ("Currency & numbers", "$")),
+    ("numbers", ("Numbers", "①")),
+    ("currency", ("Currency", "$")),
     ("punctuation", ("Punctuation", "¶")),
+    ("brackets_quotes", ("Brackets & quotes", "「")),
     ("boxes_blocks", ("Boxes & blocks", "▓")),
     ("shapes", ("Shapes", "◆")),
     ("technical", ("Technical", "⌘")),
+    ("braille", ("Braille", "⠿")),
     ("letterlike", ("Letter-like", "Ω")),
+    # Plain A is deliberate: some Sailfish tab labels do not apply Symbola
+    # fallback even though the full grid can render mathematical alphabets.
+    ("styled_letters", ("Styled letters", "A")),
     ("enclosed", ("Enclosed", "⑴")),
-    ("music_games", ("Music & games", "♪")),
-    ("cultural", ("Cultural", "☯")),
-    ("misc", ("More", "※")),
+    ("music", ("Music", "♪")),
+    ("games", ("Games", "♟")),
+    ("cultural", ("Cultural & religious", "☯")),
+    ("marks_misc", ("Marks & more", "※")),
 ])
 
 
@@ -90,8 +124,16 @@ def is_picker_symbol(codepoint: int) -> bool:
     if not 0 <= codepoint <= 0x10FFFF:
         return False
     character = chr(codepoint)
-    if character in NUMBER_PRIORITY:
+    if character in EXPLICIT_TEXT_SYMBOLS:
         return True
+    # Regional indicators are implementation pieces for flag emoji rather
+    # than useful standalone symbols. Complete flags already live in Emoji.
+    if 0x1F1E6 <= codepoint <= 0x1F1FF:
+        return False
+    # U+2800 is a deliberately empty Braille cell and would appear as a
+    # completely blank, tappable key.
+    if codepoint == 0x2800:
+        return False
     category = unicodedata.category(character)
     if category in ALLOWED_CATEGORIES:
         return character not in NORMAL_KEYBOARD_SYMBOLS
@@ -111,14 +153,67 @@ def category_for(codepoint: int) -> str:
     category = unicodedata.category(character)
     name = unicodedata.name(character, "")
 
+    if character in CURRENCY_PRIORITY:
+        return "currency"
     if character in NUMBER_PRIORITY:
-        return "currency_numbers"
+        return "numbers"
+    if character in BRACKET_QUOTE_PRIORITY:
+        return "brackets_quotes"
+    if character in PUNCTUATION_PRIORITY:
+        return "punctuation"
+    for category_id, priority_text in TAB_PRIORITIES.items():
+        if character in priority_text:
+            return category_id
 
     if (0x2190 <= codepoint <= 0x21FF
             or 0x27F0 <= codepoint <= 0x27FF
             or 0x2900 <= codepoint <= 0x297F
-            or "ARROW" in name):
+            or "ARROW" in name or "POINTER" in name):
         return "arrows"
+
+    # The most specific semantic groups must be checked before generic visual
+    # words such as CIRCLE, SQUARE, TRIANGLE, and STAR. The old order sent
+    # circled letters, musical marks, APL keys, and religious signs to Shapes.
+    if (0xFDF0 <= codepoint <= 0xFDFD or codepoint == 0x06DE
+            or any(word in name for word in (
+                "RELIGIOUS", "CROSS", "ANKH", "YIN YANG", "TRIGRAM",
+                "HEXAGRAM", "ZODIAC", "PLANET", "ASTROLOGICAL",
+                "ARABIC LIGATURE", "RUB EL HIZB",
+            ))):
+        return "cultural"
+    if (0x1F000 <= codepoint <= 0x1F0FF
+            or any(word in name for word in (
+                "CHESS", "PLAYING CARD", "DOMINO", "MAHJONG",
+                "CHECKER", "SHOGI", "DIE FACE",
+            ))):
+        return "games"
+    if (0x1D000 <= codepoint <= 0x1D24F
+            or any(word in name for word in (
+                "MUSIC", "MUSICAL", "CLEF", "QUARTER NOTE",
+                "EIGHTH NOTE", "SIXTEENTH NOTE",
+            ))):
+        return "music"
+    if 0x2800 <= codepoint <= 0x28FF:
+        return "braille"
+    if 0x1D400 <= codepoint <= 0x1D7FF:
+        return "styled_letters"
+    if (0x2460 <= codepoint <= 0x24FF
+            or 0x1F100 <= codepoint <= 0x1F1FF
+            or "ENCLOSED" in name or "PARENTHESIZED" in name):
+        # Numeric enclosed forms are more useful alongside the other number
+        # styles; enclosed letters and signs remain together here.
+        return "numbers" if category in {"Nl", "No"} else "enclosed"
+    if category == "Sc":
+        return "currency"
+    if category in {"Nl", "No"} or 0x2070 <= codepoint <= 0x209F:
+        return "numbers"
+    if (category in {"Ps", "Pe", "Pi", "Pf"}
+            or any(word in name for word in (
+                "BRACKET", "PARENTHESIS", "QUOTATION MARK",
+            ))):
+        return "brackets_quotes"
+    if category.startswith("P"):
+        return "punctuation"
     if 0x2500 <= codepoint <= 0x259F:
         return "boxes_blocks"
     if (category == "Sm"
@@ -126,45 +221,21 @@ def category_for(codepoint: int) -> str:
             or 0x27C0 <= codepoint <= 0x27EF
             or 0x2980 <= codepoint <= 0x2AFF):
         return "math"
-    if category in {"Sc", "Nl", "No"} or 0x2070 <= codepoint <= 0x209F:
-        return "currency_numbers"
-    if category.startswith("P"):
-        return "punctuation"
+    if (0x2300 <= codepoint <= 0x245F
+            or any(word in name for word in (
+                "TECHNICAL", "CONTROL", "KEYBOARD", "ELECTRICAL",
+                "APL FUNCTIONAL", "DENTISTRY",
+            ))):
+        return "technical"
+    if 0x2100 <= codepoint <= 0x214F:
+        return "letterlike"
     if (0x25A0 <= codepoint <= 0x25FF
             or any(word in name for word in (
                 "CIRCLE", "SQUARE", "TRIANGLE", "DIAMOND", "STAR",
                 "LOZENGE", "BULLET", "GEOMETRIC",
             ))):
         return "shapes"
-    if (0x2300 <= codepoint <= 0x245F
-            or 0x2800 <= codepoint <= 0x28FF
-            or any(word in name for word in (
-                "TECHNICAL", "CONTROL", "KEYBOARD", "ELECTRICAL",
-                "APL FUNCTIONAL", "DENTISTRY",
-            ))):
-        return "technical"
-    if 0x2100 <= codepoint <= 0x214F or 0x1D400 <= codepoint <= 0x1D7FF:
-        return "letterlike"
-    if (0x2460 <= codepoint <= 0x24FF
-            or 0x1F100 <= codepoint <= 0x1F1FF
-            or "ENCLOSED" in name or "CIRCLED" in name
-            or "PARENTHESIZED" in name):
-        return "enclosed"
-    if (0x1D100 <= codepoint <= 0x1D24F
-            or 0x1F000 <= codepoint <= 0x1F0FF
-            or any(word in name for word in (
-                "MUSIC", "MUSICAL", "CHESS", "DICE", "PLAYING CARD",
-                "DOMINO", "MAHJONG", "CHECKER", "SHOGI",
-            ))):
-        return "music_games"
-    if (0xFDF0 <= codepoint <= 0xFDFD
-            or any(word in name for word in (
-                "RELIGIOUS", "CROSS", "ANKH", "YIN YANG", "TRIGRAM",
-                "HEXAGRAM", "ZODIAC", "PLANET", "ASTROLOGICAL",
-                "ARABIC LIGATURE",
-            ))):
-        return "cultural"
-    return "misc"
+    return "marks_misc"
 
 
 def js_string(value: str) -> str:
@@ -190,16 +261,18 @@ def render(font_paths: list[Path], emoji_data_path: Path,
         # artwork and search metadata. Keep the user's explicitly requested
         # text symbols, but do not duplicate the remaining pictographs here.
         if (codepoint in emoji_codepoints
-                and chr(codepoint) not in REQUIRED_SYMBOLS):
+                and chr(codepoint) not in EXPLICIT_TEXT_SYMBOLS):
             continue
         categorized[category_for(codepoint)].append(chr(codepoint))
 
-    priority = list(NUMBER_PRIORITY)
-    priority_set = set(priority)
-    categorized["currency_numbers"] = priority + [
-        value for value in categorized["currency_numbers"]
-        if value not in priority_set
-    ]
+    for category_id, priority_text in TAB_PRIORITIES.items():
+        priority = [value for value in priority_text
+                    if value in categorized[category_id]]
+        priority_set = set(priority)
+        categorized[category_id] = priority + [
+            value for value in categorized[category_id]
+            if value not in priority_set
+        ]
 
     # Keep religious groups visually separate. Arabic presentation-form
     # ligatures belong first; every cross/ankh variant belongs at the bottom.
@@ -216,13 +289,34 @@ def render(font_paths: list[Path], emoji_data_path: Path,
         if ("CROSS" in unicodedata.name(value, "")
             or "ANKH" in unicodedata.name(value, ""))
     ]
+    arabic_cultural_symbols = [
+        value for value in cultural if value == "۞"
+    ]
     other_cultural = [
         value for value in cultural
-        if value not in arabic_ligatures and value not in cross_symbols
+        if (value not in arabic_ligatures and value not in cross_symbols
+            and value not in arabic_cultural_symbols)
+    ]
+    cultural_priority = [
+        value for value in TAB_PRIORITIES["cultural"]
+        if value in other_cultural
+    ]
+    cultural_priority_set = set(cultural_priority)
+    other_cultural = [
+        value for value in other_cultural
+        if value not in cultural_priority_set
     ]
     categorized["cultural"] = (
-        arabic_ligatures + other_cultural + cross_symbols
+        arabic_ligatures + arabic_cultural_symbols
+        + cultural_priority + other_cultural + cross_symbols
     )
+
+    # The generator's single code-point walk should make duplicates
+    # impossible. Keep an explicit invariant so future priority or migration
+    # rules cannot silently place the same character in multiple tabs.
+    flattened = [value for values in categorized.values() for value in values]
+    if len(flattened) != len(set(flattened)):
+        raise RuntimeError("generated symbol categories contain duplicates")
 
     lines = [
         "/* Generated by scripts/generate-symbol-data.py from the Sailfish phone's fonts.",
