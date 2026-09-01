@@ -1467,6 +1467,8 @@ InputHandler {
         property bool clipboardReturnAfterPaste: true
         property bool keySoundEnabled: false
 		property bool keySoundFollowSystem: true
+        property bool keySoundMigrationDone: false
+        property int keySoundMode: -1
         property real keySoundVolume: 0.5
         property bool swipeTypingEnabled: true
         // Set only by the Top Menu compatibility action. Android applications
@@ -1745,10 +1747,29 @@ InputHandler {
                         Math.round(configuredVolume * 10))) * 10
     }
 
+    function effectiveKeySoundMode() {
+        var mode = Number(keyboardSettings.keySoundMode)
+        if (isFinite(mode) && mode >= 0 && mode <= 2)
+            return Math.floor(mode)
+        if (!keyboardSettings.keySoundMigrationDone)
+            return 2
+        return !keyboardSettings.keySoundEnabled ? 0
+                : keyboardSettings.keySoundFollowSystem ? 2 : 1
+    }
+
+    function setKeySoundMode(mode) {
+        mode = Math.max(0, Math.min(2, Math.floor(Number(mode))))
+        keyboardSettings.keySoundMode = mode
+        // Keep these synchronized for clean downgrade behaviour.
+        keyboardSettings.keySoundEnabled = mode !== 0
+        keyboardSettings.keySoundFollowSystem = mode === 2
+        keyboardSettings.keySoundMigrationDone = true
+    }
+
 	function keySoundActive() {
-		return keyboardSettings.keySoundEnabled
-				&& (!keyboardSettings.keySoundFollowSystem
-				    || systemFeedback.touchscreenToneLevel !== 0)
+        var mode = effectiveKeySoundMode()
+		return mode === 1
+                || (mode === 2 && systemFeedback.touchscreenToneLevel !== 0)
 	}
 
     function playKeySound(soundKind) {
@@ -2189,9 +2210,9 @@ InputHandler {
             return "file:///usr/share/futo-keyboard-sailfish/icons/icon-m-emoji.svg"
         if (actionId === "microphone") return "image://theme/icon-m-browser-microphone"
         if (actionId === "sound")
-            return keySoundActive()
-                    ? "image://theme/icon-m-speaker-on"
-                    : "image://theme/icon-m-speaker-mute"
+            return effectiveKeySoundMode() === 0 || !keySoundActive()
+                    ? "image://theme/icon-m-speaker-mute"
+                    : "image://theme/icon-m-speaker-on"
         if (actionId === "incognito") return "image://theme/icon-m-incognito"
         return ""
     }
@@ -2213,16 +2234,23 @@ InputHandler {
         if (actionId === "clipboard") return qsTr("Clipboard")
         if (actionId === "emoji") return qsTr("Emoji")
         if (actionId === "microphone") return qsTr("Microphone")
-        if (actionId === "sound") return qsTr("Sound")
+        if (actionId === "sound") {
+            var soundMode = effectiveKeySoundMode()
+            if (soundMode === 0)
+                return qsTr("Off")
+            if (soundMode === 1)
+                return qsTr("On")
+            return qsTr("System")
+        }
         if (actionId === "incognito") return qsTr("Incognito")
         return qsTr("Settings")
     }
 
     function activateQuickSetting(actionId) {
         if (actionId === "sound") {
-            keyboardSettings.keySoundEnabled = !keyboardSettings.keySoundEnabled
-            // Toggle first so enabling sound produces an immediate preview;
-            // disabling it still keeps the normal haptic confirmation.
+            setKeySoundMode((effectiveKeySoundMode() + 1) % 3)
+            // Cycle first so On and an audible System state produce an
+            // immediate preview. Off still keeps the haptic confirmation.
             playOptionFeedback()
             return
         }
@@ -2921,8 +2949,11 @@ InputHandler {
                             index === keyboardLayout.extendedSymbolPage
                     readonly property string tabName:
                             keyboardLayout.extendedSymbolTabName(index)
+                    // Keep the category buttons comfortably wide.  With the
+                    // larger semantic category set the row is meant to flick,
+                    // not compress the representative glyphs into narrow tabs.
                     width: Math.max(Theme.itemSizeMedium,
-                                    topStrip.width / Math.min(6,
+                                    topStrip.width / Math.min(5,
                                         keyboardLayout.extendedSymbolCategoryCount))
                     height: topStrip.height
 
@@ -2952,7 +2983,14 @@ InputHandler {
 
                     Label {
                         anchors.centerIn: parent
+                        width: Math.min(parent.width - 2 * Theme.paddingMedium,
+                                        Theme.itemSizeSmall)
+                        height: Math.min(parent.height - 2 * Theme.paddingSmall,
+                                         Theme.itemSizeSmall)
                         text: keyboardLayout.extendedSymbolTabIcon(index)
+                        textFormat: Text.PlainText
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
                         color: index === keyboardLayout.extendedSymbolPage
                                ? Theme.highlightColor : Theme.primaryColor
                         // The system Symbola fallback already renders these
@@ -2960,7 +2998,9 @@ InputHandler {
                         // theme label font does not consistently fall back in
                         // this compact tab delegate, so select it explicitly.
                         font.family: "Symbola"
-                        font.pixelSize: Theme.fontSizeSmall
+                        font.pixelSize: Theme.fontSizeMedium
+                        fontSizeMode: Text.Fit
+                        minimumPixelSize: Theme.fontSizeTiny
                     }
 
                 }
@@ -3371,7 +3411,7 @@ InputHandler {
                                 || (actionId === "microphone"
                                     && futoHandler.voiceRecording)
                                 || (actionId === "sound"
-								    && futoHandler.keySoundActive())
+								    && futoHandler.effectiveKeySoundMode() !== 0)
 								|| (actionId === "desktopkeys"
 								    && keyboardSettings.desktopToolbarEnabled)
                             width: configuredControlButtons.buttonWidth

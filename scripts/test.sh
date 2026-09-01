@@ -110,10 +110,10 @@ grep -Fq 'if (settings.personalDictionaryProtected)' "$ROOT/qml/FutoPrivacyPage.
 grep -Fq 'InitializeLearnedEncryption' "$ROOT/qml/FutoLearnedDataPage.qml"
 grep -Fq '{ "id": "sound", "label": qsTr("Keyboard sounds")' \
     "$ROOT/qml/FutoQuickSettingsPage.qml"
-grep -Fq 'keyboardSettings.keySoundEnabled = !keyboardSettings.keySoundEnabled' \
+grep -Fq 'setKeySoundMode((effectiveKeySoundMode() + 1) % 3)' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'actionId === "sound"' "$ROOT/qml/FutoInputHandler.qml"
-grep -Fq 'settings.settingsVersion = 10' "$ROOT/qml/FutoSettingsPage.qml"
+grep -Fq 'settings.settingsVersion = 11' "$ROOT/qml/FutoSettingsPage.qml"
 grep -Fq 'settingsUi.call("showPage"' "$ROOT/qml/FutoInputHandler.qml"
 ! sed -n '/function openFutoSettings()/,/^    }/p' \
     "$ROOT/qml/FutoInputHandler.qml" | grep -Fq 'userHide()'
@@ -344,7 +344,9 @@ grep -Fq 'Combine languages that use the same layout' \
     "$ROOT/qml/FutoLanguagesPage.qml"
 grep -Fq 'readonly property real numberRowHeightScale: 0.67' \
     "$ROOT/layouts/FutoQwertyLayout.qml"
-grep -Fq 'Follow Sailfish sound settings' "$ROOT/qml/FutoFeedbackPage.qml"
+grep -Fq 'MenuItem { text: qsTr("System default") }' \
+    "$ROOT/qml/FutoFeedbackPage.qml"
+! grep -Fq 'Follow Sailfish sound settings' "$ROOT/qml/FutoFeedbackPage.qml"
 grep -Fq 'function keySoundActive()' "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'function emojiStylePreviewSource(styleIndex, codepoint)' \
     "$ROOT/qml/FutoEmojiSettingsPage.qml"

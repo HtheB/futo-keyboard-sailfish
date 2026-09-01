@@ -8,13 +8,15 @@ import org.nemomobile.systemsettings 1.0
 Page {
     id: page
     allowedOrientations: Orientation.All
+    property bool soundSelectorReady: false
 
     ConfigurationGroup {
         id: settings
         path: "/sailfish/text_input/futo_keyboard"
         property bool keySoundEnabled: false
-		property bool keySoundFollowSystem: true
+        property bool keySoundFollowSystem: true
         property bool keySoundMigrationDone: false
+        property int keySoundMode: -1
         property real keySoundVolume: 0.5
     }
 
@@ -38,10 +40,30 @@ Page {
                         Math.round(configuredVolume * 10))) * 10
     }
 
+    function soundMode() {
+        var mode = Number(settings.keySoundMode)
+        if (isFinite(mode) && mode >= 0 && mode <= 2)
+            return Math.floor(mode)
+        if (!settings.keySoundMigrationDone)
+            return 2
+        return !settings.keySoundEnabled ? 0
+                : settings.keySoundFollowSystem ? 2 : 1
+    }
+
+    function setSoundMode(mode) {
+        mode = Math.max(0, Math.min(2, Math.floor(Number(mode))))
+        settings.keySoundMode = mode
+        // Keep the old keys synchronized so downgrading to an earlier build
+        // retains the equivalent sound behaviour.
+        settings.keySoundEnabled = mode !== 0
+        settings.keySoundFollowSystem = mode === 2
+        settings.keySoundMigrationDone = true
+    }
+
     function previewKeySound() {
-        if (!settings.keySoundEnabled
-				|| (settings.keySoundFollowSystem
-				    && systemFeedback.touchscreenToneLevel === 0))
+        var mode = soundMode()
+        if (mode === 0
+				|| (mode === 2 && systemFeedback.touchscreenToneLevel === 0))
             return
         helper.typedCall("PlayKeySound", [
             { "type": "s", "value": "letter" },
@@ -50,10 +72,9 @@ Page {
     }
 
     Component.onCompleted: {
-        if (!settings.keySoundMigrationDone) {
-            settings.keySoundEnabled = systemFeedback.touchscreenToneLevel !== 0
-            settings.keySoundMigrationDone = true
-        }
+        if (settings.keySoundMode < 0 || settings.keySoundMode > 2)
+            setSoundMode(soundMode())
+        soundSelectorReady = true
     }
 
     FutoSettingsTestPanel {
@@ -91,33 +112,36 @@ Page {
                 }
             }
 
-            TextSwitch {
+            ComboBox {
                 width: parent.width
-                automaticCheck: false
-                checked: settings.keySoundEnabled
-                text: qsTr("Play a sound on each key press")
-                description: qsTr("FUTO sound is independent of ringtone volume. Playback runs "
-                                  + "outside the keyboard process so a sound failure cannot hide the keyboard.")
-                onClicked: {
-                    var enabled = !checked
-                    settings.keySoundEnabled = enabled
-                    if (enabled)
+                label: qsTr("Play a sound on each key press")
+                currentIndex: page.soundMode()
+                onCurrentIndexChanged: {
+                    if (!page.soundSelectorReady)
+                        return
+                    page.setSoundMode(currentIndex)
+                    if (currentIndex !== 0)
                         page.previewKeySound()
+                }
+                menu: ContextMenu {
+                    MenuItem { text: qsTr("Off") }
+                    MenuItem { text: qsTr("On") }
+                    MenuItem { text: qsTr("System default") }
                 }
             }
 
-			TextSwitch {
-				width: parent.width
-				automaticCheck: false
-				checked: settings.keySoundFollowSystem
-				text: qsTr("Follow Sailfish sound settings")
-				description: qsTr("Mute keyboard sounds whenever Sailfish key tones are muted.")
-				onClicked: settings.keySoundFollowSystem = !checked
-			}
+            Label {
+                x: Theme.horizontalPageMargin
+                width: parent.width - 2 * x
+                wrapMode: Text.Wrap
+                color: Theme.secondaryColor
+                font.pixelSize: Theme.fontSizeSmall
+                text: qsTr("System default follows Sailfish key tones. On plays FUTO key sounds independently of ringtone volume.")
+            }
 
             Slider {
                 width: parent.width
-                enabled: settings.keySoundEnabled
+                enabled: page.soundMode() !== 0
                 minimumValue: 10
                 maximumValue: 100
                 stepSize: 10

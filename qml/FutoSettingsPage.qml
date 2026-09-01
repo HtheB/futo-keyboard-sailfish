@@ -62,6 +62,17 @@ Page {
             settings.quickSettingsEnabled = soundEnabled.join(",")
             settings.settingsVersion = 10
         }
+        if (settings.settingsVersion < 11) {
+            // Replace the two legacy sound switches with one mode while
+            // preserving the user's existing behaviour.  A missing legacy
+            // preference followed Sailfish's key-tone setting by default.
+            if (settings.keySoundMode < 0 || settings.keySoundMode > 2) {
+                settings.keySoundMode = !settings.keySoundMigrationDone ? 2
+                        : !settings.keySoundEnabled ? 0
+                        : settings.keySoundFollowSystem ? 2 : 1
+            }
+            settings.settingsVersion = 11
+        }
     }
 
     function resetDefaults() {
@@ -127,11 +138,12 @@ Page {
         settings.clipboardHistoryEnabled = false
         settings.clipboardRetentionSeconds = 3600
         settings.clipboardReturnAfterPaste = true
-        settings.keySoundEnabled = false
+        settings.keySoundMode = 2
+        settings.keySoundEnabled = true
 		settings.keySoundFollowSystem = true
         settings.keySoundVolume = 0.5
         settings.keySoundMigrationDone = true
-        settings.settingsVersion = 10
+        settings.settingsVersion = 11
         // These two settings also have native side effects outside QML.
         // Restore those immediately instead of waiting for the helper's next
         // login-time synchronization.
@@ -227,6 +239,7 @@ Page {
 		property bool keySoundFollowSystem: true
         property real keySoundVolume: 0.5
         property bool keySoundMigrationDone: false
+        property int keySoundMode: -1
     }
 
     Component.onCompleted: {
