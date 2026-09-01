@@ -27,6 +27,15 @@ archive_file() {
         -C "$ROOT" -cf - "$source" | gzip -9 -n > "$OUTPUT/$archive"
 }
 
+archive_directory_as() {
+    local archive=$1
+    local source=$2
+    local installed=$3
+    tar --sort=name --mtime='UTC 2026-08-26' --owner=0 --group=0 \
+        --numeric-owner --transform="s#^$source#$installed#" \
+        -C "$ROOT" -cf - "$source" | gzip -9 -n > "$OUTPUT/$archive"
+}
+
 for style in twemoji openmoji noto; do
     archive_directory \
         "futo-content-emoji-$style-$PACK_VERSION.tar.gz" \
@@ -36,7 +45,26 @@ done
 archive_file "futo-content-voice-multilingual-39-$PACK_VERSION.tar.gz" \
     "voice/models/tiny_acft_q8_0.bin" "voice/tiny_acft_q8_0.bin"
 
-for file in "$ROOT"/build/dictionaries/*.fksidx; do
+test -s "$ROOT/swipe/models/honorable_sturgeon/model_fp32.pte" \
+    -a -s "$ROOT/swipe/models/magic_macaw/model_fp32.pte" \
+    -a -s "$ROOT/swipe/models/hungry_jellyfish/context_lm.pte" \
+    -a -s "$ROOT/swipe/models/hungry_jellyfish/vocab.txt" || \
+        "$ROOT/scripts/fetch-swipe-model.sh"
+cp "$ROOT/LICENSES/FUTO-SWIPE-MODEL-WEIGHTS-LICENSE.md" \
+    "$ROOT/swipe/models/LICENSE.md"
+archive_directory_as "futo-content-swipe-universal-$PACK_VERSION.tar.gz" \
+    "swipe/models" "swipe/models"
+
+dictionary_files=(
+    ar cs da de el en_GB en_US es fa fi fr hr hu it lt lv nb nl pl
+    pt_BR pt_PT ro ru sl sr sr_Latn sv tr
+)
+for dictionary in "${dictionary_files[@]}"; do
+    file="$ROOT/build/dictionaries/$dictionary.fksidx"
+    test -s "$file" || {
+        printf 'Missing supported dictionary: %s\n' "$file" >&2
+        exit 1
+    }
     name=$(basename "$file" .fksidx | tr '[:upper:]_' '[:lower:]-')
     archive_file "futo-content-dictionary-$name-$PACK_VERSION.tar.gz" \
         "build/dictionaries/$(basename "$file")" \

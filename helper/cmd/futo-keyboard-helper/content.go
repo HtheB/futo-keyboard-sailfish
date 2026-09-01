@@ -132,6 +132,29 @@ func resolvedVoiceModelPath() string {
 	return firstAvailableContentFile(userPath, bundledVoiceModelPath)
 }
 
+func resolvedSwipeModelPath() string {
+	root := optionalContentRoot()
+	userPath := ""
+	legacyUserPath := ""
+	if root != "" {
+		userPath = filepath.Join(root, "swipe", "models", "honorable_sturgeon", "model_fp32.pte")
+		legacyUserPath = filepath.Join(root, "swipe", "honorable_sturgeon", "model_fp32.pte")
+	}
+	return firstAvailableContentFile(userPath, legacyUserPath,
+		"/usr/share/futo-keyboard-sailfish/swipe/models/honorable_sturgeon/model_fp32.pte",
+		"/usr/share/futo-keyboard-sailfish/swipe/honorable_sturgeon/model_fp32.pte")
+}
+
+func resolvedSwipeRefinementPath(model, file string) string {
+	root := optionalContentRoot()
+	userPath := ""
+	if root != "" {
+		userPath = filepath.Join(root, "swipe", "models", model, file)
+	}
+	return firstAvailableContentFile(userPath,
+		filepath.Join("/usr/share/futo-keyboard-sailfish/swipe/models", model, file))
+}
+
 func loadContentManifest(manifestPath string) (contentManifest, error) {
 	var manifest contentManifest
 	data, err := os.ReadFile(manifestPath)
@@ -214,6 +237,21 @@ func (manager *contentManager) destination(relative string) (string, error) {
 
 func (manager *contentManager) markerPath(id string) string {
 	return filepath.Join(manager.root, ".installed", id+".json")
+}
+
+func legacyContentPaths(id string) []string {
+	if id == "swipe-universal" {
+		return []string{"swipe/honorable_sturgeon"}
+	}
+	return nil
+}
+
+func (manager *contentManager) removeLegacyPaths(id string) {
+	for _, relative := range legacyContentPaths(id) {
+		if destination, err := manager.destination(relative); err == nil {
+			_ = os.RemoveAll(destination)
+		}
+	}
 }
 
 func pathAvailable(value string) bool {
@@ -443,6 +481,7 @@ func (manager *contentManager) installContent(item contentItem, job *contentJob)
 		return err
 	}
 	_ = os.RemoveAll(backup)
+	manager.removeLegacyPaths(item.ID)
 	marker := installedContentMarker{
 		ID:          item.ID,
 		Version:     item.Version,
@@ -622,6 +661,18 @@ func (manager *contentManager) remove(id string) (bool, error) {
 	manager.mu.Unlock()
 	removed := false
 	for _, relative := range item.Paths {
+		destination, err := manager.destination(relative)
+		if err != nil {
+			return false, err
+		}
+		if pathAvailable(destination) {
+			if err := os.RemoveAll(destination); err != nil {
+				return false, err
+			}
+			removed = true
+		}
+	}
+	for _, relative := range legacyContentPaths(id) {
 		destination, err := manager.destination(relative)
 		if err != nil {
 			return false, err

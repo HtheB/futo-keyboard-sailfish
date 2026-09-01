@@ -5,6 +5,7 @@ BUILD_DIR ?= build/$(ARCH)
 LIBDIR ?= $(PREFIX)/lib64
 
 ENGINE_BINARY ?= $(BUILD_DIR)/futo-keyboard-engine
+SWIPE_BINARY ?= $(BUILD_DIR)/futo-keyboard-swipe
 HELPER_BINARY ?= $(BUILD_DIR)/futo-keyboard-helper
 SECRETS_BINARY ?= $(BUILD_DIR)/futo-keyboard-secrets
 KEYRING_BINARY ?= $(BUILD_DIR)/futo-keyboard-keyring
@@ -107,7 +108,7 @@ DICTIONARY_FILES := \
 	es.fksidx it.fksidx pt_BR.fksidx pt_PT.fksidx sv.fksidx nb.fksidx \
 	da.fksidx fi.fksidx pl.fksidx cs.fksidx ro.fksidx sl.fksidx \
 	hr.fksidx lv.fksidx lt.fksidx el.fksidx ru.fksidx sr.fksidx \
-	sr_Latn.fksidx fa.fksidx
+	sr_Latn.fksidx ar.fksidx fa.fksidx
 
 EMOJI_STYLES := twemoji openmoji noto
 EMOJI_EXPECTED_FILES := 3944
@@ -122,6 +123,7 @@ FONT_FILES := assets/fonts/Amiri-Regular.ttf
 
 check:
 	@test -s "$(ENGINE_BINARY)" || { echo "Missing $(ARCH) engine" >&2; exit 1; }
+	@test -s "$(SWIPE_BINARY)" || { echo "Missing $(ARCH) FUTO Swipe worker" >&2; exit 1; }
 	@test -s "$(HELPER_BINARY)" || { echo "Missing $(ARCH) helper" >&2; exit 1; }
 	@test -s "$(SECRETS_BINARY)" || { echo "Missing $(ARCH) Secrets bridge" >&2; exit 1; }
 	@test -s "$(KEYRING_BINARY)" || { echo "Missing $(ARCH) device key store" >&2; exit 1; }
@@ -190,6 +192,9 @@ check:
 	@test -s LICENSES/UNICODE-LICENSE.txt || exit 1
 	@test -s LICENSES/FUTO-LAYOUTS-ATTRIBUTION.md || exit 1
 	@test -s LICENSES/PERSIAN-DICTIONARY-ATTRIBUTION.md || exit 1
+	@test -s LICENSES/ARABIC-DICTIONARY-ATTRIBUTION.md || exit 1
+	@test -s LICENSES/FUTO-SWIPE-GPL-3.0.txt || exit 1
+	@test -s LICENSES/FUTO-SWIPE-MODEL-WEIGHTS-LICENSE.md || exit 1
 	@test -s LICENSES/LIBX11-COMPOSE-LICENSE.txt || exit 1
 	@test -s LICENSES/QT-COMPOSE-NOTICE.md || exit 1
 	@test -s LICENSES/FUTO-VOICE-SOURCE-FIRST-LICENSE.md || exit 1
@@ -202,6 +207,7 @@ check:
 
 install: check
 	install -Dm0755 "$(ENGINE_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-engine"
+	install -Dm0755 "$(SWIPE_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-swipe"
 	install -Dm0755 "$(HELPER_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-helper"
 	install -Dm0755 "$(SECRETS_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-secrets"
 	install -Dm0755 "$(KEYRING_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-keyring"
@@ -319,6 +325,12 @@ install: check
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/HUNGARIAN-DICTIONARY-ATTRIBUTION.md"
 	install -Dm0644 LICENSES/PERSIAN-DICTIONARY-ATTRIBUTION.md \
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/PERSIAN-DICTIONARY-ATTRIBUTION.md"
+	install -Dm0644 LICENSES/ARABIC-DICTIONARY-ATTRIBUTION.md \
+		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/ARABIC-DICTIONARY-ATTRIBUTION.md"
+	install -Dm0644 LICENSES/FUTO-SWIPE-GPL-3.0.txt \
+		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/FUTO-SWIPE-GPL-3.0.txt"
+	install -Dm0644 LICENSES/FUTO-SWIPE-MODEL-WEIGHTS-LICENSE.md \
+		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/FUTO-SWIPE-MODEL-WEIGHTS-LICENSE.md"
 	install -Dm0644 LICENSES/LIBX11-COMPOSE-LICENSE.txt \
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/LIBX11-COMPOSE-LICENSE.txt"
 	install -Dm0644 LICENSES/QT-COMPOSE-NOTICE.md \

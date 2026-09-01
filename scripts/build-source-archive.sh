@@ -17,6 +17,7 @@ tar -C "$ROOT" \
     --exclude='./.mb2' \
     --exclude='./build' \
     --exclude='./reference' \
+    --exclude='./swipe/models' \
     --exclude='./PAUSED-CHECKPOINT.md' \
     -cf - . | tar -C "$STAGING/$NAME-$VERSION" -xf -
 find "$STAGING/$NAME-$VERSION" -type d -exec chmod 0755 {} +

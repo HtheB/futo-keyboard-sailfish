@@ -31,11 +31,12 @@ tar -C "$ROOT" \
 	--exclude='./emoji' \
 	--exclude='./upstream/dictionaries' \
 	--exclude='./voice/models' \
+	--exclude='./swipe/models' \
     --exclude='./PAUSED-CHECKPOINT.md' \
     -cf - . | tar -C "$STAGING/$NAME-$VERSION" -xf -
 mkdir -p "$STAGING/$NAME-$VERSION/build/$ARCH"
 for file in \
-    futo-keyboard-engine futo-keyboard-helper futo-keyboard-secrets \
+    futo-keyboard-engine futo-keyboard-swipe futo-keyboard-helper futo-keyboard-secrets \
     futo-keyboard-keyring futo-keyboard-focus futo-keyboard-appsupport futo-keyboard-voice \
     libfuto-maliit-policy.so.1 libcomposeplatforminputcontextplugin.so \
     libafutomaliitcomposewrapper.so libQt5WaylandClient.so.5.6.3 \
@@ -66,6 +67,7 @@ find "$STAGING/$NAME-$VERSION" -type f -exec chmod 0644 {} +
 chmod 0755 "$STAGING/$NAME-$VERSION/scripts/"*.sh \
 	"$STAGING/$NAME-$VERSION/packaging/scripts/"*.sh \
     "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-engine" \
+    "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-swipe" \
     "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-helper" \
     "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-secrets" \
     "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-keyring" \

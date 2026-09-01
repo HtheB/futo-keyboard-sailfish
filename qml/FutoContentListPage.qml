@@ -27,6 +27,8 @@ Page {
             return qsTr("Install the emoji artwork styles you want to use.")
         if (packKind === "voice")
             return qsTr("Install the model for private offline voice typing.")
+        if (packKind === "swipe")
+            return qsTr("Install the FUTO Swipe model for accurate gesture typing in every supported language.")
         return qsTr("Install dictionaries only for the languages you use.")
     }
 

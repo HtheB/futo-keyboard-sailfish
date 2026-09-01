@@ -1,9 +1,8 @@
 .pragma library
 
-// Keep this list alphabetized by the user-facing name. Arabic currently
-// provides direct typing only; all other entries have prediction dictionaries.
+// Keep this list alphabetized by the user-facing name.
 var languages = [
-    { code: "AR", name: "العربية", prediction: false },
+    { code: "AR", name: "العربية", prediction: true },
     { code: "CS", name: "Čeština", prediction: true },
     { code: "DA", name: "Dansk", prediction: true },
     { code: "DE", name: "Deutsch", prediction: true },

@@ -17,6 +17,10 @@
   the Apache-2.0 Lilak Hunspell dictionary. Exact inputs, hashes, transformation
   and notices are documented in `dictionaries/README.md` and
   `LICENSES/PERSIAN-DICTIONARY-ATTRIBUTION.md`.
+- Arabic (`ar`) is built from pinned Arabic frequency data and the Ayaspell
+  Hunspell dictionary. Exact inputs, hashes, transformations and license choice
+  are documented in `dictionaries/README.md` and
+  `LICENSES/ARABIC-DICTIONARY-ATTRIBUTION.md`.
 
 Keyboard layout definitions:
 
@@ -35,12 +39,33 @@ Offline voice input:
 - Model SHA-256: `07aa4d514144deacf5ffec5cacb36c93dee272fda9e64ac33a801f8cd5cbd953`
 - License: FUTO Source First License 1.0 (included separately)
 
-FUTO swipe-model research:
+FUTO Swipe:
 
-- Repository/model card: https://huggingface.co/futo-org/futo-swipe
-- The neural Android/ExecuTorch runtime is not bundled in this Sailfish build.
-  Release 20 instead uses a small native decoder over actual key geometry and
-  the already packaged local FUTO dictionaries.
+- C++ library: https://gitlab.futo.org/keyboard/swipe-library.git at commit
+  `1b13f2c85d6b347f6ea3fbc4b3aaf01fce42429a` (GPL-3.0-only).
+- Universal encoder: https://huggingface.co/futo-org/futo-swipe at commit
+  `18328c3042b066952c0936b3771d492fe2ec289a`.
+- Encoder model SHA-256:
+  `725242bab5d14345e96ff214e8de2bfbc1f962c232d320df9c24cb82ffd1fbaf`.
+- Metadata SHA-256:
+  `d2c5aecd89d97e21125046eb1f311b5aed1bdb5805e97316bba70b13f1c7be2c`.
+- English QWERTY decoder (`magic_macaw/model_fp32.pte`) SHA-256:
+  `01eaf16ac4bc0f1ed0698c240807f0e95e6d427bcf6de04983ffc50736744d85`.
+- English context model (`hungry_jellyfish/context_lm.pte`) SHA-256:
+  `74d29f56a513c0c60abcd43df3b16a6b68925cdf4e97e51b094a5275ec2810d7`.
+- English context vocabulary SHA-256:
+  `a7db66376783b5a23ee3d4a2aaa8f2499fd9b35f975e92bcb248664c2cf6ebd1`.
+- Model license: FUTO Model Weights License 1.0. The unmodified model is an
+  optional content download; its complete terms are included in the archive
+  and in `LICENSES/FUTO-SWIPE-MODEL-WEIGHTS-LICENSE.md`.
+- Runtime: ExecuTorch 1.2, built from the swipe-library's pinned submodule.
+
+The Sailfish worker supplies the live key geometry and installed language trie
+to the universal encoder. FUTO's decoder and context model are additionally
+used for a single active English QWERTY language; they are not applied to
+languages or layouts for which they were not trained. The worker runs as a
+separate GPLv3 process and communicates with the keyboard helper through a
+small line protocol.
 
 The added Turkish F arrangement follows X.Org `xkeyboard-config`'s
 `symbols/tr` Turkish F definition; only the visible three letter rows are used.

@@ -54,6 +54,8 @@ CC=${FUTO_CC:-$DEFAULT_CC}
 STRIP=${FUTO_STRIP:-$DEFAULT_STRIP}
 HOST_CXX=${HOST_CXX:-g++}
 DEPS_ROOT=${FUTO_DEPS_ROOT:-$ROOT/build/dependencies}
+SWIPE_SOURCE=${FUTO_SWIPE_SOURCE:-$DEPS_ROOT/sources/futo-swipe-library}
+SWIPE_ET_BUILD=${FUTO_SWIPE_ET_BUILD:-$SWIPE_SOURCE/third_party/executorch/cmake-out-sailfish-$ARCH}
 QT_SOURCE=${FUTO_QT_SOURCE:-$DEPS_ROOT/sources/qtbase-5.6.3}
 QT_INCLUDE_ROOT=${FUTO_QT_INCLUDE_ROOT:-$BUILD/qt-compose-includes/include}
 QT_CONFIG_ROOT=${FUTO_QT_CONFIG_ROOT:-$DEPS_ROOT/$ARCH/qt-config}
@@ -61,8 +63,23 @@ SECRETS_SOURCE=${FUTO_SECRETS_SOURCE:-$DEPS_ROOT/sources/sailfish-secrets-0.2.44
 TARGET_LIB_ROOT=${FUTO_TARGET_LIB_ROOT:-${FUTO_PHONE_LIB_ROOT:-$DEPS_ROOT/$ARCH/lib}}
 TARGET_SYSROOT=${FUTO_TARGET_SYSROOT:-}
 TARGET_COMPILE_FLAGS=()
+TARGET_CMAKE_FLAGS=()
+TARGET_CPU_FLAGS=""
+if [[ "$ARCH" == i486 ]]; then
+    TARGET_CPU_FLAGS="-msse2 -mfpmath=sse"
+fi
 if [[ -n "$TARGET_SYSROOT" ]]; then
     TARGET_COMPILE_FLAGS=(--sysroot="$TARGET_SYSROOT")
+    # The FUTO Swipe worker consumes the separately cross-compiled
+    # ExecuTorch archives and must use the same Sailfish target root and
+    # target binutils as that dependency build.
+    SWIPE_TOOL_SHIM="$SWIPE_ET_BUILD/toolchain-bin"
+    TARGET_CMAKE_FLAGS=(
+        -DCMAKE_SYSROOT="$TARGET_SYSROOT"
+        -DCMAKE_C_FLAGS="-B$SWIPE_TOOL_SHIM $TARGET_CPU_FLAGS"
+        -DCMAKE_CXX_FLAGS="-B$SWIPE_TOOL_SHIM $TARGET_CPU_FLAGS"
+        -DCMAKE_ASM_FLAGS="-B$SWIPE_TOOL_SHIM"
+    )
 fi
 
 mkdir -p "$BUILD" "$HOST_BUILD/dictionaries"
@@ -89,11 +106,19 @@ if [[ -z "$STRIP" || ! -x "$STRIP" ]]; then
     exit 1
 fi
 
+if [[ ! -s "$SWIPE_ET_BUILD/libexecutorch.a" ]]; then
+    FUTO_ARCH="$ARCH" FUTO_CC="$CC" FUTO_CXX="$CXX" \
+        FUTO_TARGET_SYSROOT="$TARGET_SYSROOT" \
+        FUTO_SWIPE_SOURCE="$SWIPE_SOURCE" \
+        FUTO_SWIPE_ET_BUILD="$SWIPE_ET_BUILD" \
+        "$ROOT/scripts/bootstrap-futo-swipe.sh"
+fi
+
 "$ROOT/scripts/check-build-environment.sh"
 
 LANGUAGES=(
     en_US en_GB nl tr de fr es it pt_BR pt_PT sv nb da fi pl cs ro sl hr lv lt
-    el ru sr sr_Latn hu fa
+    el ru sr sr_Latn hu ar fa
 )
 
 if [[ ${FUTO_SKIP_DICTIONARY_BUILD:-0} != 1 ]]; then
@@ -139,6 +164,23 @@ if [[ ${FUTO_SKIP_CORE_BUILD:-0} != 1 ]]; then
     -o "$BUILD/futo-keyboard-engine"
 "$STRIP" "$BUILD/futo-keyboard-engine"
 
+SWIPE_BUILD="$BUILD/swipe-worker"
+cmake -S "$ROOT/swipe" -B "$SWIPE_BUILD" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_SYSTEM_NAME=Linux \
+    -DCMAKE_SYSTEM_PROCESSOR="$ARCH" \
+    -DCMAKE_C_COMPILER="$CC" \
+    -DCMAKE_CXX_COMPILER="$CXX" \
+    "${TARGET_CMAKE_FLAGS[@]}" \
+    -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+    -DFUTO_SWIPE_SOURCE="$SWIPE_SOURCE" \
+    -DEXECUTORCH_ROOT="$SWIPE_SOURCE/third_party/executorch" \
+    -DET_BUILD="$SWIPE_ET_BUILD" \
+    -DUSE_MARCH_NATIVE=OFF
+cmake --build "$SWIPE_BUILD" --target futo-keyboard-swipe --parallel
+cp "$SWIPE_BUILD/futo-keyboard-swipe" "$BUILD/futo-keyboard-swipe"
+"$STRIP" "$BUILD/futo-keyboard-swipe"
+
 "$CC" "${TARGET_COMPILE_FLAGS[@]}" -std=c11 -O2 -DNDEBUG -fPIC -shared \
     -Wl,-soname,libfuto-maliit-policy.so.1 \
     "$ROOT/hardware/futo_maliit_policy.c" -ldl \
@@ -158,7 +200,7 @@ FUTO_BUILD_DIR="$BUILD" FUTO_TARGET_LIB_ROOT="$TARGET_LIB_ROOT" \
 FUTO_BUILD_DIR="$BUILD" FUTO_TARGET_LIB_ROOT="$TARGET_LIB_ROOT" \
     "$ROOT/scripts/build-wayland-deadkey-hook.sh"
 else
-    for required in futo-keyboard-engine libfuto-maliit-policy.so.1 \
+    for required in futo-keyboard-engine futo-keyboard-swipe libfuto-maliit-policy.so.1 \
             libcomposeplatforminputcontextplugin.so \
             libafutomaliitcomposewrapper.so libQt5WaylandClient.so.5.6.3 \
             libQt5WaylandClientFutoOriginal.so.5.6.3 stock-wayland.sha256; do
@@ -258,7 +300,7 @@ done
     -o "$BUILD/futo-keyboard-appsupport"
 "$STRIP" "$BUILD/futo-keyboard-appsupport"
 
-file "$BUILD/futo-keyboard-engine" "$BUILD/futo-keyboard-helper" \
+file "$BUILD/futo-keyboard-engine" "$BUILD/futo-keyboard-swipe" "$BUILD/futo-keyboard-helper" \
     "$BUILD/futo-keyboard-secrets" "$BUILD/futo-keyboard-keyring" \
     "$BUILD/futo-keyboard-focus" "$BUILD/futo-keyboard-appsupport" \
     "$BUILD/futo-keyboard-voice" \

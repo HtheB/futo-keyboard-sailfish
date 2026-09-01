@@ -5,6 +5,8 @@
 # Local development notes and checkpoints
 /PAUSED-CHECKPOINT.md
 /reference/
+/swipe/models/
+/upstream/dictionaries/iw_wordlist.combined.gz
 
 # Editor, OS, and language caches
 .DS_Store

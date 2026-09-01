@@ -59,6 +59,19 @@
       ]
     },
     {
+      "id": "swipe-universal",
+      "kind": "swipe",
+      "name": "FUTO Swipe",
+      "version": "0.2.0-1",
+      "archive": "futo-content-swipe-universal-0.2.0-1.tar.gz",
+      "sha256": "ef8ae0f40cdb959154686c83de539349cdaa0a9e3f271ad66a412732e1429ad8",
+      "downloadBytes": 9438550,
+      "installedBytes": 10445411,
+      "paths": [
+        "swipe/models"
+      ]
+    },
+    {
       "id": "dictionary-en-us",
       "kind": "dictionary",
       "name": "English (US)",
@@ -421,6 +434,20 @@
         "dictionaries/sr_Latn.fksidx"
       ],
       "languageCode": "SR_LATN"
+    },
+    {
+      "id": "dictionary-ar",
+      "kind": "dictionary",
+      "name": "العربية",
+      "version": "0.2.0-1",
+      "archive": "futo-content-dictionary-ar-0.2.0-1.tar.gz",
+      "sha256": "202408a13ed63e386d63b9e0e38642a97aac25d5040708f432de1f3c77879b73",
+      "downloadBytes": 2234243,
+      "installedBytes": 9135300,
+      "paths": [
+        "dictionaries/ar.fksidx"
+      ],
+      "languageCode": "AR"
     },
     {
       "id": "dictionary-fa",

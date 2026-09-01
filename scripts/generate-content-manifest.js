@@ -38,6 +38,7 @@ const languages = [
     ["RU", "Русский", "ru.fksidx", "ru"],
     ["SR", "Српски (ћирилица)", "sr.fksidx", "sr"],
     ["SR_LATN", "Srpski (latinica)", "sr_Latn.fksidx", "sr-latn"],
+    ["AR", "العربية", "ar.fksidx", "ar"],
     ["FA", "فارسی", "fa.fksidx", "fa"]
 ];
 
@@ -92,6 +93,15 @@ items.push(item(
     `futo-content-voice-multilingual-39-${packVersion}.tar.gz`,
     path.join(projectRoot, "voice/models/tiny_acft_q8_0.bin"),
     "voice/tiny_acft_q8_0.bin"
+));
+
+items.push(item(
+    "swipe-universal",
+    "swipe",
+    "FUTO Swipe",
+    `futo-content-swipe-universal-${packVersion}.tar.gz`,
+    path.join(projectRoot, "swipe/models"),
+    "swipe/models"
 ));
 
 for (const [code, name, filename, slug] of languages) {

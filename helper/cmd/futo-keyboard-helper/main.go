@@ -41,6 +41,7 @@ const (
 	contentChangedSignal      = "ContentChanged"
 	objectPath                = dbus.ObjectPath("/org/hb/FutoKeyboard1")
 	enginePath                = "/usr/libexec/futo-keyboard-engine"
+	swipeEnginePath           = "/usr/libexec/futo-keyboard-swipe"
 	voicePath                 = "/usr/libexec/futo-keyboard-voice"
 	bundledDictionaryDir      = "/usr/share/futo-keyboard-sailfish/dictionaries"
 	bundledVoiceModelPath     = "/usr/share/futo-keyboard-sailfish/voice/tiny_acft_q8_0.bin"
@@ -275,6 +276,7 @@ var supportedLanguages = []languageInfo{
 	{Code: "RU", File: "ru.fksidx", Name: "Русский"},
 	{Code: "SR", File: "sr.fksidx", Name: "Српски (ћирилица)"},
 	{Code: "SR_LATN", File: "sr_Latn.fksidx", Name: "Srpski (latinica)"},
+	{Code: "AR", File: "ar.fksidx", Name: "العربية"},
 	{Code: "FA", File: "fa.fksidx", Name: "فارسی"},
 }
 
@@ -314,6 +316,141 @@ type engineProcess struct {
 	command *exec.Cmd
 	stdin   io.WriteCloser
 	stdout  *bufio.Reader
+}
+
+// swipeProcess owns the GPL FUTO Swipe worker separately from the existing
+// typed-prediction worker.  Keeping the model out of Maliit means a decoder
+// failure cannot take every system keyboard down with it.
+type swipeProcess struct {
+	mu      sync.Mutex
+	command *exec.Cmd
+	stdin   io.WriteCloser
+	stdout  *bufio.Reader
+}
+
+func (engine *swipeProcess) startLocked() error {
+	if engine.command != nil && engine.command.Process != nil {
+		return nil
+	}
+	modelPath := resolvedSwipeModelPath()
+	if modelPath == "" {
+		return errors.New("FUTO Swipe model is not installed")
+	}
+	arguments := []string{"--encoder", modelPath}
+	decoderPath := resolvedSwipeRefinementPath("magic_macaw", "model_fp32.pte")
+	lmModelPath := resolvedSwipeRefinementPath("hungry_jellyfish", "context_lm.pte")
+	lmVocabPath := resolvedSwipeRefinementPath("hungry_jellyfish", "vocab.txt")
+	if decoderPath != "" {
+		arguments = append(arguments, "--decoder", decoderPath)
+	}
+	if lmModelPath != "" && lmVocabPath != "" {
+		arguments = append(arguments, "--lm-model", lmModelPath,
+			"--lm-vocab", lmVocabPath)
+	}
+	for _, language := range supportedLanguages {
+		dictionaryPath := resolvedDictionaryPath(language.File)
+		if dictionaryPath == "" {
+			continue
+		}
+		arguments = append(arguments, "--dictionary",
+			language.Code+"="+dictionaryPath)
+	}
+	if len(arguments) == 2 {
+		return errors.New("no prediction dictionaries are installed")
+	}
+	command := exec.Command(swipeEnginePath, arguments...)
+	stdin, err := command.StdinPipe()
+	if err != nil {
+		return err
+	}
+	stdoutPipe, err := command.StdoutPipe()
+	if err != nil {
+		_ = stdin.Close()
+		return err
+	}
+	command.Stderr = os.Stderr
+	if err := command.Start(); err != nil {
+		_ = stdin.Close()
+		return err
+	}
+	engine.command = command
+	engine.stdin = stdin
+	engine.stdout = bufio.NewReaderSize(stdoutPipe, 32*1024)
+	go func(process *exec.Cmd) {
+		if err := process.Wait(); err != nil {
+			log.Printf("FUTO Swipe worker stopped: %v", err)
+		}
+	}(command)
+	return nil
+}
+
+func (engine *swipeProcess) resetLocked() {
+	if engine.stdin != nil {
+		_ = engine.stdin.Close()
+	}
+	if engine.command != nil && engine.command.Process != nil {
+		_ = engine.command.Process.Kill()
+	}
+	engine.command = nil
+	engine.stdin = nil
+	engine.stdout = nil
+}
+
+func (engine *swipeProcess) swipe(language, path, geometry, context string,
+	limit int32, capitalize, allowEnglishRefinement bool) ([]scoredWord, error) {
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	capitalized := 0
+	if capitalize {
+		capitalized = 1
+	}
+	refinement := 0
+	if allowEnglishRefinement {
+		refinement = 1
+	}
+	// The worker protocol is tab-delimited. Context is advisory and therefore
+	// safely flattened rather than allowing editor newlines to split commands.
+	context = strings.NewReplacer("\t", " ", "\r", " ", "\n", " ").Replace(context)
+	for attempt := 0; attempt < 2; attempt++ {
+		if err := engine.startLocked(); err != nil {
+			return nil, err
+		}
+		request := fmt.Sprintf("SWIPE3\t%s\t%d\t%d\t%d\t%s\t%s\t%s\n",
+			language, limit, capitalized, refinement, context, path, geometry)
+		if _, err := io.WriteString(engine.stdin, request); err != nil {
+			engine.resetLocked()
+			continue
+		}
+		response, err := engine.stdout.ReadString('\n')
+		if err != nil {
+			engine.resetLocked()
+			continue
+		}
+		response = strings.TrimSuffix(strings.TrimSuffix(response, "\n"), "\r")
+		if strings.HasPrefix(response, "ERROR\t") {
+			return nil, errors.New(strings.TrimPrefix(response, "ERROR\t"))
+		}
+		if !strings.HasPrefix(response, "OK\t") {
+			return nil, errors.New("invalid response from FUTO Swipe worker")
+		}
+		var suggestions []scoredWord
+		if err := json.Unmarshal([]byte(strings.TrimPrefix(response, "OK\t")),
+			&suggestions); err != nil {
+			return nil, fmt.Errorf("decode FUTO Swipe suggestions: %w", err)
+		}
+		return suggestions, nil
+	}
+	return nil, errors.New("FUTO Swipe worker is unavailable")
+}
+
+func (engine *swipeProcess) close() {
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	engine.resetLocked()
+}
+
+func (engine *swipeProcess) reload() {
+	engine.close()
 }
 
 func (engine *engineProcess) startLocked() error {
@@ -2525,6 +2662,7 @@ func (store *vaultStore) importCredentialZIP(path,
 type service struct {
 	bus                      *dbus.Conn
 	engine                   engineProcess
+	swipeEngine              swipeProcess
 	codec                    *secureFileCodec
 	learned                  *learnedStore
 	history                  *historyStore
@@ -3396,12 +3534,28 @@ func normalizeLanguages(value string) []string {
 }
 
 func languageRuneBonus(language, word string) int64 {
-	if language == "EL" || language == "RU" || language == "SR" || language == "FA" {
+	if language == "AR" || language == "FA" {
+		// Arabic and Persian share most of the Arabic script. Reward the shared
+		// script for both, then use their distinctive letters to break ties.
+		var bonus int64
+		distinctive := "ةىءؤئأإآ"
+		if language == "FA" {
+			distinctive = "پچژگکی"
+		}
+		for _, character := range word {
+			if unicode.Is(unicode.Arabic, character) {
+				bonus += 350000000
+			}
+			if strings.ContainsRune(distinctive, character) {
+				bonus += 350000000
+			}
+		}
+		return bonus
+	}
+	if language == "EL" || language == "RU" || language == "SR" {
 		script := unicode.Greek
 		if language == "RU" || language == "SR" {
 			script = unicode.Cyrillic
-		} else if language == "FA" {
-			script = unicode.Arabic
 		}
 		var bonus int64
 		for _, character := range word {
@@ -3831,7 +3985,8 @@ func validSwipePayload(value string, maximum int) bool {
 
 // SwipeSuggestions decodes a key-center trajectory entirely on-device.  The
 // QML side supplies normalized coordinates from the active visual layout, so
-// one decoder works for QWERTY, AZERTY, QWERTZ and the other Latin layouts.
+// the universal decoder works across Latin, Cyrillic, Greek, Persian, Arabic,
+// and every other installed layout/dictionary pair.
 func (service *service) SwipeSuggestions(languagesCSV, path, geometry, context string,
 	limit int32, capitalize bool) (string, *dbus.Error) {
 	result := swipeAnalysis{Suggestions: []string{}}
@@ -3845,11 +4000,12 @@ func (service *service) SwipeSuggestions(languagesCSV, path, geometry, context s
 		limit = 20
 	}
 	languages := normalizeLanguages(languagesCSV)
+	allowEnglishRefinement := len(languages) == 1
 	previous := lastContextWord(context)
 	ranked := make([]scoredWord, 0, int(limit)*len(languages))
 	for _, language := range languages {
-		candidates, err := service.engine.swipe(language, path, geometry,
-			limit, capitalize)
+		candidates, err := service.swipeEngine.swipe(language, path, geometry,
+			context, limit, capitalize, allowEnglishRefinement)
 		if err != nil {
 			// Enabled languages may intentionally have no downloaded dictionary.
 			// Keep swipe results from the installed packs instead of discarding the
@@ -5925,6 +6081,10 @@ func main() {
 		application.content.onChanged = func(item contentItem, state string) {
 			if item.Kind == "dictionary" {
 				application.engine.reload()
+				application.swipeEngine.reload()
+			}
+			if item.Kind == "swipe" {
+				application.swipeEngine.reload()
 			}
 			if item.Kind == "voice" && state == "removed" {
 				_, _ = application.CancelVoiceInput()
@@ -5950,6 +6110,7 @@ func main() {
 		}
 	}
 	defer application.engine.close()
+	defer application.swipeEngine.close()
 	defer application.CancelVoiceInput()
 
 	if err := connection.Export(application, objectPath, interfaceName); err != nil {

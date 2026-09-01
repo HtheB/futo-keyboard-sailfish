@@ -78,3 +78,15 @@ deterministic `gzip -9 -n` output has SHA-256
 
 The complete notices are in
 `LICENSES/PERSIAN-DICTIONARY-ATTRIBUTION.md`.
+
+## ar_wordlist.combined.gz — Arabic (العربية)
+
+Built deterministically by `scripts/build-arabic-wordlist.py` from pinned
+Arabic word frequencies, Ayaspell Hunspell forms, and the repository's pinned
+German reference-frequency distribution. Arabic compatibility forms are
+normalized to the primary characters on the Arabic keyboard. The result has
+210,000 entries and is compiled exactly like the other local dictionaries.
+
+Exact revisions, input/output hashes, transformations, attribution and the
+LGPL-2.1-or-later license choice are recorded in
+`LICENSES/ARABIC-DICTIONARY-ATTRIBUTION.md`.

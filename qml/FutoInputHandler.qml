@@ -4627,6 +4627,7 @@ InputHandler {
 		var caption = String(key.caption || "")
 		if (caption.length !== 1)
 			return ""
+		caption = caption.toLowerCase()
 		var point = key.mapToItem(layout, key.width / 2, key.height / 2)
 		var x = Math.max(0, Math.min(1, point.x / layout.width))
 		var y = Math.max(0, Math.min(1, point.y / layout.height))
@@ -4673,7 +4674,7 @@ InputHandler {
 		if (item.swipeTypingKey === true && item.visible && item.active) {
 			var caption = String(item.caption || "")
 			if (caption.length === 1 && isLetterCharacter(caption)) {
-				var code = caption.charCodeAt(0)
+				var code = caption.toLowerCase().charCodeAt(0)
 				if (!seen[code]) {
 					var point = swipePointForKey(item)
 					if (point !== "") {
@@ -4973,15 +4974,13 @@ InputHandler {
 		        && typeof KeyboardSupport.isLetter === "function")
 			return KeyboardSupport.isLetter(character)
 
-		// Case conversion covers all Latin and Cyrillic layouts. Arabic and
-		// Hebrew are uncased, so include their letter blocks explicitly while
-		// excluding the punctuation and digit ranges in those scripts.
+		// Case conversion covers all Latin and Cyrillic layouts. Arabic is
+		// uncased, so include its letter blocks explicitly while excluding
+		// punctuation and digit ranges.
 		if (character.toLocaleUpperCase() !== character.toLocaleLowerCase())
 			return true
 		var code = character.charCodeAt(0)
-		return (code >= 0x05d0 && code <= 0x05ea)
-		        || (code >= 0x05ef && code <= 0x05f2)
-		        || (code >= 0x0620 && code <= 0x063f)
+		return (code >= 0x0620 && code <= 0x063f)
 		        || (code >= 0x0641 && code <= 0x064a)
 		        || (code >= 0x066e && code <= 0x066f)
 		        || (code >= 0x0671 && code <= 0x06d3)
@@ -4991,7 +4990,7 @@ InputHandler {
 		        || code === 0x06ff
 		        || (code >= 0x0750 && code <= 0x077f)
 		        || (code >= 0x08a0 && code <= 0x08c7)
-		        || (code >= 0xfb1d && code <= 0xfdff)
+		        || (code >= 0xfb50 && code <= 0xfdff)
 		        || (code >= 0xfe70 && code <= 0xfefc)
     }
 

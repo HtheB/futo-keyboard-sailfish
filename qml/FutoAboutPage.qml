@@ -45,6 +45,15 @@ Page {
                 color: Theme.secondaryColor
             }
 
+            Label {
+                x: Theme.horizontalPageMargin
+                width: parent.width - 2 * Theme.horizontalPageMargin
+                wrapMode: Text.WordWrap
+                text: qsTr("Swipe typing is powered by FUTO Swipe technology.")
+                font.pixelSize: Theme.fontSizeExtraSmall
+                color: Theme.secondaryColor
+            }
+
             FutoCredit { memorial: aboutMemorial }
         }
     }

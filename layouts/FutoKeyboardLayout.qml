@@ -295,6 +295,7 @@ Column {
         property var touchSource: null
         property var trailPoints: []
         property var decoderPoints: []
+        property double touchStartedAt: 0
         property bool trackingSwipe: false
         property real trailOpacity: 1.0
 		property int normalMaximumTouchPoints: -1
@@ -397,11 +398,12 @@ Column {
             var point = firstPoint(touchPoints)
             if (!point)
                 return
+            touchStartedAt = Date.now()
             releaseFade.stop()
             trailOpacity = 1.0
             trackingSwipe = false
             trailPoints = [point]
-            decoderPoints = [point]
+            decoderPoints = [{ "x": point.x, "y": point.y, "t": 0 }]
         }
 
         function appendTouch(touchPoints) {
@@ -410,14 +412,16 @@ Column {
                 return
             var decoder = decoderPoints.slice(0)
             if (decoder.length < 1) {
-                decoder.push(point)
+                decoder.push({ "x": point.x, "y": point.y,
+                               "t": Math.max(0, Date.now() - touchStartedAt) })
             } else {
                 var decoderPrevious = decoder[decoder.length - 1]
                 var decoderDeltaX = point.x - decoderPrevious.x
                 var decoderDeltaY = point.y - decoderPrevious.y
                 if (Math.sqrt(decoderDeltaX * decoderDeltaX
                               + decoderDeltaY * decoderDeltaY) >= 2)
-                    decoder.push(point)
+                    decoder.push({ "x": point.x, "y": point.y,
+                                   "t": Math.max(0, Date.now() - touchStartedAt) })
             }
             // Bound pathological event streams without losing either endpoint
             // or the overall curve. Normal gestures remain well below this.
@@ -475,7 +479,8 @@ Column {
                 var key = i === 0 ? startKey
                         : (i === decoderPoints.length - 1 ? endKey : 0)
                 result.push(String(key) + ":" + x.toFixed(5)
-                            + ":" + y.toFixed(5))
+                            + ":" + y.toFixed(5) + ":"
+                            + Number(point.t).toFixed(1))
             }
             return result.join(";")
         }
@@ -491,6 +496,7 @@ Column {
             trackingSwipe = false
             trailPoints = []
             decoderPoints = []
+            touchStartedAt = 0
             trailOpacity = 1.0
         }
 

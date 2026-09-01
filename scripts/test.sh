@@ -6,6 +6,12 @@ ENGINE="$ROOT/build/futo-dictionary-compiler"
 
 node --check < "$ROOT/packaging/polkit/49-futo-keyboard-secrets.rules"
 node "$ROOT/scripts/check-symbol-data.js"
+if [[ -x "$ROOT/build/host-swipe/futo-keyboard-swipe" \
+        && -s "$ROOT/swipe/models/honorable_sturgeon/model_fp32.pte" ]]; then
+    node "$ROOT/scripts/test-futo-swipe.js"
+else
+    printf 'Skipping optional FUTO Swipe model smoke test (host worker/model unavailable).\n'
+fi
 test -s "$ROOT/dictionaries/hu_wordlist.combined.gz"
 gzip -t "$ROOT/dictionaries/hu_wordlist.combined.gz"
 echo '4f597b3c05346521c3f1cf8e9a8a5def8f75e0fa0351be6cf4fc42a2c68c3f53  dictionaries/hu_wordlist.combined.gz' |
@@ -384,7 +390,7 @@ grep -Fq 'HOST_BUILD=${FUTO_HOST_BUILD_DIR:-$ROOT/build}' \
     "$ROOT/scripts/build-compose-plugin.sh" \
     "$ROOT/scripts/build-wayland-deadkey-hook.sh"
 ! git -C "$ROOT" grep -I -E \
-    'Users[/\\]HtheB|Documents[/\\]ChatGPT|SailfishOSHB' -- . \
+    '([A-Za-z]:|/mnt/[a-z])[/\\]Users[/\\][^/\\]+|defaultuser@[0-9]+\.[0-9]+' -- . \
     ':(exclude)scripts/test.sh'
 
 if [[ ! -x "$ENGINE" ]]; then
@@ -506,7 +512,8 @@ language_files=(
     PT_BR=pt_BR.fksidx PT_PT=pt_PT.fksidx SV=sv.fksidx NB=nb.fksidx
     DA=da.fksidx FI=fi.fksidx PL=pl.fksidx CS=cs.fksidx
     RO=ro.fksidx SL=sl.fksidx HR=hr.fksidx HU=hu.fksidx LV=lv.fksidx LT=lt.fksidx
-    EL=el.fksidx RU=ru.fksidx SR=sr.fksidx SR_LATN=sr_Latn.fksidx FA=fa.fksidx
+    EL=el.fksidx RU=ru.fksidx SR=sr.fksidx SR_LATN=sr_Latn.fksidx
+    AR=ar.fksidx FA=fa.fksidx
 )
 engine_arguments=()
 top_requests=()
@@ -522,6 +529,11 @@ if [[ $(grep -c '^OK' <<<"$all_language_output") -ne ${#language_files[@]} ]]; t
     echo "One or more compiled language packs could not be queried" >&2
     exit 1
 fi
+
+# The Sailfish edition deliberately does not offer Hebrew. Keep generated or
+# cached upstream artifacts from silently becoming a downloadable content pack.
+! grep -Eqi 'dictionary-(he|iw)|iw\.fksidx|Hebrew' "$ROOT/content/manifest.json"
+! grep -Eq '(^|[[:space:]])(he|iw)([[:space:]]|$)' "$ROOT/layouts/FutoLanguageData.js"
 
 (
     cd "$ROOT/helper"

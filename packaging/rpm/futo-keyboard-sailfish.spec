@@ -7,7 +7,7 @@ Name:           futo-keyboard-sailfish
 Version:        0.2.3
 Release:        1
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
-License:        LicenseRef-FUTO-Source-First-1.1-kb AND BSD-3-Clause AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND (LGPL-2.1-only OR LGPL-3.0-only)
+License:        LicenseRef-FUTO-Source-First-1.1-kb AND GPL-3.0-only AND BSD-3-Clause AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND LGPL-2.1-or-later AND (LGPL-2.1-only OR LGPL-3.0-only)
 Source0:        %{name}-%{version}.tar.gz
 ExclusiveArch:  aarch64 armv7hl i486
 
@@ -90,12 +90,16 @@ fi
 %license %{_licensedir}/%{name}/FUTO-LAYOUTS-ATTRIBUTION.md
 %license %{_licensedir}/%{name}/HUNGARIAN-DICTIONARY-ATTRIBUTION.md
 %license %{_licensedir}/%{name}/PERSIAN-DICTIONARY-ATTRIBUTION.md
+%license %{_licensedir}/%{name}/ARABIC-DICTIONARY-ATTRIBUTION.md
+%license %{_licensedir}/%{name}/FUTO-SWIPE-GPL-3.0.txt
+%license %{_licensedir}/%{name}/FUTO-SWIPE-MODEL-WEIGHTS-LICENSE.md
 %license %{_licensedir}/%{name}/LIBX11-COMPOSE-LICENSE.txt
 %license %{_licensedir}/%{name}/QT-COMPOSE-NOTICE.md
 %license %{_licensedir}/%{name}/AMIRI-FONT-LICENSE.txt
 %license %{_licensedir}/%{name}/YEKA-ZIP-LICENSE.txt
 %license %{_licensedir}/%{name}/MODIFIED-NOTICE.md
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-engine
+%attr(0755,root,root) %{_libexecdir}/futo-keyboard-swipe
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-helper
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-secrets
 %attr(4755,root,root) %{_libexecdir}/futo-keyboard-keyring

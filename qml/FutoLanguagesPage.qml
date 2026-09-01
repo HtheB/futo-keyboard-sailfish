@@ -209,7 +209,7 @@ Page {
     }
 
     function predictionSupported(code) {
-        return code !== "AR"
+        return true
     }
 
     ConfigurationGroup {

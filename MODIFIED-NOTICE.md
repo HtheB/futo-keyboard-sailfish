@@ -95,3 +95,12 @@ contains separate browser-compatible website CSV files and a FUTO app-account
 CSV. Exports may be protected with WinZip-compatible AES-256 encryption through
 the MIT-licensed `github.com/yeka/zip` library; leaving the password empty
 requires an explicit warning in Settings.
+
+The next development release replaces the earlier geometry-only swipe matcher
+with FUTO's GPLv3 C++ SwipeEngine and optional FUTO Swipe models. The Sailfish
+integration adds a compact dictionary trie, a supervised worker process, live
+per-layout key geometry, multilingual ranking, optional content management,
+and full Arabic prediction/swipe support. The universal encoder handles every
+supported language; FUTO's additional English decoder and context model are
+activated only for a single English QWERTY language. The unmodified model
+weights are distributed separately under the FUTO Model Weights License 1.0.

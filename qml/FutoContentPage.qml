@@ -62,6 +62,13 @@ Page {
 
             FutoSettingsMenuItem {
                 width: parent.width
+                text: qsTr("Swipe typing")
+                iconSource: "image://theme/icon-m-gesture"
+                onClicked: page.openCategory("swipe", qsTr("Swipe typing"))
+            }
+
+            FutoSettingsMenuItem {
+                width: parent.width
                 text: qsTr("Offline voice")
                 iconSource: "image://theme/icon-m-browser-microphone"
                 onClicked: page.openCategory("voice", qsTr("Offline voice"))
