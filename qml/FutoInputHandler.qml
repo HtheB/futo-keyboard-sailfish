@@ -49,6 +49,12 @@ InputHandler {
 	property int swipeSessionSerial: 0
 	property int swipeOutstanding: 0
 	property bool swipeReplacementActive: false
+	property bool swipeAutoSpacePending: false
+	property bool swipePendingForcedInput: false
+	property bool swipeLeadingSpaceForGesture: false
+	property int swipeFeedbackRestoreLevel: -1
+	property bool swipeContentStatusReady: false
+	property bool swipeContentInstalled: false
 	property string swipePreviousWord: ""
 	property string swipeOriginalWord: ""
 	property string swipeCorrectionLanguage: ""
@@ -1325,6 +1331,13 @@ InputHandler {
 		function contentChanged(packId, state) {
 			futoHandler.contentRevision++
 			futoHandler.requestSuggestionsSoon()
+			if (String(packId) === "swipe-universal")
+				futoHandler.refreshSwipeContentStatus()
+		}
+
+		onStatusChanged: {
+			if (status === DBusInterface.Available)
+				futoHandler.refreshSwipeContentStatus()
 		}
     }
 
@@ -1470,7 +1483,7 @@ InputHandler {
         property bool keySoundMigrationDone: false
         property int keySoundMode: -1
         property real keySoundVolume: 0.5
-        property bool swipeTypingEnabled: true
+		property bool swipeTypingEnabled: false
         // Set only by the Top Menu compatibility action. Android applications
         // which suppress their IME remain in a hidden composition state, so
         // this session must use hardware-style key events instead.
@@ -1712,9 +1725,39 @@ InputHandler {
             keyboardSettings.quickSettingsEnabled = desktopEnabled.join(",")
             keyboardSettings.settingsVersion = 11
         }
-        refreshPrivacySwitchState()
-        refreshHardwareKeyboardState()
+		refreshPrivacySwitchState()
+		refreshHardwareKeyboardState()
+		refreshSwipeContentStatus()
     }
+
+	Component.onDestruction: endSwipeFeedbackSuppression()
+
+	function refreshSwipeContentStatus() {
+		if (helper.status !== DBusInterface.Available)
+			return
+		helper.typedCall("ContentStatus", [], function(resultJson) {
+			var result
+			try {
+				result = JSON.parse(String(resultJson))
+			} catch (error) {
+				return
+			}
+			var installed = false
+			var items = result.items || []
+			for (var i = 0; i < items.length; ++i) {
+				if (String(items[i].id) === "swipe-universal") {
+					installed = !!items[i].installed
+					break
+				}
+			}
+			futoHandler.swipeContentInstalled = installed
+			futoHandler.swipeContentStatusReady = true
+			if (!installed && keyboardSettings.swipeTypingEnabled)
+				keyboardSettings.swipeTypingEnabled = false
+		}, function() {
+			futoHandler.swipeContentStatusReady = false
+		})
+	}
 
     function formatText(text) {
         if (text === undefined)
@@ -4368,7 +4411,43 @@ InputHandler {
 		], function() {}, function() {})
 	}
 
-    function applyPrediction(replacement) {
+	function clearSwipeReplacementState() {
+		swipeReplacementActive = false
+		swipePreviousWord = ""
+		swipeOriginalWord = ""
+		swipeCorrectionLanguage = ""
+		clearEditingWord()
+	}
+
+	function discardPendingSwipeWord() {
+		swipeAutoSpacePending = false
+		swipePendingForcedInput = false
+		clearSwipeReplacementState()
+	}
+
+	function acceptPendingSwipeForNextGesture() {
+		if (!swipeAutoSpacePending)
+			return
+
+		var forcedInput = swipePendingForcedInput
+		swipeAutoSpacePending = false
+		swipePendingForcedInput = false
+		if (forcedInput) {
+			// The privileged Android bridge must insert the separator and the
+			// next decoded word under the same lock, otherwise the asynchronous
+			// calls can arrive in the wrong order.
+			swipeLeadingSpaceForGesture = true
+		} else {
+			var cursor = MInputMethodQuick.surroundingTextValid
+			        ? MInputMethodQuick.cursorPosition : -1
+			MInputMethodQuick.sendCommit(" ")
+			armCommittedSpace(cursor < 0 ? -1 : cursor + 1)
+			candidateSpaceIndex = cursor < 0 ? -1 : cursor + 1
+		}
+		clearSwipeReplacementState()
+	}
+
+	function applyPrediction(replacement) {
         if (preedit === "" && editingWord !== "") {
             var replacingSwipe = swipeReplacementActive
             var previousSwipeWord = swipePreviousWord
@@ -4388,11 +4467,9 @@ InputHandler {
 			MInputMethodQuick.sendCommit(replacementText, start - cursor, length)
             if (addEditingSpace)
                 armCommittedSpace(start + replacementText.length)
-            clearEditingWord()
-			swipeReplacementActive = false
-			swipePreviousWord = ""
-			swipeOriginalWord = ""
-			swipeCorrectionLanguage = ""
+			swipeAutoSpacePending = false
+			swipePendingForcedInput = false
+			clearSwipeReplacementState()
             correctionQuery = ""
             correctionCandidate = ""
             nextWordMode = false
@@ -4435,13 +4512,6 @@ InputHandler {
 		// must never become a long-pressed Space key and open another keyboard.
 		if (swipeCrossesSpacebar(pressedKey))
 			suppressSpacebarLanguageSwitch()
-		if (swipeReplacementActive) {
-			swipeReplacementActive = false
-			swipePreviousWord = ""
-			swipeOriginalWord = ""
-			swipeCorrectionLanguage = ""
-			clearEditingWord()
-		}
 		// Quick Settings intentionally stays open while its language button is
 		// tapped repeatedly. The first subsequent letter touch must close that
 		// overlay and begin the gesture immediately instead of consuming the
@@ -4497,6 +4567,10 @@ InputHandler {
 		if (finishSwipeGesture())
 			return true
 		resetSwipePath()
+		// A tap or an ordinary typed key is not an implicit acceptance of the
+		// preceding swiped word.  Manual Space still inserts its own separator.
+		if (swipeAutoSpacePending || swipeReplacementActive)
+			discardPendingSwipeWord()
         if (keyboard.layout && keyboard.layout.emojiSearchMode
                 && keyboard.layout.handleEmojiSearchKey)
             return keyboard.layout.handleEmojiSearchKey(pressedKey)
@@ -4690,6 +4764,7 @@ InputHandler {
 		if (spacebarGestureActive || activeDesktopModifiers !== 0
 				|| !key || key.swipeTypingKey !== true
 				|| !keyboardSettings.swipeTypingEnabled
+				|| !swipeContentInstalled
 				|| !active || passwordField || !activePredictionsAvailable
 				|| MInputMethodQuick.hasSelection || keyboard.inSymView)
 			return false
@@ -4737,6 +4812,10 @@ InputHandler {
 			return
 		}
 		var nextPath = swipePath.slice(0)
+		// Crossing a second distinct letter turns this touch into a real swipe.
+		// Only now may it implicitly accept the previous swiped word.
+		if (nextPath.length === 1)
+			acceptPendingSwipeForNextGesture()
 		nextPath.push(point)
 		swipePath = nextPath
 		swipeLastKey = caption
@@ -4801,15 +4880,34 @@ InputHandler {
 		swipeReleaseTimer.stop()
 		swipePath = []
 		swipeLastKey = ""
+		endSwipeFeedbackSuppression()
+	}
+
+	function beginSwipeFeedbackSuppression() {
+		if (swipeFeedbackRestoreLevel >= 0 || swipePath.length !== 1)
+			return
+		var level = Number(systemFeedback.touchscreenVibrationLevel)
+		swipeFeedbackRestoreLevel = isFinite(level) ? Math.max(0, level) : 0
+		if (swipeFeedbackRestoreLevel !== 0)
+			systemFeedback.touchscreenVibrationLevel = 0
+	}
+
+	function endSwipeFeedbackSuppression() {
+		if (swipeFeedbackRestoreLevel < 0)
+			return
+		var level = swipeFeedbackRestoreLevel
+		swipeFeedbackRestoreLevel = -1
+		if (level !== 0)
+			systemFeedback.touchscreenVibrationLevel = level
 	}
 
 	function cancelSwipeSession() {
 		swipeSessionSerial++
 		swipeOutstanding = 0
-		swipeReplacementActive = false
-		swipePreviousWord = ""
-		swipeOriginalWord = ""
-		swipeCorrectionLanguage = ""
+		swipeAutoSpacePending = false
+		swipePendingForcedInput = false
+		swipeLeadingSpaceForGesture = false
+		clearSwipeReplacementState()
 		resetSwipePath()
 	}
 
@@ -4882,6 +4980,8 @@ InputHandler {
 				serializedPath = continuousPath
 		}
 		var geometry = swipeGeometry()
+		var leadingSpace = swipeLeadingSpaceForGesture
+		swipeLeadingSpaceForGesture = false
 		resetSwipePath()
 		if (geometry === "")
 			return false
@@ -4929,7 +5029,8 @@ InputHandler {
 			var word = suggestions[0]
 			if (keyboardSettings.forcedAppSupportKeyEvents) {
 				helper.typedCall("InjectAndroidSwipe", [
-					{ "type": "s", "value": word }
+					{ "type": "s", "value": word },
+					{ "type": "b", "value": leadingSpace }
 				], function(inserted) {
 					if (!inserted || session !== futoHandler.swipeSessionSerial
 							|| !futoHandler.active || futoHandler.passwordField)
@@ -4937,9 +5038,12 @@ InputHandler {
 					futoHandler.learnWithPrevious(previousWord, word)
 					futoHandler.candidateSpaceIndex = -1
 					futoHandler.swipeReplacementActive = false
-					futoHandler.swipePreviousWord = ""
-					futoHandler.swipeOriginalWord = ""
-					futoHandler.swipeCorrectionLanguage = ""
+					futoHandler.swipeAutoSpacePending = true
+					futoHandler.swipePendingForcedInput = true
+					futoHandler.swipePreviousWord = previousWord
+					futoHandler.swipeOriginalWord = word
+					futoHandler.swipeCorrectionLanguage = result.language
+					        ? String(result.language) : futoHandler.detectedLanguage
 					futoHandler.clearEditingWord()
 					futoHandler.correctionQuery = ""
 					futoHandler.correctionCandidate = ""
@@ -4956,18 +5060,19 @@ InputHandler {
 				return
 			}
 			var cursor = MInputMethodQuick.cursorPosition
-			MInputMethodQuick.sendCommit(word + " ")
-			futoHandler.armCommittedSpace(cursor + word.length + 1)
+			MInputMethodQuick.sendCommit(word)
 			futoHandler.swipePreviousWord = previousWord
 			futoHandler.swipeOriginalWord = word
 			futoHandler.swipeCorrectionLanguage = result.language
 			        ? String(result.language) : futoHandler.detectedLanguage
 			futoHandler.learnWithPrevious(previousWord, word)
-			futoHandler.candidateSpaceIndex = cursor + word.length + 1
+			futoHandler.candidateSpaceIndex = -1
 			futoHandler.editingWord = word
 			futoHandler.editingWordStart = cursor
 			futoHandler.editingWordLength = word.length
 			futoHandler.swipeReplacementActive = true
+			futoHandler.swipeAutoSpacePending = true
+			futoHandler.swipePendingForcedInput = false
 			futoHandler.correctionQuery = ""
 			futoHandler.correctionCandidate = ""
 			futoHandler.nextWordMode = false
@@ -4975,8 +5080,8 @@ InputHandler {
 			if (result.language)
 				futoHandler.detectedLanguage = String(result.language)
 			if (keyboard.shiftState !== ShiftState.LockedShift) {
-				// A completed word followed by a space is not a sentence start.
-				// Keeping autocaps true here made every subsequent swipe uppercase.
+				// The decoded word is committed without a separator until it is
+				// explicitly or implicitly accepted.
 				keyboard.autocaps = false
 				keyboard.shiftState = ShiftState.AutoShift
 			}

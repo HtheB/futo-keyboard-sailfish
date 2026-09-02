@@ -93,6 +93,8 @@ grep -Fq 'InjectAndroidKey' \
     "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
 grep -Fq 'InjectAndroidSwipe' \
     "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+grep -Fq 'word string, leadingSpace bool' \
+    "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
 grep -Fq 'EndAndroidKeyboard' \
     "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
 grep -Fq 'restart", "maliit-server.service"' \
@@ -346,8 +348,15 @@ grep -Fq 'property bool mergeSameLayoutLanguages: true' \
     "$ROOT/layouts/FutoQwertyLayout.qml"
 grep -Fq 'Combine languages that use the same layout' \
     "$ROOT/qml/FutoLanguagesPage.qml"
-grep -Fq 'readonly property real numberRowHeightScale: 0.67' \
+grep -Fq 'readonly property real numberRowHeightScale: 1.0' \
     "$ROOT/layouts/FutoQwertyLayout.qml"
+! grep -Fq 'sendCommit(word + " ")' "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'property bool swipeTypingEnabled: false' \
+    "$ROOT/qml/FutoGesturesPage.qml"
+grep -Fq 'function refreshSwipeContentStatus()' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'function beginSwipeFeedbackSuppression()' \
+    "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'MenuItem { text: qsTr("System default") }' \
     "$ROOT/qml/FutoFeedbackPage.qml"
 ! grep -Fq 'Follow Sailfish sound settings' "$ROOT/qml/FutoFeedbackPage.qml"

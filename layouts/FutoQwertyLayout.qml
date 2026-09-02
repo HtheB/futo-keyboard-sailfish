@@ -59,7 +59,7 @@ FutoKeyboardLayout {
     readonly property real emojiSizeScale: clampedEmojiSizeScale(
                                                layoutSettings.emojiSizeScale)
     readonly property bool numberRowEnabled: layoutSettings.numberRowEnabled
-	readonly property real numberRowHeightScale: 0.67
+	readonly property real numberRowHeightScale: 1.0
 	readonly property real keyboardPanelHeight: (4 + (numberRowEnabled
 			? numberRowHeightScale : 0)) * keyHeight
     readonly property bool automaticPrivateInput: MInputMethodQuick.hiddenText
@@ -1034,9 +1034,9 @@ FutoKeyboardLayout {
     }
 
     KeyboardRow {
-		id: compactNumberRow
+		id: numberRow
 		followRowHeight: false
-		height: Math.round(root.keyHeight * root.numberRowHeightScale)
+		height: root.keyHeight
         opacity: root.cursorMoveMode ? 0 : 1
         visible: !root.emojiMode && !root.extendedSymbolMode
                  && !root.extraKeysMode

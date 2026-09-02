@@ -5573,13 +5573,13 @@ func (service *service) InjectAndroidKey(sender dbus.Sender, key int32,
 	return true, nil
 }
 
-// InjectAndroidSwipe commits one decoded swipe word and its trailing space
-// through Android's direct-input channel.  The ordinary Maliit commit protocol
-// is unavailable precisely in the applications for which Top Menu compatibility
-// mode is needed, so keeping both operations under one lock also preserves their
-// order.  The privileged bridge independently rejects whitespace and controls.
+// InjectAndroidSwipe commits one decoded swipe word through Android's
+// direct-input channel.  When leadingSpace is true, the previous swiped word has
+// just been implicitly accepted by this new gesture, so its separator is sent
+// first under the same lock.  The privileged bridge independently rejects
+// whitespace and controls.
 func (service *service) InjectAndroidSwipe(sender dbus.Sender,
-	word string) (bool, *dbus.Error) {
+	word string, leadingSpace bool) (bool, *dbus.Error) {
 	if !service.trustedNamedVaultCaller(sender, "com.jolla.keyboard") ||
 		!validAndroidSwipeWord(word) {
 		return false, nil
@@ -5595,10 +5595,12 @@ func (service *service) InjectAndroidSwipe(sender dbus.Sender,
 	defer androidKeyInjectionMu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	for _, input := range [][2]string{
-		{"text", word},
-		{"keyevent", "KEYCODE_SPACE"},
-	} {
+	inputs := make([][2]string, 0, 2)
+	if leadingSpace {
+		inputs = append(inputs, [2]string{"keyevent", "KEYCODE_SPACE"})
+	}
+	inputs = append(inputs, [2]string{"text", word})
+	for _, input := range inputs {
 		command := exec.CommandContext(ctx, appSupportKeyboardPath,
 			input[0], input[1])
 		command.Stdout = io.Discard

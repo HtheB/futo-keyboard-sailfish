@@ -248,7 +248,7 @@ if [[ ${FUTO_SKIP_GO_BUILD:-0} != 1 ]]; then
     (
         cd "$ROOT/helper"
         env CGO_ENABLED=0 GOOS=linux GOARCH="$GO_ARCH" "${GO_EXTRA[@]}" \
-            go build -trimpath -ldflags='-s -w' \
+            go build -buildvcs=false -trimpath -ldflags='-s -w' \
             -o "$BUILD/futo-keyboard-helper" ./cmd/futo-keyboard-helper
     )
 else

@@ -435,6 +435,23 @@ Column {
             }
             decoderPoints = decoder
 
+			// Once the finger has clearly started moving away from the first
+			// letter, temporarily suppress Sailfish's per-crossed-key vibration.
+			// The initial key has already produced the one intended pulse.
+			if (keyboardLayout.handler
+					&& keyboardLayout.handler.swipePath !== undefined
+					&& keyboardLayout.handler.swipePath.length === 1
+					&& decoder.length > 1
+					&& keyboardLayout.handler.beginSwipeFeedbackSuppression) {
+				var first = decoder[0]
+				var movementX = point.x - first.x
+				var movementY = point.y - first.y
+				var movement = Math.sqrt(movementX * movementX
+				                         + movementY * movementY)
+				if (movement >= Math.max(4, Theme.startDragDistance * 0.35))
+					keyboardLayout.handler.beginSwipeFeedbackSuppression()
+			}
+
             var points = trailPoints.slice(0)
             if (points.length < 1) {
                 points.push(point)
@@ -493,6 +510,9 @@ Column {
         }
 
         function clearTouch() {
+			if (keyboardLayout.handler
+					&& keyboardLayout.handler.endSwipeFeedbackSuppression)
+				keyboardLayout.handler.endSwipeFeedbackSuppression()
             trackingSwipe = false
             trailPoints = []
             decoderPoints = []

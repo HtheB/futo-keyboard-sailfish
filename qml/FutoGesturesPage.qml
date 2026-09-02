@@ -9,11 +9,14 @@ Page {
     property bool swipeContentReady: false
     property bool swipeModelInstalled: false
     property bool pendingSwipeDownloads: false
+	property bool requestedSwipeEnable: false
 
     onStatusChanged: {
-        if (status === PageStatus.Active && pendingSwipeDownloads
-                && !swipeDownloadNavigation.running)
-            swipeDownloadNavigation.start()
+		if (status === PageStatus.Active) {
+			refreshSwipeContent()
+			if (pendingSwipeDownloads && !swipeDownloadNavigation.running)
+				swipeDownloadNavigation.start()
+		}
     }
 
     Timer {
@@ -50,8 +53,16 @@ Page {
             }
             page.swipeModelInstalled = installed
             page.swipeContentReady = true
-            if (!installed && settings.swipeTypingEnabled)
+			if (installed && page.requestedSwipeEnable) {
+				settings.swipeTypingEnabled = true
+				page.requestedSwipeEnable = false
+			} else if (!installed && settings.swipeTypingEnabled) {
                 settings.swipeTypingEnabled = false
+			} else if (!installed && page.status === PageStatus.Active
+					&& !page.pendingSwipeDownloads
+					&& !swipeDownloadNavigation.running) {
+				page.requestedSwipeEnable = false
+			}
         })
     }
 
@@ -62,6 +73,7 @@ Page {
                                 + "Open the Swipe typing downloader to install it?")
         })
         dialog.accepted.connect(function() {
+			page.requestedSwipeEnable = true
             page.pendingSwipeDownloads = true
         })
     }
@@ -71,7 +83,7 @@ Page {
         path: "/sailfish/text_input/futo_keyboard"
         property bool spacebarCursorControlEnabled: true
         property bool swipeDeleteEnabled: true
-        property bool swipeTypingEnabled: true
+		property bool swipeTypingEnabled: false
     }
 
     DBusInterface {

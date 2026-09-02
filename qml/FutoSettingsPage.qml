@@ -115,7 +115,7 @@ Page {
         settings.hardwareDeadKeysEnabled = false
         settings.spacebarCursorControlEnabled = true
         settings.swipeDeleteEnabled = true
-        settings.swipeTypingEnabled = true
+		settings.swipeTypingEnabled = false
         settings.voiceTypingEnabled = false
         settings.voiceKeyVisible = true
 		settings.voicePushToTalkEnabled = false
@@ -212,7 +212,7 @@ Page {
         property bool hardwareDeadKeysEnabled: false
         property bool spacebarCursorControlEnabled: true
         property bool swipeDeleteEnabled: true
-        property bool swipeTypingEnabled: true
+		property bool swipeTypingEnabled: false
         property bool voiceTypingEnabled: false
         property bool voiceKeyVisible: true
 		property bool voicePushToTalkEnabled: false
