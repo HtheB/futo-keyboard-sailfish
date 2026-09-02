@@ -91,6 +91,7 @@ PredictionListView {
         id: delegate
 
         property bool predictionDelegate: true
+        readonly property bool primarySuggestion: model.primary === true
         readonly property bool removing: index === view.removalIndex
         readonly property real buttonMargin: removing
                 ? Theme.itemSizeExtraSmall : Theme.paddingLarge
@@ -131,6 +132,9 @@ PredictionListView {
                             - delegate.buttonMargin)
             height: delegate.height
             text: view.handler.formatText(model.text)
+            color: delegate.primarySuggestion ? Theme.highlightColor
+                                              : Theme.primaryColor
+            font.bold: delegate.primarySuggestion
             font.pixelSize: Theme.fontSizeSmall
             verticalAlignment: Text.AlignVCenter
             truncationMode: TruncationMode.Fade

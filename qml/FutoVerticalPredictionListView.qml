@@ -52,6 +52,7 @@ PredictionListView {
     delegate: BackgroundItem {
         id: delegate
 
+        readonly property bool primarySuggestion: model.primary === true
         readonly property bool removing: index === view.removalIndex
         width: parent.width
         height: geometry.keyHeightLandscape
@@ -77,6 +78,9 @@ PredictionListView {
             width: delegate.width - (delegate.removing ? Theme.itemSizeExtraSmall : 0)
             height: delegate.height
             text: view.handler.formatText(model.text)
+            color: delegate.primarySuggestion ? Theme.highlightColor
+                                              : Theme.primaryColor
+            font.bold: delegate.primarySuggestion
             font.pixelSize: Theme.fontSizeSmall
             verticalAlignment: Text.AlignVCenter
             horizontalAlignment: Text.AlignHCenter

@@ -357,6 +357,16 @@ grep -Fq 'function refreshSwipeContentStatus()' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'function beginSwipeFeedbackSuppression()' \
     "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'function visiblePrimaryCorrection()' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq '"primary": primary !== ""' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'var visibleCorrection = visiblePrimaryCorrection()' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'readonly property bool primarySuggestion: model.primary === true' \
+    "$ROOT/qml/FutoHorizontalPredictionListView.qml"
+grep -Fq 'readonly property bool primarySuggestion: model.primary === true' \
+    "$ROOT/qml/FutoVerticalPredictionListView.qml"
 grep -Fq 'MenuItem { text: qsTr("System default") }' \
     "$ROOT/qml/FutoFeedbackPage.qml"
 ! grep -Fq 'Follow Sailfish sound settings' "$ROOT/qml/FutoFeedbackPage.qml"

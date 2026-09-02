@@ -1197,7 +1197,8 @@ InputHandler {
             var key = displayed.toLocaleLowerCase()
             if (displayed !== "" && !seen[key]) {
                 seen[key] = true
-                compact.push({ "text": displayed, "source": String(urls[i]) })
+                compact.push({ "text": displayed, "source": String(urls[i]),
+                               "primary": false })
             }
         }
         predictionModel.clear()
@@ -1217,13 +1218,51 @@ InputHandler {
         suggestionsUpdated()
     }
 
-    function replacePredictionSuggestions(values) {
-        predictionModel.clear()
+    function replacePredictionSuggestions(values, primaryValue) {
         var suggestions = nonEmptySuggestions(values)
+        var primary = displayableSuggestion(primaryValue)
+        var configuredLimit = Number(keyboardSettings.suggestionCount)
+        var maximum = isFinite(configuredLimit)
+                ? Math.max(3, Math.min(12, Math.round(configuredLimit))) : 12
+
+        // Auto-correction is useful only when the user can see what Space will
+        // accept.  The correction engine and completion engine rank separate
+        // candidate sets, so the correction used to be absent from a short
+        // visible list (for example, four suggestions).  Keep the typed word
+        // first when requested, then place the Space candidate directly after
+        // it and mark that exact item as primary.
+        if (primary !== "") {
+            var primaryIndex = suggestions.indexOf(primary)
+            if (primaryIndex < 0) {
+                var typed = String(activeSuggestionQuery)
+                var insertAt = keyboardSettings.showTypedWord
+                        && suggestions.length > 0
+                        && suggestions[0] === typed ? 1 : 0
+                suggestions.splice(insertAt, 0, primary)
+            }
+        }
+        if (suggestions.length > maximum)
+            suggestions = suggestions.slice(0, maximum)
+
+        predictionModel.clear()
         for (var i = 0; i < suggestions.length; ++i)
             predictionModel.append({ "text": suggestions[i],
-                                     "source": suggestions[i] })
+                                     "source": suggestions[i],
+                                     "primary": primary !== ""
+                                                && suggestions[i] === primary })
         return suggestions.length
+    }
+
+    function visiblePrimaryCorrection() {
+        if (correctionCandidate === "")
+            return ""
+        for (var i = 0; i < predictionModel.count; ++i) {
+            var item = predictionModel.get(i)
+            if (item && item.primary === true
+                    && String(item.text) === correctionCandidate)
+                return correctionCandidate
+        }
+        return ""
     }
 
     function predictionSignature() {
@@ -4353,12 +4392,14 @@ InputHandler {
             } catch (error) {
                 result = { "suggestions": [], "correction": "" }
             }
+            var primaryCorrection = keyboardSettings.predictionEnabled
+                    && keyboardSettings.autoCorrectionEnabled
+                    && result.correction ? String(result.correction) : ""
+            futoHandler.correctionQuery = primaryCorrection !== "" ? query : ""
+            futoHandler.correctionCandidate = primaryCorrection
             futoHandler.replacePredictionSuggestions(
                 keyboardSettings.predictionEnabled && result.suggestions
-                ? result.suggestions : [])
-            futoHandler.correctionQuery = keyboardSettings.autoCorrectionEnabled ? query : ""
-            futoHandler.correctionCandidate = keyboardSettings.autoCorrectionEnabled
-                    && result.correction ? String(result.correction) : ""
+                ? result.suggestions : [], primaryCorrection)
             if (result.language)
                 futoHandler.detectedLanguage = String(result.language)
             futoHandler.nextWordMode = false
@@ -4608,13 +4649,14 @@ InputHandler {
             if (preedit !== "") {
                 var original = preedit
                 var accepted = original
+                var visibleCorrection = visiblePrimaryCorrection()
                 var corrected = keyboardSettings.autoCorrectionEnabled
                         && correctionQuery === original
-                        && correctionCandidate !== ""
-                        && correctionCandidate.toLocaleLowerCase()
+                        && visibleCorrection !== ""
+                        && visibleCorrection.toLocaleLowerCase()
                            !== original.toLocaleLowerCase()
                 if (corrected)
-                    accepted = correctionCandidate
+                    accepted = visibleCorrection
 
                 var cursorBeforeCommit = MInputMethodQuick.cursorPosition
                 learn(accepted)

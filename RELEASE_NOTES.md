@@ -16,3 +16,5 @@ This small update fixes issues found after the 0.3.0 release.
   accepted or the next word is swiped.
 - Swipe typing stays disabled until the FUTO Swipe content is installed and
   offers to open the downloader when it is needed.
+- Space now accepts the visibly highlighted correction and never substitutes a
+  hidden word outside the configured suggestion count.
