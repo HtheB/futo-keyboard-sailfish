@@ -1764,6 +1764,15 @@ InputHandler {
         keyboardSettings.keySoundEnabled = mode !== 0
         keyboardSettings.keySoundFollowSystem = mode === 2
         keyboardSettings.keySoundMigrationDone = true
+        helper.typedCall("SetKeySoundMode", [
+            { "type": "i", "value": mode }
+        ], function(appliedMode) {
+            appliedMode = Math.max(0, Math.min(2,
+                                   Math.floor(Number(appliedMode))))
+            keyboardSettings.keySoundMode = appliedMode
+            keyboardSettings.keySoundEnabled = appliedMode !== 0
+            keyboardSettings.keySoundFollowSystem = appliedMode === 2
+        }, function() {})
     }
 
 	function keySoundActive() {
@@ -3418,8 +3427,13 @@ InputHandler {
                             height: configuredControlButtons.height
                             clip: true
                             onPressedChanged: {
-                                if (pressed)
+                                if (pressed) {
                                     languageHoldConsumed = false
+                                    if (keyboardLayout.beginControlInteraction)
+                                        keyboardLayout.beginControlInteraction()
+                                } else if (keyboardLayout.endControlInteraction) {
+                                    keyboardLayout.endControlInteraction()
+                                }
                             }
                             onPressAndHold: {
                                 if (actionId === "language") {

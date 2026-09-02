@@ -38,6 +38,7 @@ const (
 	busName                   = "org.hb.FutoKeyboard1"
 	interfaceName             = "org.hb.FutoKeyboard1"
 	keyboardModeChangedSignal = "KeyboardModeChanged"
+	keySoundModeChangedSignal = "KeySoundModeChanged"
 	contentChangedSignal      = "ContentChanged"
 	objectPath                = dbus.ObjectPath("/org/hb/FutoKeyboard1")
 	enginePath                = "/usr/libexec/futo-keyboard-engine"
@@ -5897,6 +5898,84 @@ func (service *service) GetKeyboardModes() (string, *dbus.Error) {
 	return string(result), nil
 }
 
+func normalizedKeySoundMode(mode int32) int32 {
+	if mode < 0 {
+		return 0
+	}
+	if mode > 2 {
+		return 2
+	}
+	return mode
+}
+
+func parsedKeySoundMode(value string) (int32, bool) {
+	parsed, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || parsed < 0 || parsed > 2 {
+		return 0, false
+	}
+	return int32(parsed), true
+}
+
+func (service *service) SetKeySoundMode(mode int32) (int32, *dbus.Error) {
+	mode = normalizedKeySoundMode(mode)
+	settings := map[string]string{
+		"/sailfish/text_input/futo_keyboard/keySoundMode":          fmt.Sprintf("%d", mode),
+		"/sailfish/text_input/futo_keyboard/keySoundEnabled":       fmt.Sprintf("%t", mode != 0),
+		"/sailfish/text_input/futo_keyboard/keySoundFollowSystem":  fmt.Sprintf("%t", mode == 2),
+		"/sailfish/text_input/futo_keyboard/keySoundMigrationDone": "true",
+	}
+	for key, value := range settings {
+		if err := dconfWrite(key, value); err != nil {
+			return 0, dbus.MakeFailedError(err)
+		}
+	}
+	if service.bus != nil {
+		if err := service.bus.Emit(objectPath,
+			interfaceName+"."+keySoundModeChangedSignal, mode); err != nil {
+			log.Printf("could not broadcast key sound mode: %v", err)
+		}
+	}
+	return mode, nil
+}
+
+// GetKeySoundMode lets an open Settings page follow changes made from the
+// keyboard's Quick Settings even when Nemo.Configuration notifications are
+// delayed. Legacy two-switch values are translated until the new mode exists.
+func (service *service) GetKeySoundMode() (int32, *dbus.Error) {
+	value, err := dconfRead("/sailfish/text_input/futo_keyboard/keySoundMode")
+	if err != nil {
+		return 0, dbus.MakeFailedError(err)
+	}
+	if mode, ok := parsedKeySoundMode(value); ok {
+		return mode, nil
+	}
+	migrated, err := dconfRead(
+		"/sailfish/text_input/futo_keyboard/keySoundMigrationDone")
+	if err != nil {
+		return 0, dbus.MakeFailedError(err)
+	}
+	if strings.TrimSpace(migrated) != "true" {
+		return 2, nil
+	}
+	enabled, err := dconfRead(
+		"/sailfish/text_input/futo_keyboard/keySoundEnabled")
+	if err != nil {
+		return 0, dbus.MakeFailedError(err)
+	}
+	if strings.TrimSpace(enabled) != "true" {
+		return 0, nil
+	}
+	followSystem, err := dconfRead(
+		"/sailfish/text_input/futo_keyboard/keySoundFollowSystem")
+	if err != nil {
+		return 0, dbus.MakeFailedError(err)
+	}
+	if strings.TrimSpace(followSystem) == "true" {
+		return 2, nil
+	}
+	return 1, nil
+}
+
 func helperIntrospectionInterface(application interface{}) introspect.Interface {
 	return introspect.Interface{
 		Name:    interfaceName,
@@ -5906,6 +5985,12 @@ func helperIntrospectionInterface(application interface{}) introspect.Interface 
 				Name: keyboardModeChangedSignal,
 				Args: []introspect.Arg{
 					{Name: "orientation", Type: "s"},
+					{Name: "mode", Type: "i"},
+				},
+			},
+			{
+				Name: keySoundModeChangedSignal,
+				Args: []introspect.Arg{
 					{Name: "mode", Type: "i"},
 				},
 			},

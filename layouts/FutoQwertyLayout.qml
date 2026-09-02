@@ -807,6 +807,16 @@ FutoKeyboardLayout {
         updateSizes()
     }
 
+    function beginControlInteraction() {
+        if (controlMode)
+            controlTimeout.stop()
+    }
+
+    function endControlInteraction() {
+        if (controlMode)
+            controlTimeout.restart()
+    }
+
     function showLayoutEditor() {
         keyboard.inSymView = false
         keyboard.inSymView2 = false

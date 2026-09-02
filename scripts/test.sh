@@ -113,6 +113,10 @@ grep -Fq '{ "id": "sound", "label": qsTr("Keyboard sounds")' \
 grep -Fq 'setKeySoundMode((effectiveKeySoundMode() + 1) % 3)' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'actionId === "sound"' "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'keyboardLayout.beginControlInteraction()' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'function endControlInteraction()' \
+    "$ROOT/layouts/FutoQwertyLayout.qml"
 grep -Fq 'settings.settingsVersion = 11' "$ROOT/qml/FutoSettingsPage.qml"
 grep -Fq 'settingsUi.call("showPage"' "$ROOT/qml/FutoInputHandler.qml"
 ! sed -n '/function openFutoSettings()/,/^    }/p' \
@@ -347,6 +351,10 @@ grep -Fq 'readonly property real numberRowHeightScale: 0.67' \
 grep -Fq 'MenuItem { text: qsTr("System default") }' \
     "$ROOT/qml/FutoFeedbackPage.qml"
 ! grep -Fq 'Follow Sailfish sound settings' "$ROOT/qml/FutoFeedbackPage.qml"
+grep -Fq 'helper.typedCall("GetKeySoundMode"' \
+    "$ROOT/qml/FutoFeedbackPage.qml"
+grep -Fq 'Name: keySoundModeChangedSignal' \
+    "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
 grep -Fq 'function keySoundActive()' "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'function emojiStylePreviewSource(styleIndex, codepoint)' \
     "$ROOT/qml/FutoEmojiSettingsPage.qml"

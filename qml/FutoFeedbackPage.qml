@@ -9,6 +9,8 @@ Page {
     id: page
     allowedOrientations: Orientation.All
     property bool soundSelectorReady: false
+    property bool soundSelectorSyncing: false
+    property double soundSyncSuppressedUntil: 0
 
     ConfigurationGroup {
         id: settings
@@ -29,7 +31,12 @@ Page {
         service: "org.hb.FutoKeyboard1"
         path: "/org/hb/FutoKeyboard1"
         iface: "org.hb.FutoKeyboard1"
+        signalsEnabled: true
         watchServiceStatus: true
+
+        function keySoundModeChanged(mode) {
+            page.applySoundMode(Number(mode))
+        }
     }
 
     function volumeStep() {
@@ -50,14 +57,39 @@ Page {
                 : settings.keySoundFollowSystem ? 2 : 1
     }
 
-    function setSoundMode(mode) {
+    function applySoundMode(mode) {
         mode = Math.max(0, Math.min(2, Math.floor(Number(mode))))
+        soundSelectorSyncing = true
         settings.keySoundMode = mode
         // Keep the old keys synchronized so downgrading to an earlier build
         // retains the equivalent sound behaviour.
         settings.keySoundEnabled = mode !== 0
         settings.keySoundFollowSystem = mode === 2
         settings.keySoundMigrationDone = true
+        if (soundModeCombo.currentIndex !== mode)
+            soundModeCombo.currentIndex = mode
+        soundSelectorSyncing = false
+    }
+
+    function setSoundMode(mode) {
+        mode = Math.max(0, Math.min(2, Math.floor(Number(mode))))
+        soundSyncSuppressedUntil = Date.now() + 700
+        applySoundMode(mode)
+        helper.typedCall("SetKeySoundMode", [
+            { "type": "i", "value": mode }
+        ], function(appliedMode) {
+            page.applySoundMode(Number(appliedMode))
+            page.soundSyncSuppressedUntil = 0
+        }, function() {})
+    }
+
+    function synchronizeSoundMode() {
+        if (!soundSelectorReady || Date.now() < soundSyncSuppressedUntil
+                || helper.status !== DBusInterface.Available)
+            return
+        helper.typedCall("GetKeySoundMode", [], function(mode) {
+            page.applySoundMode(Number(mode))
+        }, function() {})
     }
 
     function previewKeySound() {
@@ -72,9 +104,21 @@ Page {
     }
 
     Component.onCompleted: {
-        if (settings.keySoundMode < 0 || settings.keySoundMode > 2)
-            setSoundMode(soundMode())
         soundSelectorReady = true
+        if (settings.keySoundMode < 0 || settings.keySoundMode > 2) {
+            setSoundMode(soundMode())
+        } else {
+            applySoundMode(soundMode())
+            synchronizeSoundMode()
+        }
+    }
+
+    Timer {
+        interval: 200
+        repeat: true
+        running: page.status === PageStatus.Active
+                 && helper.status === DBusInterface.Available
+        onTriggered: page.synchronizeSoundMode()
     }
 
     FutoSettingsTestPanel {
@@ -113,11 +157,12 @@ Page {
             }
 
             ComboBox {
+                id: soundModeCombo
                 width: parent.width
                 label: qsTr("Play a sound on each key press")
                 currentIndex: page.soundMode()
                 onCurrentIndexChanged: {
-                    if (!page.soundSelectorReady)
+                    if (!page.soundSelectorReady || page.soundSelectorSyncing)
                         return
                     page.setSoundMode(currentIndex)
                     if (currentIndex !== 0)

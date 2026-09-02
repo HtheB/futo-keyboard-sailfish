@@ -1020,8 +1020,8 @@ func TestKeyboardModeSettingKeepsOrientationsSeparate(t *testing.T) {
 
 func TestKeyboardModeSignalIsIntrospected(t *testing.T) {
 	iface := helperIntrospectionInterface(&service{})
-	if len(iface.Signals) != 2 {
-		t.Fatalf("signal count = %d, want 2", len(iface.Signals))
+	if len(iface.Signals) != 3 {
+		t.Fatalf("signal count = %d, want 3", len(iface.Signals))
 	}
 	signal := iface.Signals[0]
 	if signal.Name != keyboardModeChangedSignal {
@@ -1032,7 +1032,12 @@ func TestKeyboardModeSignalIsIntrospected(t *testing.T) {
 		signal.Args[1].Type != "i" {
 		t.Fatalf("signal arguments = %#v, want (s, i)", signal.Args)
 	}
-	contentSignal := iface.Signals[1]
+	soundSignal := iface.Signals[1]
+	if soundSignal.Name != keySoundModeChangedSignal || len(soundSignal.Args) != 1 ||
+		soundSignal.Args[0].Type != "i" {
+		t.Fatalf("sound signal = %#v, want KeySoundModeChanged(i)", soundSignal)
+	}
+	contentSignal := iface.Signals[2]
 	if contentSignal.Name != contentChangedSignal || len(contentSignal.Args) != 2 ||
 		contentSignal.Args[0].Type != "s" || contentSignal.Args[1].Type != "s" {
 		t.Fatalf("content signal = %#v, want ContentChanged(s, s)", contentSignal)
@@ -1198,6 +1203,32 @@ func TestKeySoundPathWhitelistsKindAndClampsVolume(t *testing.T) {
 	}
 	if path, ok := keySoundPath("../../escape", 50); ok || path != "" {
 		t.Fatalf("invalid sound kind accepted: %q, %v", path, ok)
+	}
+}
+
+func TestKeySoundModeParsingAndClamping(t *testing.T) {
+	for _, test := range []struct {
+		input string
+		want  int32
+		ok    bool
+	}{
+		{input: "0", want: 0, ok: true},
+		{input: "1", want: 1, ok: true},
+		{input: "2", want: 2, ok: true},
+		{input: "", want: 0, ok: false},
+		{input: "3", want: 0, ok: false},
+	} {
+		got, ok := parsedKeySoundMode(test.input)
+		if got != test.want || ok != test.ok {
+			t.Fatalf("parsedKeySoundMode(%q) = %d, %v; want %d, %v",
+				test.input, got, ok, test.want, test.ok)
+		}
+	}
+	if got := normalizedKeySoundMode(-1); got != 0 {
+		t.Fatalf("normalizedKeySoundMode(-1) = %d; want 0", got)
+	}
+	if got := normalizedKeySoundMode(3); got != 2 {
+		t.Fatalf("normalizedKeySoundMode(3) = %d; want 2", got)
 	}
 }
 
