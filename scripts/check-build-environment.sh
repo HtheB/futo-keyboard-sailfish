@@ -8,8 +8,14 @@ QT_SOURCE=${FUTO_QT_SOURCE:-$DEPS_ROOT/sources/qtbase-5.6.3}
 SECRETS_SOURCE=${FUTO_SECRETS_SOURCE:-$DEPS_ROOT/sources/sailfish-secrets-0.2.44}
 TARGET_LIB_ROOT=${FUTO_TARGET_LIB_ROOT:-${FUTO_PHONE_LIB_ROOT:-$DEPS_ROOT/$ARCH/lib}}
 QT_CONFIG_ROOT=${FUTO_QT_CONFIG_ROOT:-$DEPS_ROOT/$ARCH/qt-config}
+XKB_INCLUDE_ROOT=${FUTO_XKBCOMMON_INCLUDE_ROOT:-$DEPS_ROOT/$ARCH/xkbcommon-include}
 TOOLCHAIN_DIRECTORY=${FUTO_TOOLCHAIN_DIR:-}
 CROSS_ROOT=${FUTO_CROSS_ROOT:-}
+TOOLCHAIN_SHIM=${FUTO_TOOLCHAIN_SHIM:-}
+COMPILER_FLAGS=()
+if [[ -n "$TOOLCHAIN_SHIM" ]]; then
+    COMPILER_FLAGS=(-B"$TOOLCHAIN_SHIM/")
+fi
 
 case "$ARCH" in
     aarch64) DEFAULT_TOOL_PREFIX=aarch64-linux-gnu ;;
@@ -65,10 +71,15 @@ compiler_smoke_test() {
     local frontend=""
     local missing_libraries=""
 
+    local object_file
+    object_file=$(mktemp)
     if compiler_output=$(printf 'int main(void) { return 0; }\n' \
-            | "$compiler" -x "$language" -fsyntax-only - 2>&1); then
+            | "$compiler" "${COMPILER_FLAGS[@]}" -x "$language" -c -o "$object_file" - \
+                2>&1); then
+        rm -f "$object_file"
         return
     fi
+    rm -f "$object_file"
 
     echo "$label cannot compile a minimal source file: $compiler" >&2
     if [[ -n "$compiler_output" ]]; then
@@ -100,6 +111,10 @@ require_tool "cross C compiler" "$CC"
 require_tool "cross strip" "$STRIP"
 require_tool "cross readelf" "$READELF"
 require_tool "host patchelf" "$PATCHELF"
+if [[ -n "$TOOLCHAIN_SHIM" ]]; then
+    require_tool "target assembler" "$TOOLCHAIN_SHIM/as"
+    require_tool "target linker" "$TOOLCHAIN_SHIM/ld"
+fi
 
 if [[ -n "$CXX" && -x "$CXX" ]]; then
     compiler_smoke_test "Cross C++ compiler" "$CXX" c++ cc1plus
@@ -113,6 +128,10 @@ require_file "Qt Compose source" \
 require_file "Sailfish Secrets source" "$SECRETS_SOURCE/lib/Secrets/secretmanager.h"
 require_file "target Qt qconfig.h" "$QT_CONFIG_ROOT/qconfig.h"
 require_file "target Qt qfeatures.h" "$QT_CONFIG_ROOT/qfeatures.h"
+require_file "xkbcommon compose header" \
+    "$XKB_INCLUDE_ROOT/xkbcommon/xkbcommon-compose.h"
+require_file "xkbcommon keysym header" \
+    "$XKB_INCLUDE_ROOT/xkbcommon/xkbcommon-keysyms.h"
 for library in libQt5Core.so.5.6.3 libQt5DBus.so.5.6.3 libQt5Gui.so.5.6.3 \
         libQt5WaylandClient.so.5.6.3 libsailfishsecrets.so.0.2.44 \
         libxkbcommon.so.0.0.0; do
@@ -130,4 +149,5 @@ echo "FUTO Keyboard build environment is ready for $ARCH."
 echo "  Qt source: $QT_SOURCE"
 echo "  Sailfish Secrets source: $SECRETS_SOURCE"
 echo "  target libraries: $TARGET_LIB_ROOT"
+echo "  xkbcommon headers: $XKB_INCLUDE_ROOT"
 echo "  compiler: $CXX"

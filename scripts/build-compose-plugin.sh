@@ -16,6 +16,12 @@ else
 fi
 CROSS_ROOT=${FUTO_CROSS_ROOT:-}
 TOOLCHAIN_DIRECTORY=${FUTO_TOOLCHAIN_DIR:-}
+TOOLCHAIN_SHIM=${FUTO_TOOLCHAIN_SHIM:-}
+if [ -n "$TOOLCHAIN_SHIM" ]; then
+    TARGET_TOOLCHAIN_OPTION="-B$TOOLCHAIN_SHIM/"
+else
+    TARGET_TOOLCHAIN_OPTION=
+fi
 case "$ARCH" in
     aarch64) TOOL_PREFIX=aarch64-linux-gnu ;;
     armv7hl) TOOL_PREFIX=armv7hl-meego-linux-gnueabi ;;
@@ -124,7 +130,7 @@ mkdir -p "$OUTPUT"
 compile() {
     source_file=$1
     object_file=$2
-    "$CXX" $TARGET_SYSROOT_OPTION -std=c++11 -O2 -DNDEBUG -fPIC \
+    "$CXX" $TARGET_TOOLCHAIN_OPTION $TARGET_SYSROOT_OPTION -std=c++11 -O2 -DNDEBUG -fPIC \
         -DQT_PLUGIN -DQT_SHARED -DQT_NO_DEBUG '-DX11_PREFIX="/usr"' \
         -I"$OUTPUT" \
         -I"$SOURCE" -I"$SOURCE/generator" \
@@ -150,7 +156,7 @@ compile "$SOURCE/generator/qtablegenerator.cpp" \
     "$OUTPUT/qtablegenerator.o"
 compile "$WRAPPER_SOURCE" "$OUTPUT/futo_maliit_compose_wrapper.o"
 
-"$CXX" $TARGET_SYSROOT_OPTION -shared \
+"$CXX" $TARGET_TOOLCHAIN_OPTION $TARGET_SYSROOT_OPTION -shared \
     -Wl,-soname,libcomposeplatforminputcontextplugin.so \
     -Wl,--allow-shlib-undefined \
     "$OUTPUT/qcomposeplatforminputcontextmain.o" \
@@ -165,7 +171,7 @@ compile "$WRAPPER_SOURCE" "$OUTPUT/futo_maliit_compose_wrapper.o"
     -o "$BUILD/libcomposeplatforminputcontextplugin.so"
 "$STRIP" "$BUILD/libcomposeplatforminputcontextplugin.so"
 
-"$CXX" $TARGET_SYSROOT_OPTION -shared \
+"$CXX" $TARGET_TOOLCHAIN_OPTION $TARGET_SYSROOT_OPTION -shared \
     -Wl,-soname,libafutomaliitcomposewrapper.so \
     -Wl,--allow-shlib-undefined \
     "$OUTPUT/futo_maliit_compose_wrapper.o" \

@@ -6,8 +6,10 @@ ARCH=${FUTO_ARCH:-aarch64}
 TARGET_SYSROOT=${FUTO_TARGET_SYSROOT:-}
 LIB_DIRECTORY=
 QT_CONFIG_DIRECTORY=
+XKB_INCLUDE_DIRECTORY=${FUTO_XKBCOMMON_INCLUDE_ROOT:-}
 DEPS_ROOT=${FUTO_DEPS_ROOT:-$ROOT/build/dependencies}
 TOOLCHAIN_DIRECTORY=${FUTO_TOOLCHAIN_DIR:-}
+TOOLCHAIN_LIB_DIRECTORY=${FUTO_TOOLCHAIN_LIB_DIR:-}
 TOOL_PREFIX=${FUTO_TOOL_PREFIX:-}
 
 QT_ARCHIVE_URL=https://codeload.github.com/qt/qtbase/tar.gz/e6f8b072d2bf15f8b82bede48ff29ce8ac8dbd9a
@@ -27,12 +29,15 @@ Options:
   --lib-dir PATH          Directory containing the target libraries
   --qt-config-dir PATH    Directory containing target qconfig.h/qfeatures.h
   --toolchain-dir PATH    Directory containing the cross compiler binaries
+  --toolchain-lib-dir PATH
+                          Directory containing the toolchain runtime libraries
   --tool-prefix PREFIX    Override the cross compiler prefix
+  --xkb-include-root PATH Directory containing xkbcommon/*.h
   --deps-root PATH        Local dependency staging directory
   -h, --help              Show this help
 
-Normally --sysroot is enough. --lib-dir and --qt-config-dir are available for
-SDK installations that expose their target files in separate directories.
+Normally --sysroot and --toolchain-dir are enough. The other path options are
+available for SDK installations that expose their files in unusual locations.
 EOF
 }
 
@@ -43,7 +48,9 @@ while [[ $# -gt 0 ]]; do
         --lib-dir) LIB_DIRECTORY=${2:?Missing library directory}; shift 2 ;;
         --qt-config-dir) QT_CONFIG_DIRECTORY=${2:?Missing Qt config directory}; shift 2 ;;
         --toolchain-dir) TOOLCHAIN_DIRECTORY=${2:?Missing toolchain directory}; shift 2 ;;
+        --toolchain-lib-dir) TOOLCHAIN_LIB_DIRECTORY=${2:?Missing toolchain library directory}; shift 2 ;;
         --tool-prefix) TOOL_PREFIX=${2:?Missing tool prefix}; shift 2 ;;
+        --xkb-include-root) XKB_INCLUDE_DIRECTORY=${2:?Missing xkbcommon include root}; shift 2 ;;
         --deps-root) DEPS_ROOT=${2:?Missing dependency root}; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -56,6 +63,15 @@ case "$ARCH" in
     i486) DEFAULT_TOOL_PREFIX=i486-meego-linux-gnu ;;
     *) echo "Unsupported architecture: $ARCH" >&2; exit 2 ;;
 esac
+if [[ -z "$TOOL_PREFIX" && -n "$TOOLCHAIN_DIRECTORY" ]]; then
+    case "$ARCH" in
+        aarch64) SDK_TOOL_PREFIX=aarch64-meego-linux-gnu ;;
+        *) SDK_TOOL_PREFIX=$DEFAULT_TOOL_PREFIX ;;
+    esac
+    if [[ -x "$TOOLCHAIN_DIRECTORY/$SDK_TOOL_PREFIX-g++" ]]; then
+        TOOL_PREFIX=$SDK_TOOL_PREFIX
+    fi
+fi
 TOOL_PREFIX=${TOOL_PREFIX:-$DEFAULT_TOOL_PREFIX}
 
 if [[ -z "$TARGET_SYSROOT" && -z "$LIB_DIRECTORY" ]]; then
@@ -71,8 +87,46 @@ if [[ -n "$LIB_DIRECTORY" && ! -d "$LIB_DIRECTORY" ]]; then
     echo "Target library directory does not exist: $LIB_DIRECTORY" >&2
     exit 2
 fi
+if [[ -n "$TOOLCHAIN_DIRECTORY" && ! -d "$TOOLCHAIN_DIRECTORY" ]]; then
+    echo "Toolchain directory does not exist: $TOOLCHAIN_DIRECTORY" >&2
+    exit 2
+fi
+if [[ -n "$TOOLCHAIN_LIB_DIRECTORY" && ! -d "$TOOLCHAIN_LIB_DIRECTORY" ]]; then
+    echo "Toolchain library directory does not exist: $TOOLCHAIN_LIB_DIRECTORY" >&2
+    exit 2
+fi
+if [[ -n "$XKB_INCLUDE_DIRECTORY" && \
+      ! -s "$XKB_INCLUDE_DIRECTORY/xkbcommon/xkbcommon-compose.h" ]]; then
+    echo "xkbcommon headers were not found below: $XKB_INCLUDE_DIRECTORY" >&2
+    exit 2
+fi
 
-for tool in curl tar find cp sha256sum; do
+find_toolchain_lib_directory() {
+    local candidate
+    [[ -n "$TOOLCHAIN_LIB_DIRECTORY" ]] && {
+        printf '%s\n' "$TOOLCHAIN_LIB_DIRECTORY"
+        return 0
+    }
+    [[ -n "$TOOLCHAIN_DIRECTORY" ]] || return 1
+    for candidate in \
+        "$TOOLCHAIN_DIRECTORY/../../../usr/lib" \
+        "$TOOLCHAIN_DIRECTORY/../../usr/lib" \
+        "$TOOLCHAIN_DIRECTORY/../lib"; do
+        if [[ -d "$candidate" ]] && \
+           find -L "$candidate" -maxdepth 1 -name 'libmpc.so*' -print -quit \
+               2>/dev/null | grep -q .; then
+            (cd "$candidate" && pwd -P)
+            return 0
+        fi
+    done
+    return 1
+}
+
+if [[ -n "$TOOLCHAIN_DIRECTORY" && -z "$TOOLCHAIN_LIB_DIRECTORY" ]]; then
+    TOOLCHAIN_LIB_DIRECTORY=$(find_toolchain_lib_directory || true)
+fi
+
+for tool in curl tar find cp grep ln sha256sum; do
     command -v "$tool" >/dev/null || {
         echo "Missing host tool: $tool" >&2
         exit 1
@@ -84,7 +138,27 @@ DOWNLOAD_ROOT="$DEPS_ROOT/downloads"
 TARGET_ROOT="$DEPS_ROOT/$ARCH"
 TARGET_LIB_ROOT="$TARGET_ROOT/lib"
 TARGET_QT_CONFIG_ROOT="$TARGET_ROOT/qt-config"
-mkdir -p "$SOURCE_ROOT" "$DOWNLOAD_ROOT" "$TARGET_LIB_ROOT" "$TARGET_QT_CONFIG_ROOT"
+TARGET_XKB_INCLUDE_ROOT="$TARGET_ROOT/xkbcommon-include"
+TARGET_TOOLCHAIN_SHIM="$TARGET_ROOT/toolchain-bin"
+mkdir -p "$SOURCE_ROOT" "$DOWNLOAD_ROOT" "$TARGET_LIB_ROOT" \
+    "$TARGET_QT_CONFIG_ROOT" "$TARGET_XKB_INCLUDE_ROOT"
+
+if [[ -n "$TOOLCHAIN_DIRECTORY" ]]; then
+    rm -rf "$TARGET_TOOLCHAIN_SHIM"
+    mkdir -p "$TARGET_TOOLCHAIN_SHIM"
+    for tool in as ld ar nm objcopy objdump ranlib; do
+        source_tool="$TOOLCHAIN_DIRECTORY/$TOOL_PREFIX-$tool"
+        if [[ -x "$source_tool" ]]; then
+            ln -s "$source_tool" "$TARGET_TOOLCHAIN_SHIM/$tool"
+        fi
+    done
+    for tool in as ld; do
+        if [[ ! -x "$TARGET_TOOLCHAIN_SHIM/$tool" ]]; then
+            echo "Missing target $tool: $TOOLCHAIN_DIRECTORY/$TOOL_PREFIX-$tool" >&2
+            exit 1
+        fi
+    done
+fi
 
 extract_pinned() {
     local url=$1
@@ -181,6 +255,37 @@ for header in qconfig.h qfeatures.h; do
     cp -L "$source_file" "$TARGET_QT_CONFIG_ROOT/$header"
 done
 
+find_xkb_include_root() {
+    local candidate
+    if [[ -n "$XKB_INCLUDE_DIRECTORY" ]]; then
+        printf '%s\n' "$XKB_INCLUDE_DIRECTORY"
+        return 0
+    fi
+    if [[ -n "$TARGET_SYSROOT" ]]; then
+        for candidate in "$TARGET_SYSROOT/usr/include" \
+                "$TARGET_SYSROOT/usr/include"/*; do
+            if [[ -s "$candidate/xkbcommon/xkbcommon-compose.h" ]]; then
+                printf '%s\n' "$candidate"
+                return 0
+            fi
+        done
+    fi
+    if [[ -s /usr/include/xkbcommon/xkbcommon-compose.h ]]; then
+        printf '%s\n' /usr/include
+        return 0
+    fi
+    return 1
+}
+
+source_xkb_root=$(find_xkb_include_root) || {
+    echo "Missing xkbcommon development headers." >&2
+    echo "Install libxkbcommon-devel in the SDK target or libxkbcommon-dev on the host," >&2
+    echo "or pass --xkb-include-root." >&2
+    exit 1
+}
+rm -rf "$TARGET_XKB_INCLUDE_ROOT/xkbcommon"
+cp -LR "$source_xkb_root/xkbcommon" "$TARGET_XKB_INCLUDE_ROOT/xkbcommon"
+
 ENVIRONMENT_FILE="$TARGET_ROOT/environment.sh"
 {
     printf '# Generated by scripts/prepare-build-environment.sh\n'
@@ -192,7 +297,18 @@ ENVIRONMENT_FILE="$TARGET_ROOT/environment.sh"
     if [[ -n "$TOOLCHAIN_DIRECTORY" ]]; then
         printf 'export FUTO_TOOLCHAIN_DIR=%q\n' "$TOOLCHAIN_DIRECTORY"
     fi
+    if [[ -n "$TOOLCHAIN_LIB_DIRECTORY" ]]; then
+        printf 'export FUTO_TOOLCHAIN_LIB_DIR=%q\n' "$TOOLCHAIN_LIB_DIRECTORY"
+        printf 'case ":${LD_LIBRARY_PATH:-}:" in\n'
+        printf '    *":${FUTO_TOOLCHAIN_LIB_DIR}:"*) ;;\n'
+        printf '    *) export LD_LIBRARY_PATH="${FUTO_TOOLCHAIN_LIB_DIR}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" ;;\n'
+        printf 'esac\n'
+    fi
+    if [[ -n "$TOOLCHAIN_DIRECTORY" ]]; then
+        printf 'export FUTO_TOOLCHAIN_SHIM=%q\n' "$TARGET_TOOLCHAIN_SHIM"
+    fi
     printf 'export FUTO_TOOL_PREFIX=%q\n' "$TOOL_PREFIX"
+    printf 'export FUTO_XKBCOMMON_INCLUDE_ROOT=%q\n' "$TARGET_XKB_INCLUDE_ROOT"
 } > "$ENVIRONMENT_FILE"
 
 echo
@@ -200,6 +316,13 @@ echo "Build environment prepared:"
 echo "  sources: $SOURCE_ROOT"
 echo "  target libraries: $TARGET_LIB_ROOT"
 echo "  target Qt configuration: $TARGET_QT_CONFIG_ROOT"
+echo "  xkbcommon headers: $TARGET_XKB_INCLUDE_ROOT"
+if [[ -n "$TOOLCHAIN_LIB_DIRECTORY" ]]; then
+    echo "  toolchain runtime libraries: $TOOLCHAIN_LIB_DIRECTORY"
+fi
+if [[ -n "$TOOLCHAIN_DIRECTORY" ]]; then
+    echo "  target binutils: $TARGET_TOOLCHAIN_SHIM"
+fi
 echo
 echo "Next run:"
 printf '  source %q\n' "$ENVIRONMENT_FILE"
