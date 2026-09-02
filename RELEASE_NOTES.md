@@ -1,17 +1,11 @@
-# FUTO Keyboard for Sailfish OS 0.3.0
+# FUTO Keyboard for Sailfish OS 0.3.1
 
-This release brings a new multilingual swipe-typing experience and expands
-language support.
+This small update fixes issues found after the 0.3.0 release.
 
-## New and improved
+## Fixes
 
-- New swipe typing based on FUTO Swipe, with improved word ranking across all
-  supported prediction languages.
-- Better support for contractions such as “I'm” and “can't”, capitalization and
-  short swiped words.
-- Added Arabic predictions and a Persian keyboard with predictions.
-- Languages that use the same letter layout can now remain separate, allowing
-  each language to be selected manually from the keyboard.
-- Reorganized the symbol picker into clearer categories.
-- Keyboard sounds can now be set to Off, On or System default from Settings or
-  Quick Settings.
+- System default keyboard sounds now follow Sailfish Silent mode as well as
+  the Touch sounds setting.
+- Holding the clipboard button now shows a clear X before removing the current
+  clipboard value. Clipboard history is left untouched.
+- Restored downloads for the Arabic and Persian dictionaries and FUTO Swipe.

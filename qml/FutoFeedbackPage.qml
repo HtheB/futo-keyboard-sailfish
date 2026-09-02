@@ -92,10 +92,17 @@ Page {
         }, function() {})
     }
 
+    function systemKeySoundActive() {
+        var profileName = String(systemFeedback.profile || "")
+        var ringtoneVolume = Number(systemFeedback.ringerVolume)
+        return systemFeedback.touchscreenToneLevel !== 0
+                && profileName !== "silent"
+                && (!isFinite(ringtoneVolume) || ringtoneVolume > 0)
+    }
+
     function previewKeySound() {
         var mode = soundMode()
-        if (mode === 0
-				|| (mode === 2 && systemFeedback.touchscreenToneLevel === 0))
+        if (mode === 0 || (mode === 2 && !systemKeySoundActive()))
             return
         helper.typedCall("PlayKeySound", [
             { "type": "s", "value": "letter" },
@@ -181,7 +188,7 @@ Page {
                 wrapMode: Text.Wrap
                 color: Theme.secondaryColor
                 font.pixelSize: Theme.fontSizeSmall
-                text: qsTr("System default follows Sailfish key tones. On plays FUTO key sounds independently of ringtone volume.")
+                text: qsTr("System default follows Sailfish key tones and Silent mode. On plays FUTO key sounds independently of ringtone volume.")
             }
 
             Slider {

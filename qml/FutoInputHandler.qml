@@ -1775,10 +1775,17 @@ InputHandler {
         }, function() {})
     }
 
+    function systemKeySoundActive() {
+        var profileName = String(systemFeedback.profile || "")
+        var ringtoneVolume = Number(systemFeedback.ringerVolume)
+        return systemFeedback.touchscreenToneLevel !== 0
+                && profileName !== "silent"
+                && (!isFinite(ringtoneVolume) || ringtoneVolume > 0)
+    }
+
 	function keySoundActive() {
         var mode = effectiveKeySoundMode()
-		return mode === 1
-                || (mode === 2 && systemFeedback.touchscreenToneLevel !== 0)
+		return mode === 1 || (mode === 2 && systemKeySoundActive())
 	}
 
     function playKeySound(soundKind) {
@@ -2627,13 +2634,15 @@ InputHandler {
                 }
             }
 
-			PasteButton {
+			FutoPasteButton {
 				id: passwordClipboardPasteButton
 				anchors.left: parent.left
 				height: parent.height
+				width: visible ? height : 0
+				handler: futoHandler
 				z: 20
 				visible: topStrip.passwordClipboardPasteVisible
-				onClicked: {
+				onPasteRequested: {
 					futoHandler.paste(Clipboard.text)
 					keyboard.expandedPaste = false
 				}

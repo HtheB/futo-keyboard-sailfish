@@ -73,10 +73,13 @@ PredictionListView {
         width: Math.max(view.centeredHeaderWidth, pasteButton.width)
         height: view.height
 
-        PasteButton {
+        FutoPasteButton {
             id: pasteButton
             anchors.left: parent.left
-            onClicked: {
+            width: visible ? height : 0
+            height: view.height
+            handler: view.handler
+            onPasteRequested: {
                 view.cancelRemoval()
                 view.handler.paste(Clipboard.text)
                 keyboard.expandedPaste = false

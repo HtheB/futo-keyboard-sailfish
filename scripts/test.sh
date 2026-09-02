@@ -356,6 +356,10 @@ grep -Fq 'helper.typedCall("GetKeySoundMode"' \
 grep -Fq 'Name: keySoundModeChangedSignal' \
     "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
 grep -Fq 'function keySoundActive()' "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'function systemKeySoundActive()' "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'systemFeedback.profile' "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'systemFeedback.ringerVolume' "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'Sailfish key tones and Silent mode' "$ROOT/qml/FutoFeedbackPage.qml"
 grep -Fq 'function emojiStylePreviewSource(styleIndex, codepoint)' \
     "$ROOT/qml/FutoEmojiSettingsPage.qml"
 grep -Fq 'canvas.layoutModel' \
@@ -383,6 +387,18 @@ grep -Fq 'id: passwordClipboardPasteButton' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'futoHandler.paste(Clipboard.text)' \
     "$ROOT/qml/FutoInputHandler.qml"
+test -s "$ROOT/qml/FutoPasteButton.qml"
+grep -Fq 'property bool clearMode: false' "$ROOT/qml/FutoPasteButton.qml"
+grep -Fq 'Clipboard.text = ""' "$ROOT/qml/FutoPasteButton.qml"
+grep -Fq 'interval: 3000' "$ROOT/qml/FutoPasteButton.qml"
+grep -Fq 'FutoPasteButton {' "$ROOT/qml/FutoHorizontalPredictionListView.qml"
+grep -Fq 'FutoPasteButton {' "$ROOT/qml/FutoVerticalPredictionListView.qml"
+grep -Fq 'FutoPasteButton {' "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'qml/FutoPasteButton.qml' "$ROOT/packaging/Makefile"
+grep -Fq '%{_datadir}/maliit/plugins/com/jolla/FutoPasteButton.qml' \
+    "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"
+grep -Fq '%{_datadir}/maliit/plugins/com/jolla/handlers/FutoPasteButton.qml' \
+    "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"
 
 # Public builds must be reproducible without the maintainer's private staging
 # directories. Keep the documented setup, pinned source inputs and configurable
@@ -390,6 +406,10 @@ grep -Fq 'futoHandler.paste(Clipboard.text)' \
 test -s "$ROOT/BUILDING.md"
 grep -Fq '[BUILDING.md](BUILDING.md)' "$ROOT/README.md"
 grep -Fq 'scripts/prepare-build-environment.sh' "$ROOT/BUILDING.md"
+grep -Fq 'libmpc3' "$ROOT/BUILDING.md"
+grep -Fq 'compiler_smoke_test' "$ROOT/scripts/check-build-environment.sh"
+grep -Fq -- '-fsyntax-only' "$ROOT/scripts/check-build-environment.sh"
+grep -Fq 'install the libmpc3 package' "$ROOT/scripts/check-build-environment.sh"
 grep -Fq '2379f234259c87ac87b7518243cc75c0bb6b8430d6c9f20d36052f4ad33bef1a' \
     "$ROOT/scripts/prepare-build-environment.sh"
 grep -Fq 'aa1c07b1e8af5a692616160a48ac35114272e5efa2c3d106127ee3714c41ffe1' \

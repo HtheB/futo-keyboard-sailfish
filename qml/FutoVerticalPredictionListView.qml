@@ -39,13 +39,11 @@ PredictionListView {
             cancelRemoval()
     }
 
-    header: PasteButtonVertical {
-        visible: Clipboard.hasText
+    header: FutoPasteButton {
         width: view.width
         height: visible ? geometry.keyHeightLandscape : 0
-        popupParent: view.parent
-        popupAnchor: 2
-        onClicked: {
+        handler: view.handler
+        onPasteRequested: {
             view.cancelRemoval()
             view.handler.paste(Clipboard.text)
         }

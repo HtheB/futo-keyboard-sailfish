@@ -4,7 +4,7 @@
 %global _missing_build_ids_terminate_build 0
 
 Name:           futo-keyboard-sailfish
-Version:        0.3.0
+Version:        0.3.1
 Release:        1
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
 License:        LicenseRef-FUTO-Source-First-1.1-kb AND GPL-3.0-only AND BSD-3-Clause AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND LGPL-2.1-or-later AND (LGPL-2.1-only OR LGPL-3.0-only)
@@ -120,9 +120,11 @@ fi
 %{_datadir}/maliit/plugins/com/jolla/FutoInputHandler.qml
 %{_datadir}/maliit/plugins/com/jolla/FutoHorizontalPredictionListView.qml
 %{_datadir}/maliit/plugins/com/jolla/FutoVerticalPredictionListView.qml
+%{_datadir}/maliit/plugins/com/jolla/FutoPasteButton.qml
 %{_datadir}/maliit/plugins/com/jolla/handlers/FutoInputHandler.qml
 %{_datadir}/maliit/plugins/com/jolla/handlers/FutoHorizontalPredictionListView.qml
 %{_datadir}/maliit/plugins/com/jolla/handlers/FutoVerticalPredictionListView.qml
+%{_datadir}/maliit/plugins/com/jolla/handlers/FutoPasteButton.qml
 %{_datadir}/jolla-settings/pages/futo-keyboard-sailfish/
 %{_datadir}/jolla-settings/entries/futo-keyboard.json
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoCharacterKey.qml
@@ -169,6 +171,11 @@ fi
 %{_userunitdir}/maliit-server.service.d/10-futo-hardware-policy.conf
 
 %changelog
+* Wed Sep 02 2026 HtheB - 0.3.1-1
+- Make System default keyboard sounds follow Sailfish Silent mode.
+- Show an explicit confirmation action for clearing the current clipboard value.
+- Detect broken cross-compiler runtimes during the build environment check.
+
 * Wed Sep 02 2026 HtheB - 0.3.0-1
 - Introduce FUTO Swipe-based multilingual swipe typing with improved ranking,
   contractions, capitalization and short-word support.

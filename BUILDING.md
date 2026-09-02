@@ -11,7 +11,14 @@ into Git.
 - A Sailfish SDK target matching the device release and architecture
 - The matching cross compiler for `aarch64`, `armv7hl` or `i486`
 - GCC/G++, Go, Node.js, Python 3, Perl, Make, RPM tools, `patchelf`,
-  `dpkg-deb`, `curl`, `tar` and `gzip`
+  `dpkg-deb`, `curl`, `tar`, `gzip` and the compiler runtime libraries
+  required by the selected Sailfish SDK toolchain
+
+On Ubuntu and Debian, install `libmpc3` as well. Some Sailfish cross
+compilers require its `libmpc.so.3` runtime even though the compiler binary
+itself can be started successfully. The environment check compiles a minimal
+C and C++ source file so missing compiler runtimes are reported before the
+full build begins.
 
 The SDK target needs the Qt 5 base/Wayland development files and Sailfish
 Secrets development files. In particular, it must contain Qt's `qconfig.h`,

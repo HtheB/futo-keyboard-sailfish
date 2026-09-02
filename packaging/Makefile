@@ -27,7 +27,8 @@ PACKAGE_ROOT := $(DESTDIR)$(PREFIX)/share/futo-keyboard-sailfish
 HANDLER_FILES := \
 	qml/FutoInputHandler.qml \
 	qml/FutoHorizontalPredictionListView.qml \
-	qml/FutoVerticalPredictionListView.qml
+	qml/FutoVerticalPredictionListView.qml \
+	qml/FutoPasteButton.qml
 
 LAYOUT_FILES := \
 	layouts/FutoCharacterKey.qml \

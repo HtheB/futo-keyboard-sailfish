@@ -56,6 +56,41 @@ require_file() {
     fi
 }
 
+compiler_smoke_test() {
+    local label=$1
+    local compiler=$2
+    local language=$3
+    local frontend_name=$4
+    local compiler_output=""
+    local frontend=""
+    local missing_libraries=""
+
+    if compiler_output=$(printf 'int main(void) { return 0; }\n' \
+            | "$compiler" -x "$language" -fsyntax-only - 2>&1); then
+        return
+    fi
+
+    echo "$label cannot compile a minimal source file: $compiler" >&2
+    if [[ -n "$compiler_output" ]]; then
+        printf '%s\n' "$compiler_output" >&2
+    fi
+
+    frontend=$("$compiler" -print-prog-name="$frontend_name" 2>/dev/null || true)
+    if [[ -n "$frontend" && -x "$frontend" ]] && command -v ldd >/dev/null 2>&1; then
+        missing_libraries=$(ldd "$frontend" 2>/dev/null \
+                | grep 'not found' || true)
+        if [[ -n "$missing_libraries" ]]; then
+            echo "Missing runtime libraries for $frontend_name:" >&2
+            printf '%s\n' "$missing_libraries" >&2
+        fi
+    fi
+
+    if [[ "$compiler_output$missing_libraries" == *libmpc.so.3* ]]; then
+        echo "On Ubuntu or Debian, install the libmpc3 package." >&2
+    fi
+    failed=1
+}
+
 for host_tool in bash g++ gcc go node python3 perl curl dpkg-deb make rpm rpmbuild \
         tar gzip sha256sum file; do
     require_tool "host tool $host_tool" "$(command -v "$host_tool" 2>/dev/null || true)"
@@ -65,6 +100,13 @@ require_tool "cross C compiler" "$CC"
 require_tool "cross strip" "$STRIP"
 require_tool "cross readelf" "$READELF"
 require_tool "host patchelf" "$PATCHELF"
+
+if [[ -n "$CXX" && -x "$CXX" ]]; then
+    compiler_smoke_test "Cross C++ compiler" "$CXX" c++ cc1plus
+fi
+if [[ -n "$CC" && -x "$CC" ]]; then
+    compiler_smoke_test "Cross C compiler" "$CC" c cc1
+fi
 
 require_file "Qt Compose source" \
     "$QT_SOURCE/src/plugins/platforminputcontexts/compose/qcomposeplatforminputcontext.cpp"
