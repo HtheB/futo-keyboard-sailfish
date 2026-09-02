@@ -63,8 +63,10 @@ Native Sailfish build dependencies:
   `5a8d33e2eda2fe10a64acc42912dd3bedc736495`
 - Target Qt, xkbcommon and Sailfish Secrets libraries/configuration headers are
   taken from the user's matching Sailfish SDK target by
-  `scripts/prepare-build-environment.sh`; these target binaries are never
-  committed or placed in source archives.
+  `scripts/prepare-build-environment.sh`. When xkbcommon development headers
+  are absent from the target, the script stages the API headers from the host
+  development package. Target binaries are never committed or placed in source
+  archives.
 
 The complete Unicode Emoji 17 data and artwork are regenerated with
 `scripts/fetch-full-emoji-set.ps1` from the pinned Unicode, Twemoji, OpenMoji,

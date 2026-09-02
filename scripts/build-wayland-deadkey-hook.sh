@@ -11,22 +11,32 @@ TARGET_COMPILE_FLAGS=()
 if [[ -n "$TARGET_SYSROOT" ]]; then
     TARGET_COMPILE_FLAGS=(--sysroot="$TARGET_SYSROOT")
 fi
+TOOLCHAIN_SHIM=${FUTO_TOOLCHAIN_SHIM:-}
+if [[ -n "$TOOLCHAIN_SHIM" ]]; then
+    TARGET_COMPILE_FLAGS+=(-B"$TOOLCHAIN_SHIM/")
+fi
 CROSS_ROOT=${FUTO_CROSS_ROOT:-}
 TOOLCHAIN_DIRECTORY=${FUTO_TOOLCHAIN_DIR:-}
 case "$ARCH" in
     aarch64)
         TOOL_PREFIX=aarch64-linux-gnu
         DEFAULT_STOCK_SHA256=010984f4d31601b06c2c9589a3dbd223465d63434415ccaf45fc9bf232902b29
+        SUPPORTED_STOCK_SHA256=(
+            010984f4d31601b06c2c9589a3dbd223465d63434415ccaf45fc9bf232902b29
+            deb569c4a7c30b43e0ace19bbcc5d9f9f11803b7751ca9a9f134eabe4ce0fa7e
+        )
         DEFAULT_RELOCATION=00000000000e09c0
         ;;
     armv7hl)
         TOOL_PREFIX=armv7hl-meego-linux-gnueabi
         DEFAULT_STOCK_SHA256=c0df1ba2a00856cf210d13a5c97353f89c7a1f67a7e8d35b45b4c31cc4b382d1
+        SUPPORTED_STOCK_SHA256=($DEFAULT_STOCK_SHA256)
         DEFAULT_RELOCATION=000a0454
         ;;
     i486)
         TOOL_PREFIX=i486-meego-linux-gnu
         DEFAULT_STOCK_SHA256=3ce3c1a3f47f4a8eed0847e279a9191a545f22e5dd056b28230d5b075edef832
+        SUPPORTED_STOCK_SHA256=($DEFAULT_STOCK_SHA256)
         DEFAULT_RELOCATION=000bd2e0
         ;;
     *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
@@ -54,16 +64,12 @@ STRIP=${FUTO_STRIP:-$DEFAULT_STRIP}
 READELF=${FUTO_READELF:-$DEFAULT_READELF}
 PATCHELF=${FUTO_PATCHELF:-$(command -v patchelf 2>/dev/null || true)}
 INCLUDE=${FUTO_QT_INCLUDE_ROOT:-$BUILD/qt-compose-includes/include}
-XKB_INCLUDE_ROOT=${FUTO_XKBCOMMON_INCLUDE_ROOT:-}
-XKB_INCLUDE_FLAGS=()
-if [[ -n "$XKB_INCLUDE_ROOT" ]]; then
-    XKB_INCLUDE_FLAGS=(-I"$XKB_INCLUDE_ROOT")
-fi
+XKB_INCLUDE_ROOT=${FUTO_XKBCOMMON_INCLUDE_ROOT:-$DEPS_ROOT/$ARCH/xkbcommon-include}
 STOCK=$TARGET_LIB_ROOT/libQt5WaylandClient.so.5.6.3
 ORIGINAL=$BUILD/libQt5WaylandClientFutoOriginal.so.5.6.3
 HOOK=$BUILD/libQt5WaylandClient.so.5.6.3
 OBJECT=$BUILD/futo_wayland_deadkey_hook.o
-EXPECTED_STOCK_SHA256=${FUTO_EXPECTED_STOCK_SHA256:-$DEFAULT_STOCK_SHA256}
+EXPECTED_STOCK_SHA256=${FUTO_EXPECTED_STOCK_SHA256:-}
 EXPECTED_RELOCATION=${FUTO_EXPECTED_WAYLAND_RELOCATION:-$DEFAULT_RELOCATION}
 PREPATCHED_ORIGINAL=${FUTO_PREPATCHED_WAYLAND_ORIGINAL:-}
 
@@ -76,6 +82,8 @@ done
 
 for required in "$CXX" "$STRIP" "$READELF" "$STOCK" \
     "$INCLUDE/QtCore/QEvent" "$INCLUDE/QtGui/QWindow" \
+    "$XKB_INCLUDE_ROOT/xkbcommon/xkbcommon-compose.h" \
+    "$XKB_INCLUDE_ROOT/xkbcommon/xkbcommon-keysyms.h" \
     "$ROOT/hardware/compose/futo_wayland_deadkey_hook.cpp" \
     "$ROOT/hardware/compose/qt5-wayland-hook.map"; do
     test -s "$required" || { echo "Missing QtWayland hook input: $required" >&2; exit 1; }
@@ -90,10 +98,27 @@ else
 fi
 
 actual_sha256=$(sha256sum "$STOCK" | cut -d' ' -f1)
-test "$actual_sha256" = "$EXPECTED_STOCK_SHA256" || {
-    echo "Unsupported libQt5WaylandClient build: $actual_sha256" >&2
-    exit 1
-}
+if [[ -n "$EXPECTED_STOCK_SHA256" ]]; then
+    test "$actual_sha256" = "$EXPECTED_STOCK_SHA256" || {
+        echo "Unsupported libQt5WaylandClient build: $actual_sha256" >&2
+        exit 1
+    }
+else
+    stock_supported=0
+    for supported_sha256 in "${SUPPORTED_STOCK_SHA256[@]}"; do
+        if [[ "$actual_sha256" == "$supported_sha256" ]]; then
+            stock_supported=1
+            break
+        fi
+    done
+    if (( ! stock_supported )); then
+        echo "Unsupported libQt5WaylandClient build: $actual_sha256" >&2
+        echo "Supported $ARCH SHA-256 values:" >&2
+        printf '  %s\n' "${SUPPORTED_STOCK_SHA256[@]}" >&2
+        exit 1
+    fi
+    EXPECTED_STOCK_SHA256=$actual_sha256
+fi
 
 relocation=$($READELF -rW "$STOCK" | awk \
 	'/QWindowSystemInterface22handleExtendedKeyEvent/ && !found { value=$1; found=1 } \
@@ -124,7 +149,7 @@ printf '%s\n' "$EXPECTED_STOCK_SHA256" > "$BUILD/stock-wayland.sha256"
     -I"$INCLUDE/QtGui" \
     -I"$INCLUDE/QtGui/5.6.3" \
     -I"$INCLUDE/QtGui/5.6.3/QtGui" \
-    "${XKB_INCLUDE_FLAGS[@]}" \
+    -I"$XKB_INCLUDE_ROOT" \
     -DFUTO_WAYLAND_RELOCATION_OFFSET="0x$relocation" \
     -c "$ROOT/hardware/compose/futo_wayland_deadkey_hook.cpp" -o "$OBJECT"
 

@@ -11,7 +11,18 @@ into Git.
 - A Sailfish SDK target matching the device release and architecture
 - The matching cross compiler for `aarch64`, `armv7hl` or `i486`
 - GCC/G++, Go, Node.js, Python 3, Perl, Make, RPM tools, `patchelf`,
-  `dpkg-deb`, `curl`, `tar` and `gzip`
+  `dpkg-deb`, `curl`, `tar`, `gzip` and the compiler runtime libraries
+  required by the selected Sailfish SDK toolchain
+
+Install `libxkbcommon-dev` on Ubuntu or Debian when the matching development
+headers are not installed in the SDK target. Some Sailfish cross compilers
+also require a 32-bit `libmpc.so.3`. When `--toolchain-dir` points into the
+standard Sailfish SDK tooling tree, the preparation script automatically uses
+the matching runtime libraries from that tree. For other toolchain layouts,
+install `libmpc3` on the host or pass `--toolchain-lib-dir`.
+
+The environment check compiles a minimal C and C++ source file so missing
+compiler runtimes or target binutils are reported before the full build begins.
 
 The SDK target needs the Qt 5 base/Wayland development files and Sailfish
 Secrets development files. In particular, it must contain Qt's `qconfig.h`,
@@ -34,13 +45,18 @@ The script:
   0.2.44 sources;
 - copies the required target libraries and Qt configuration headers into the
   ignored `build/dependencies/` directory;
+- stages the xkbcommon headers from the SDK target or host development package;
+- detects the matching runtime-library directory for a standard Sailfish SDK
+  toolchain;
+- exposes the SDK's target assembler and linker to the cross compiler;
 - creates an `environment.sh` file containing the selected target settings.
 
 No files from `build/dependencies/` are committed or included in source
 archives.
 
 If the SDK toolchain binaries are not already in `PATH`, also pass their
-directory and, when necessary, the compiler prefix:
+directory. The compiler prefix is detected from standard Sailfish SDK
+toolchains; pass it explicitly only when that detection is not suitable:
 
 ```sh
 scripts/prepare-build-environment.sh \
@@ -49,6 +65,20 @@ scripts/prepare-build-environment.sh \
     --toolchain-dir /path/to/toolchain/bin \
     --tool-prefix armv7hl-meego-linux-gnueabi
 ```
+
+For example, a standard Sailfish OS 5.1 aarch64 installation can be prepared
+without temporary compiler wrappers:
+
+```sh
+scripts/prepare-build-environment.sh \
+    --arch aarch64 \
+    --sysroot /srv/sailfishos/targets/SailfishOS-5.1-aarch64 \
+    --toolchain-dir /srv/sailfishos/toolings/SailfishOS-5.1/opt/cross/bin
+```
+
+Use `--xkb-include-root` or `--toolchain-lib-dir` only for a nonstandard SDK
+layout. The generated `environment.sh` records both paths, so no manual
+`LD_LIBRARY_PATH`, compiler wrapper, or `/tmp` staging is needed.
 
 ## Build
 

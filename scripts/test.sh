@@ -374,10 +374,21 @@ grep -Fq 'futoHandler.paste(Clipboard.text)' \
 test -s "$ROOT/BUILDING.md"
 grep -Fq '[BUILDING.md](BUILDING.md)' "$ROOT/README.md"
 grep -Fq 'scripts/prepare-build-environment.sh' "$ROOT/BUILDING.md"
+grep -Fq 'libmpc3' "$ROOT/BUILDING.md"
+grep -Fq -- '--toolchain-lib-dir' "$ROOT/BUILDING.md"
+grep -Fq -- '--xkb-include-root' "$ROOT/BUILDING.md"
+grep -Fq 'compiler_smoke_test' "$ROOT/scripts/check-build-environment.sh"
+grep -Fq -- '-c -o "$object_file"' "$ROOT/scripts/check-build-environment.sh"
+grep -Fq 'install the libmpc3 package' "$ROOT/scripts/check-build-environment.sh"
 grep -Fq '2379f234259c87ac87b7518243cc75c0bb6b8430d6c9f20d36052f4ad33bef1a' \
     "$ROOT/scripts/prepare-build-environment.sh"
 grep -Fq 'aa1c07b1e8af5a692616160a48ac35114272e5efa2c3d106127ee3714c41ffe1' \
     "$ROOT/scripts/prepare-build-environment.sh"
+grep -Fq 'FUTO_TOOLCHAIN_LIB_DIR' "$ROOT/scripts/prepare-build-environment.sh"
+grep -Fq 'FUTO_TOOLCHAIN_SHIM' "$ROOT/scripts/prepare-build-environment.sh"
+grep -Fq 'FUTO_XKBCOMMON_INCLUDE_ROOT' "$ROOT/scripts/prepare-build-environment.sh"
+grep -Fq 'deb569c4a7c30b43e0ace19bbcc5d9f9f11803b7751ca9a9f134eabe4ce0fa7e' \
+    "$ROOT/scripts/build-wayland-deadkey-hook.sh"
 grep -Fq 'HOST_BUILD=${FUTO_HOST_BUILD_DIR:-$ROOT/build}' \
     "$ROOT/scripts/bootstrap-compose-moc.sh"
 ! grep -Fq 'futo-phone-sysroot' "$ROOT/scripts/build.sh" \
