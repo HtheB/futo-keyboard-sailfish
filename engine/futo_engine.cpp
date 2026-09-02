@@ -1005,7 +1005,7 @@ void printJsonAnalysis(const Analysis &analysis) {
 
 int main(int argc, char **argv) {
     if (argc == 2 && std::string(argv[1]) == "--version") {
-        std::cout << "futo-keyboard-sailfish-engine 0.2.3" << std::endl;
+        std::cout << "futo-keyboard-sailfish-engine 0.3.0" << std::endl;
         return 0;
     }
     if (argc == 4 && std::string(argv[1]) == "--compile") {

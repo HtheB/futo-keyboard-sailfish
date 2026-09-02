@@ -1,14 +1,17 @@
-# FUTO Keyboard for Sailfish OS 0.2.3
+# FUTO Keyboard for Sailfish OS 0.3.0
 
-This update improves keyboard stability and fixes several typing issues.
+This release brings a new multilingual swipe-typing experience and expands
+language support.
 
-## Fixes
+## New and improved
 
-- Reduced memory use when opening, scrolling and switching emoji categories.
-- The suggestion strip no longer jumps back while browsing predictions.
-- The first swipe after switching languages now works immediately.
-- Two-letter words such as “as” can now be entered by swiping.
-- Swiped words are capitalized correctly on Cyrillic and Greek layouts.
-- Added the missing Polish `ą` and `Ą` characters.
-- Improved double-space periods and removal of spaces before punctuation.
-- The current clipboard can now be pasted into password fields without enabling clipboard history.
+- New swipe typing based on FUTO Swipe, with improved word ranking across all
+  supported prediction languages.
+- Better support for contractions such as “I'm” and “can't”, capitalization and
+  short swiped words.
+- Added Arabic predictions and a Persian keyboard with predictions.
+- Languages that use the same letter layout can now remain separate, allowing
+  each language to be selected manually from the keyboard.
+- Reorganized the symbol picker into clearer categories.
+- Keyboard sounds can now be set to Off, On or System default from Settings or
+  Quick Settings.
