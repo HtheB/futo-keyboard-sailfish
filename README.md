@@ -21,7 +21,7 @@ This project brings the FUTO typing experience to Sailfish OS while adding many 
 
 ### Make the keyboard yours
 
-- The full set of directly typed FUTO language layouts, alongside the existing Sailfish and SwiftKey-style choices
+- The full set of directly typed FUTO language layouts
 - A separate layout can be selected for each language
 - Full-size, thumb, left-handed, and right-handed modes
 - Separate keyboard modes for portrait and landscape
