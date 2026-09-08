@@ -22,7 +22,7 @@ the matching runtime libraries from that tree. For other toolchain layouts,
 install `libmpc3` on the host or pass `--toolchain-lib-dir`.
 
 The environment check compiles a minimal C and C++ source file so missing
-compiler runtimes are reported before the full build begins.
+compiler runtimes or target binutils are reported before the full build begins.
 
 The SDK target needs the Qt 5 base/Wayland development files and Sailfish
 Secrets development files. In particular, it must contain Qt's `qconfig.h`,
