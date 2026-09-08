@@ -20,6 +20,8 @@ KeyboardRow {
              && !targetLayout.numpadMode
              && !(targetLayout.qwertySymbolPage !== undefined
                   && targetLayout.qwertySymbolPage)
+             && !(targetLayout.qwertySecondSymbolPage !== undefined
+                  && targetLayout.qwertySecondSymbolPage)
     separateButtonSizes: LetterLayouts.usesIndependentSizing(layoutIndex)
     splitIndex: Math.ceil(keyCount / 2)
 

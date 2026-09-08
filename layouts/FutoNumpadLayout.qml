@@ -44,7 +44,7 @@ Column {
         targetLayout: numpad.targetLayout
 		totalSpans: 9
         cells: numpad.secondPage ? [
-            { "text": "$" }, { "text": "€" }, { "text": "¥" },
+            { "text": "$" }, { "text": "£" }, { "text": "¥" },
             { "text": "¢" }, { "text": "©" }, { "text": "®" },
 			{ "text": "™" }, { "text": "~" }, { "text": "¿" }
         ] : numpad.arrange(

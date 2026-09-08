@@ -164,6 +164,18 @@ FutoKeyboardLayout {
     readonly property bool numpadLeftAligned: symbolNumberLayout === 2
     // QWERTY draws its 123 page from its own arrangement rather than from the
     // letter rows, which have neither the shape nor the symbols for it.
+    // Tapping {&= opens this second symbol page; holding it still opens the
+    // categorised picker, which is a different view entirely.
+    readonly property bool qwertySecondSymbolPage: layoutVariant === 0
+                                         && symbolNumberLayout === 0
+                                         && attributes.inSymView
+                                         && attributes.inSymView2
+                                         && !emojiMode
+                                         && !extendedSymbolMode
+                                         && !extraKeysMode
+                                         && !layoutEditorMode
+                                         && !clipboardMode
+                                         && !credentialMode
     readonly property bool qwertySymbolPage: layoutVariant === 0
                                          && symbolNumberLayout === 0
                                          && attributes.inSymView
@@ -1165,7 +1177,7 @@ FutoKeyboardLayout {
                  && !root.extraKeysMode
                  && !root.layoutEditorMode && !root.clipboardMode
 				 && !root.credentialMode
-                 && !root.numpadMode
+                 && !root.numpadMode && !root.qwertySecondSymbolPage
                  && (root.effectiveNumberRowEnabled || root.qwertySymbolPage)
                  && LetterLayouts.numberRowLength(root.layoutVariant) === 0
         FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("1"); captionShifted: caption; symView: root.layoutVariant === 0 ? caption : "!"; symView2: "¹" }
@@ -1208,13 +1220,15 @@ FutoKeyboardLayout {
                  && !root.extraKeysMode
                  && !root.layoutEditorMode && !root.clipboardMode
 				 && !root.credentialMode
-                 && !root.numpadMode
+                 && !root.numpadMode && !root.qwertySecondSymbolPage
         targetLayout: root
         symbolNumberLayout: root.symbolNumberLayout
     }
 
     FutoNumpadLayout {
-        visible: root.numpadMode && !root.extendedSymbolMode
+        // Also serves the {&= page, which holds the same symbols; sharing one
+        // component keeps the two from drifting apart.
+        visible: (root.numpadMode || root.qwertySecondSymbolPage)
                  && !root.extraKeysMode
                  && !root.layoutEditorMode && !root.clipboardMode
 				 && !root.credentialMode

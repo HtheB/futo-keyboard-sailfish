@@ -1,20 +1,45 @@
-/* Period key which shows the marks it holds and offers the comma among them.
+/* Period key which shows the marks it holds and offers different ones per page.
  *
- * It extends the stock PeriodKey rather than CharacterKey so the punctuation
- * width, split handling and separator behaviour stay exactly as Sailfish
- * defines them; only the alternates and the printed hint are ours.
+ * Beside the letters it offers the sentence marks and the comma, highlighting
+ * the period so a press without moving still types one. On the symbol page it
+ * offers the bullet and the ellipsis instead, highlighting the ellipsis, which
+ * the stock key cannot do: its popup always highlights the key's own text.
  */
 import QtQuick 2.0
 import Sailfish.Silica 1.0
 import Nemo.Configuration 1.0
+import com.jolla.keyboard 1.0
 import ".."
 
-PeriodKey {
-    accents: "!,.?"
-    accentsShifted: "!,.?"
+FutoCharacterKey {
+    id: periodKey
+
+    caption: "."
+    captionShifted: "."
+    symView: "."
+    symView2: "."
+    letterAccents: "!,.?"
+    letterAccentsShifted: "!,.?"
+    // Already among the alternates, so it is highlighted rather than inserted.
+    secondarySymbol: "."
+    secondaryHintEligible: false
+    popupAlways: true
+    implicitWidth: punctuationKeyWidth
+    fixedWidth: !splitActive
+    separator: SeparatorState.HiddenSeparator
+
+    // The symbol table answers for every "." on the symbol page; beside the
+    // letters this key answers for itself instead.
+    function symbolPopupChoices(base) {
+        return attributes.inSymView ? "•…" : ""
+    }
+
+    function symbolPopupDefault(base) {
+        return attributes.inSymView ? "…" : ""
+    }
 
     ConfigurationGroup {
-        id: visualSettings
+        id: periodVisualSettings
         path: "/sailfish/text_input/futo_keyboard"
         property bool secondarySymbolsEnabled: true
     }
@@ -29,7 +54,7 @@ PeriodKey {
         font.pixelSize: Math.max(Theme.fontSizeTiny,
                                  Math.round(parent.pixelSize * 0.43))
         text: ",!?"
-        visible: visualSettings.secondarySymbolsEnabled
+        visible: periodVisualSettings.secondarySymbolsEnabled
                  && !attributes.inSymView
         opacity: 0.72
     }
