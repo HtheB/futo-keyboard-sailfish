@@ -224,8 +224,6 @@ fi
   selectable from the keyboard.
 - Reorganize the symbol picker into clearer categories.
 - Add Off, On and System default sound modes in Settings and Quick Settings.
-
-* Mon Aug 31 2026 HtheB - 0.2.3-1
 - Reduce memory use while opening and browsing the emoji picker.
 - Keep the prediction strip in place while scrolling through suggestions.
 - Fix the first swipe after switching languages and support two-letter swipes.
