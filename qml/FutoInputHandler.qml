@@ -46,6 +46,7 @@ InputHandler {
     property string editorTypedBuffer: ""
 	property var swipePath: []
 	property string swipeLastKey: ""
+	property bool swipeStartsWord: false
 	property int swipeSessionSerial: 0
 	property int swipeOutstanding: 0
 	property bool swipeReplacementActive: false
@@ -4882,10 +4883,23 @@ InputHandler {
 			return
 		}
 		var nextPath = swipePath.slice(0)
-		// Crossing a second distinct letter turns this touch into a real swipe.
-		// Only now may it implicitly accept the previous swiped word.
-		if (nextPath.length === 1)
+		if (nextPath.length === 0) {
+			// A swipe spells a whole word, so it can only begin one. This is
+			// recorded at the touch down, because the word being typed grows
+			// under the finger while it travels.
+			swipeStartsWord = preedit === ""
+		} else if (nextPath.length === 1) {
+			// Halfway through a word a finger reaching the next key is a fast
+			// typist overshooting, not a gesture. Leaving the path empty keeps
+			// the touch an ordinary key press.
+			if (!swipeStartsWord) {
+				resetSwipePath()
+				return
+			}
+			// Crossing a second distinct letter turns this touch into a real
+			// swipe. Only now may it implicitly accept the previous swiped word.
 			acceptPendingSwipeForNextGesture()
+		}
 		nextPath.push(point)
 		swipePath = nextPath
 		swipeLastKey = caption
@@ -4950,6 +4964,7 @@ InputHandler {
 		swipeReleaseTimer.stop()
 		swipePath = []
 		swipeLastKey = ""
+		swipeStartsWord = false
 		endSwipeFeedbackSuppression()
 	}
 
