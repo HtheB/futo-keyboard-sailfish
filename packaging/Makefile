@@ -63,6 +63,7 @@ LAYOUT_FILES := \
 	layouts/FutoEnterKey.qml \
 	layouts/FutoKeyboardLayout.qml \
 	layouts/FutoNumpadLayout.qml \
+	layouts/FutoPeriodKey.qml \
 	layouts/FutoNumpadRow.qml \
 	layouts/FutoQwertyLayout.qml \
 	layouts/FutoShiftKey.qml \

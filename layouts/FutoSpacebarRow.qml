@@ -30,7 +30,7 @@ KeyboardRow {
         active: targetLayout && targetLayout.thumbLandscapeMode
         languageLabel: ""
     }
-	PeriodKey {}
+	FutoPeriodKey {}
 	// Keep the Enter glyph at its normal size while narrowing only its touch
 	// cell.  This moves a normal-width Period key right and extends Space.
 	FutoEnterKey {
