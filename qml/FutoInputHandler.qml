@@ -4912,18 +4912,11 @@ InputHandler {
 		}
 		var nextPath = swipePath.slice(0)
 		if (nextPath.length === 0) {
-			// A swipe spells a whole word, so it can only begin one. This is
-			// recorded at the touch down, because the word being typed grows
-			// under the finger while it travels.
+			// Recorded at the touch down, because the word being typed grows
+			// under the finger while it travels. It decides how far this touch
+			// must go before it counts as a gesture.
 			swipeStartsWord = preedit === ""
 		} else if (nextPath.length === 1) {
-			// Halfway through a word a finger reaching the next key is a fast
-			// typist overshooting, not a gesture. Leaving the path empty keeps
-			// the touch an ordinary key press.
-			if (!swipeStartsWord) {
-				resetSwipePath()
-				return
-			}
 			// Crossing a second distinct letter turns this touch into a real
 			// swipe. Only now may it implicitly accept the previous swiped word.
 			acceptPendingSwipeForNextGesture()
@@ -5094,9 +5087,12 @@ InputHandler {
 	}
 
 	function finishSwipeGesture() {
-		// Two-letter words such as "as" are valid gestures. Requiring three
-		// crossed keys made them impossible regardless of dictionary quality.
-		if (swipePath.length < 2 || !swipeKeyAllowed(pressedKey))
+		// Two-letter words such as "as" are valid gestures, so a touch beginning
+		// a word needs only the two keys. Halfway through one, two keys is what
+		// a fast typist produces by overshooting into the neighbour, while a
+		// gesture meant there carries on across the keyboard.
+		var minimumKeys = swipeStartsWord ? 2 : 3
+		if (swipePath.length < minimumKeys || !swipeKeyAllowed(pressedKey))
 			return false
 		var serializedPath = swipePath.join(";")
 		if (keyboard.layout && keyboard.layout.serializedSwipeTrace) {
