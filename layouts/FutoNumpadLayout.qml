@@ -7,6 +7,9 @@ Column {
     property Item targetLayout
     property bool secondPage: false
     property bool followRowHeight: false
+    // The digit block sits on the right by default; left-handed dialling puts
+    // it on the other side of the same rows, symbols taking the space it left.
+    property bool leftAligned: false
     height: targetLayout ? 4 * targetLayout.keyHeight : 0
     opacity: targetLayout && targetLayout.cursorMoveMode ? 0 : 1
     spacing: 0
@@ -27,6 +30,14 @@ Column {
                 ? targetLayout.punctuationForLayout(value) : String(value)
     }
 
+    // Keeps the leading and trailing keys in place and swaps only the two
+    // blocks between them, so every row stays nine spans wide either way.
+    function arrange(first, digits, symbols, last) {
+        return [first].concat(leftAligned ? digits.concat(symbols)
+                                          : symbols.concat(digits))
+                      .concat([last])
+    }
+
     FutoNumpadRow {
         width: parent.width
         height: numpad.targetLayout ? numpad.targetLayout.keyHeight : 0
@@ -36,12 +47,12 @@ Column {
             { "text": "$" }, { "text": "€" }, { "text": "¥" },
             { "text": "¢" }, { "text": "©" }, { "text": "®" },
 			{ "text": "™" }, { "text": "~" }, { "text": "¿" }
-        ] : [
-            { "text": "#" }, { "text": "€" }, { "text": "&" },
-            { "text": "_" }, { "text": "-" }, { "text": numpad.digit("1") },
-			{ "text": numpad.digit("2") }, { "text": numpad.digit("3") },
-			{ "text": numpad.mark("?") }
-        ]
+        ] : numpad.arrange(
+            { "text": "#" },
+            [ { "text": numpad.digit("1") }, { "text": numpad.digit("2") },
+              { "text": numpad.digit("3") } ],
+            [ { "text": "€" }, { "text": "&" }, { "text": "_" }, { "text": "-" } ],
+            { "text": numpad.mark("?") })
     }
 
     FutoNumpadRow {
@@ -53,11 +64,12 @@ Column {
             { "text": "⇥", "action": "tab" }, { "text": "[" }, { "text": "]" },
             { "text": "{" }, { "text": "}" }, { "text": "<" },
 			{ "text": ">" }, { "text": "^" }, { "text": "¡" }
-        ] : [
-            { "text": "@" }, { "text": "(" }, { "text": ")" },
-            { "text": "=" }, { "text": "+" }, { "text": numpad.digit("4") },
-			{ "text": numpad.digit("5") }, { "text": numpad.digit("6") }, { "text": "!" }
-        ]
+        ] : numpad.arrange(
+            { "text": "@" },
+            [ { "text": numpad.digit("4") }, { "text": numpad.digit("5") },
+              { "text": numpad.digit("6") } ],
+            [ { "text": "(" }, { "text": ")" }, { "text": "=" }, { "text": "+" } ],
+            { "text": "!" })
     }
 
     FutoNumpadRow {
@@ -70,12 +82,13 @@ Column {
             { "text": numpad.mark(";") }, { "text": "÷" }, { "text": "\\" },
             { "text": "|" }, { "text": "¦" }, { "text": "¬" },
 			{ "text": "", "action": "backspace" }
-        ] : [
-            { "text": "{&=", "action": "extendedSymbols" }, { "text": "'" },
-            { "text": ":" }, { "text": numpad.mark("%") }, { "text": "/" },
-            { "text": numpad.digit("7") }, { "text": numpad.digit("8") }, { "text": numpad.digit("9") },
-			{ "text": "", "action": "backspace" }
-        ]
+        ] : numpad.arrange(
+            { "text": "{&=", "action": "extendedSymbols" },
+            [ { "text": numpad.digit("7") }, { "text": numpad.digit("8") },
+              { "text": numpad.digit("9") } ],
+            [ { "text": "'" }, { "text": ":" }, { "text": numpad.mark("%") },
+              { "text": "/" } ],
+            { "text": "", "action": "backspace" })
     }
 
     FutoNumpadRow {
@@ -88,11 +101,12 @@ Column {
             { "text": "", "action": "space", "span": 3 },
             { "text": "×" }, { "text": "§" }, { "text": "¶" },
 			{ "text": "°" }, { "text": "", "action": "enter" }
-        ] : [
-            { "text": "ABC", "action": "abc" }, { "text": "\"" },
-            { "text": "", "action": "space", "span": 2 }, { "text": "*" },
-            { "text": numpad.mark(",") }, { "text": numpad.digit("0") }, { "text": "." },
-			{ "text": "", "action": "enter" }
-        ]
+        ] : numpad.arrange(
+            { "text": "ABC", "action": "abc" },
+            [ { "text": numpad.mark(",") }, { "text": numpad.digit("0") },
+              { "text": "." } ],
+            [ { "text": "\"" }, { "text": "", "action": "space", "span": 2 },
+              { "text": "*" } ],
+            { "text": "", "action": "enter" })
     }
 }

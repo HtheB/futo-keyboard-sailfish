@@ -212,11 +212,12 @@ Page {
             ComboBox {
                 width: parent.width
                 label: qsTr("Numbers on the 123 page")
-                currentIndex: Math.max(0, Math.min(1, settings.symbolNumberLayout))
+                currentIndex: Math.max(0, Math.min(2, settings.symbolNumberLayout))
                 onCurrentIndexChanged: settings.symbolNumberLayout = currentIndex
                 menu: ContextMenu {
                     MenuItem { text: qsTr("Numbers across the top") }
-                    MenuItem { text: qsTr("Numpad arrangement") }
+                    MenuItem { text: qsTr("Numpad arrangement - Right") }
+                    MenuItem { text: qsTr("Numpad arrangement - Left") }
                 }
             }
 

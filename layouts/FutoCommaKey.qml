@@ -29,7 +29,7 @@ ContextAwareCommaKey {
 			? (attributes.inSymView2 ? symView2 : symView)
 			: (localizedComma ? "،" : String(caption))
 
-    symView: symbolNumberLayout === 1 ? "0" : ","
+    symView: symbolNumberLayout >= 1 ? "0" : ","
     symView2: ","
 	text: inputText
 	keyText: fallbackVoiceActive ? ""

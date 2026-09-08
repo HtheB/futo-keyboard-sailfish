@@ -81,7 +81,7 @@ FutoKeyboardLayout {
 
     readonly property int layoutVariant: LetterLayouts.clampedIndex(
                                              layoutSettings.layoutVariant)
-    readonly property int symbolNumberLayout: Math.max(0, Math.min(1,
+    readonly property int symbolNumberLayout: Math.max(0, Math.min(2,
                                                                   layoutSettings.symbolNumberLayout))
     readonly property int emojiStyle: Math.max(0, Math.min(3, layoutSettings.emojiStyle))
     readonly property int emojiSkinTone: Math.max(0, Math.min(5,
@@ -154,11 +154,14 @@ FutoKeyboardLayout {
         return languages.length > 2 ? qsTr("MULTI") : languages.join("+")
     }
     readonly property string activePredictionLanguages: predictionLanguagesForLayout(layoutVariant)
-    readonly property bool numpadMode: symbolNumberLayout === 1
+    // Both arrangements are the numpad; they differ only in the side the
+    // digits sit on, so only the page condition belongs to numpadMode.
+    readonly property bool numpadMode: symbolNumberLayout >= 1
                                          && attributes.inSymView
                                          && !emojiMode
                                          && !extendedSymbolMode
                                          && !extraKeysMode
+    readonly property bool numpadLeftAligned: symbolNumberLayout === 2
     property bool emojiMode: false
     property bool emojiSearchMode: false
     property string emojiSearchQuery: ""
@@ -1197,6 +1200,7 @@ FutoKeyboardLayout {
                  && !root.layoutEditorMode && !root.clipboardMode
 				 && !root.credentialMode
         targetLayout: root
+        leftAligned: root.numpadLeftAligned
         secondPage: attributes.inSymView2
     }
 
