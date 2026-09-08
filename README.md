@@ -10,7 +10,7 @@ This project brings the FUTO typing experience to Sailfish OS while adding many 
 
 ### Smarter typing
 
-- Multilingual predictions across 25 available languages
+- Multilingual predictions for every included language with an available offline dictionary
 - Automatic per-word language detection
 - Spelling corrections and next-word predictions
 - Context-aware suggestions and compound-word support
@@ -21,7 +21,7 @@ This project brings the FUTO typing experience to Sailfish OS while adding many 
 
 ### Make the keyboard yours
 
-- 20 keyboard layouts
+- The full set of directly typed FUTO language layouts, alongside the existing Sailfish and SwiftKey-style choices
 - A separate layout can be selected for each language
 - Full-size, thumb, left-handed, and right-handed modes
 - Separate keyboard modes for portrait and landscape

@@ -1,15 +1,21 @@
-Copyright 2010-2022 The Amiri Project Authors (https://github.com/aliftype/amiri).
+Copyright 2022 The Noto Project Authors.
+Copyright 2014 Google Inc.
 
-The regular bundled Amiri 1.003 font is unmodified. A second font is derived
-from Sailfish OS 5.2's Amiri 0.107 by replacing only the U+FDFC Rial outline
-and metrics with the corresponding glyph from Android AppSupport's
-OFL-licensed Noto Naskh Arabic UI font. It is installed beside the original OS
-font and does not overwrite it. All other glyphs remain from Sailfish Amiri.
+Bundled families:
+- Noto Sans Tifinagh (https://github.com/notofonts/tifinagh)
+- Noto Sans Sinhala (https://github.com/notofonts/sinhala)
+- Noto Sans Myanmar (https://github.com/notofonts/myanmar)
+- Noto Sans Khmer (https://github.com/notofonts/khmer)
+- Noto Naskh Arabic (https://github.com/notofonts/arabic)
+
+`FUTO Android Riyal` is Android AppSupport's OFL-licensed compact Noto Naskh
+Arabic UI 1.08 font with a changed family name. The keyboard and fontconfig
+select it only for U+FDFC, avoiding conflicts with the complete current Noto
+Naskh Arabic font and leaving ordinary text on Sailfish's existing typeface.
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:
-https://openfontlicense.org/
-
+https://scripts.sil.org/OFL
 
 -----------------------------------------------------------
 SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007

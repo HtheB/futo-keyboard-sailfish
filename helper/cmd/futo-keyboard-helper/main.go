@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
@@ -46,6 +47,7 @@ const (
 	voicePath                 = "/usr/libexec/futo-keyboard-voice"
 	bundledDictionaryDir      = "/usr/share/futo-keyboard-sailfish/dictionaries"
 	bundledVoiceModelPath     = "/usr/share/futo-keyboard-sailfish/voice/tiny_acft_q8_0.bin"
+	emojiSearchIndexPath      = "/usr/share/futo-keyboard-sailfish/emoji-search-index.json.gz"
 	soundDir                  = "/usr/share/futo-keyboard-sailfish/sounds"
 	keyringPath               = "/usr/libexec/futo-keyboard-keyring"
 	focusPath                 = "/usr/libexec/futo-keyboard-focus"
@@ -53,7 +55,7 @@ const (
 	forcedAppSupportDconfPath = "/sailfish/text_input/futo_keyboard/forcedAppSupportKeyEvents"
 	vaultAuthAction           = "org.hb.futo.keyboard.saved-login"
 	vaultSaveAuthAction       = "org.hb.futo.keyboard.save-login"
-	version                   = "0.3.0"
+	version                   = "0.4.0"
 )
 
 func zeroBytes(data []byte) {
@@ -253,12 +255,20 @@ type languageInfo struct {
 var supportedLanguages = []languageInfo{
 	{Code: "EN", File: "en_US.fksidx", Name: "English (US)"},
 	{Code: "EN_GB", File: "en_GB.fksidx", Name: "English (UK)"},
+	{Code: "EN_IN", File: "en_GB.fksidx", Name: "English (India)"},
 	{Code: "NL", File: "nl.fksidx", Name: "Nederlands"},
+	{Code: "NL_BE", File: "nl.fksidx", Name: "Nederlands (België)"},
 	{Code: "TR", File: "tr.fksidx", Name: "Türkçe"},
 	{Code: "DE", File: "de.fksidx", Name: "Deutsch"},
+	{Code: "DE_CH", File: "de.fksidx", Name: "Deutsch (Schweiz)"},
 	{Code: "FR", File: "fr.fksidx", Name: "Français"},
+	{Code: "FR_CA", File: "fr.fksidx", Name: "Français (Canada)"},
+	{Code: "FR_CH", File: "fr.fksidx", Name: "Français (Suisse)"},
 	{Code: "ES", File: "es.fksidx", Name: "Español"},
+	{Code: "ES_419", File: "es.fksidx", Name: "Español (Latinoamérica)"},
+	{Code: "ES_US", File: "es.fksidx", Name: "Español (Estados Unidos)"},
 	{Code: "IT", File: "it.fksidx", Name: "Italiano"},
+	{Code: "IT_CH", File: "it.fksidx", Name: "Italiano (Svizzera)"},
 	{Code: "PT_BR", File: "pt_BR.fksidx", Name: "Português (Brasil)"},
 	{Code: "PT_PT", File: "pt_PT.fksidx", Name: "Português (Portugal)"},
 	{Code: "SV", File: "sv.fksidx", Name: "Svenska"},
@@ -327,6 +337,131 @@ type swipeProcess struct {
 	command *exec.Cmd
 	stdin   io.WriteCloser
 	stdout  *bufio.Reader
+}
+
+// androidCursorProcess keeps a single, restricted lxc-attach channel open.
+// Starting lxc-attach for every cursor tick made Android cursor control visibly
+// trail the finger. The privileged peer accepts only L/R/U/D, a bounded count,
+// and an optional selection flag.
+type androidCursorProcess struct {
+	mu      sync.Mutex
+	command *exec.Cmd
+	stdin   io.WriteCloser
+	stdout  *bufio.Reader
+}
+
+func (process *androidCursorProcess) resetLocked() {
+	if process.stdin != nil {
+		_ = process.stdin.Close()
+	}
+	if process.command != nil && process.command.Process != nil {
+		_ = process.command.Process.Kill()
+	}
+	process.command = nil
+	process.stdin = nil
+	process.stdout = nil
+}
+
+func (process *androidCursorProcess) startLocked() error {
+	if process.command != nil && process.command.Process != nil {
+		return nil
+	}
+	command := exec.Command(appSupportKeyboardPath, "cursorstream")
+	stdin, err := command.StdinPipe()
+	if err != nil {
+		return err
+	}
+	stdoutPipe, err := command.StdoutPipe()
+	if err != nil {
+		_ = stdin.Close()
+		return err
+	}
+	command.Stderr = os.Stderr
+	if err := command.Start(); err != nil {
+		_ = stdin.Close()
+		return err
+	}
+	reader := bufio.NewReaderSize(stdoutPipe, 256)
+	ready := make(chan error, 1)
+	go func() {
+		line, readErr := reader.ReadString('\n')
+		if readErr == nil && strings.TrimSpace(line) != "READY" {
+			readErr = errors.New("invalid Android cursor bridge greeting")
+		}
+		ready <- readErr
+	}()
+	select {
+	case err := <-ready:
+		if err != nil {
+			_ = stdin.Close()
+			_ = command.Process.Kill()
+			_ = command.Wait()
+			return err
+		}
+	case <-time.After(2 * time.Second):
+		_ = stdin.Close()
+		_ = command.Process.Kill()
+		_ = command.Wait()
+		return errors.New("Android cursor bridge startup timed out")
+	}
+	process.command = command
+	process.stdin = stdin
+	process.stdout = reader
+	return nil
+}
+
+func (process *androidCursorProcess) send(horizontalSteps, verticalSteps int32,
+	selecting bool) error {
+	process.mu.Lock()
+	defer process.mu.Unlock()
+	selection := 0
+	if selecting {
+		selection = 1
+	}
+	commands := make([]string, 0, 2)
+	if horizontalSteps != 0 {
+		direction := "R"
+		if horizontalSteps < 0 {
+			direction = "L"
+		}
+		commands = append(commands, fmt.Sprintf("%s %d %d\n", direction,
+			absInt32(horizontalSteps), selection))
+	}
+	if verticalSteps != 0 {
+		direction := "D"
+		if verticalSteps < 0 {
+			direction = "U"
+		}
+		commands = append(commands, fmt.Sprintf("%s %d %d\n", direction,
+			absInt32(verticalSteps), selection))
+	}
+	if len(commands) == 0 {
+		return nil
+	}
+	request := strings.Join(commands, "")
+	for attempt := 0; attempt < 2; attempt++ {
+		if err := process.startLocked(); err != nil {
+			process.resetLocked()
+			if attempt == 1 {
+				return err
+			}
+			continue
+		}
+		if _, err := io.WriteString(process.stdin, request); err == nil {
+			return nil
+		} else if attempt == 1 {
+			process.resetLocked()
+			return err
+		}
+		process.resetLocked()
+	}
+	return errors.New("Android cursor bridge is unavailable")
+}
+
+func (process *androidCursorProcess) close() {
+	process.mu.Lock()
+	defer process.mu.Unlock()
+	process.resetLocked()
 }
 
 func (engine *swipeProcess) startLocked() error {
@@ -2664,6 +2799,7 @@ type service struct {
 	bus                      *dbus.Conn
 	engine                   engineProcess
 	swipeEngine              swipeProcess
+	androidCursor            androidCursorProcess
 	codec                    *secureFileCodec
 	learned                  *learnedStore
 	history                  *historyStore
@@ -2716,6 +2852,151 @@ type voiceInputUpdate struct {
 	SpeechDetected        bool   `json:"speech_detected"`
 	DurationMillis        int    `json:"duration_ms"`
 	TrailingSilenceMillis int    `json:"trailing_silence_ms"`
+}
+
+type emojiSearchEntry struct {
+	Code      string            `json:"c"`
+	Names     string            `json:"n"`
+	Languages map[string]string `json:"l"`
+}
+
+func foldEmojiSearch(value, language string) string {
+	if language == "TR" {
+		value = strings.NewReplacer("I", "ı", "İ", "i").Replace(value)
+	}
+	return strings.ReplaceAll(strings.ToLower(value), "\u0307", "")
+}
+
+func emojiSearchLanguages(value string) []string {
+	languages := normalizeLanguages(value)
+	if len(languages) == 0 {
+		return []string{"EN"}
+	}
+	return languages
+}
+
+func emojiSearchTokens(value, language string) []string {
+	return strings.FieldsFunc(foldEmojiSearch(value, language), func(character rune) bool {
+		return !unicode.IsLetter(character) && !unicode.IsNumber(character)
+	})
+}
+
+func emojiTokenScore(queryTokens, candidateTokens []string) (int, bool) {
+	total := 0
+	for _, queryToken := range queryTokens {
+		best := 0
+		for _, candidate := range candidateTokens {
+			score := 0
+			if candidate == queryToken {
+				score = 4
+			} else if strings.HasPrefix(candidate, queryToken) {
+				score = 2
+			}
+			if score > best {
+				best = score
+			}
+		}
+		if best == 0 {
+			return 0, false
+		}
+		total += best
+	}
+	return total, len(queryTokens) > 0
+}
+
+func emojiEntryScore(entry emojiSearchEntry, query string, languages []string) (int, bool) {
+	best := 0
+	for _, language := range languages {
+		queryTokens := emojiSearchTokens(query, language)
+		if len(queryTokens) == 0 {
+			continue
+		}
+		languageBest := 0
+		if language == "EN" || language == "EN_GB" {
+			if score, matched := emojiTokenScore(
+				queryTokens, emojiSearchTokens(entry.Names, language)); matched {
+				// Prefer the canonical English name and keywords over a
+				// translated synonym when both happen to match.
+				languageBest = score*2 + 1
+			}
+		}
+		if score, matched := emojiTokenScore(
+			queryTokens, emojiSearchTokens(entry.Languages[language], language)); matched {
+			if localizedScore := score * 2; localizedScore > languageBest {
+				languageBest = localizedScore
+			}
+		}
+		if languageBest > best {
+			best = languageBest
+		}
+	}
+	return best, best > 0
+}
+
+type emojiSearchMatch struct {
+	Code  string
+	Score int
+	Order int
+}
+
+func searchEmojiIndex(path, query, languagesCSV string) ([]string, error) {
+	query = strings.TrimSpace(query)
+	if utf8.RuneCountInString(query) > 128 {
+		return nil, errors.New("emoji search query is too long")
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	compressed, err := gzip.NewReader(file)
+	if err != nil {
+		return nil, err
+	}
+	defer compressed.Close()
+	decoder := json.NewDecoder(compressed)
+	token, err := decoder.Token()
+	if err != nil || token != json.Delim('[') {
+		if err == nil {
+			err = errors.New("emoji search index is not an array")
+		}
+		return nil, err
+	}
+	languages := emojiSearchLanguages(languagesCSV)
+	matches := make([]emojiSearchMatch, 0, 64)
+	order := 0
+	for decoder.More() {
+		var entry emojiSearchEntry
+		if err := decoder.Decode(&entry); err != nil {
+			return nil, err
+		}
+		if entry.Code != "" {
+			if query == "" {
+				matches = append(matches, emojiSearchMatch{Code: entry.Code, Order: order})
+			} else if score, matched := emojiEntryScore(entry, query, languages); matched {
+				matches = append(matches, emojiSearchMatch{
+					Code: entry.Code, Score: score, Order: order,
+				})
+			}
+		}
+		order++
+	}
+	if _, err := decoder.Token(); err != nil {
+		return nil, err
+	}
+	if query != "" {
+		sort.SliceStable(matches, func(left, right int) bool {
+			if matches[left].Score != matches[right].Score {
+				return matches[left].Score > matches[right].Score
+			}
+			return matches[left].Order < matches[right].Order
+		})
+	}
+	result := make([]string, len(matches))
+	for index, match := range matches {
+		result[index] = match.Code
+	}
+	return result, nil
 }
 
 type vaultSession struct {
@@ -3535,6 +3816,22 @@ func normalizeLanguages(value string) []string {
 }
 
 func languageRuneBonus(language, word string) int64 {
+	// Regional aliases share their downloaded dictionary and language-specific
+	// character ranking with the corresponding base language.
+	switch language {
+	case "DE_CH":
+		language = "DE"
+	case "EN_IN":
+		language = "EN_GB"
+	case "ES_419", "ES_US":
+		language = "ES"
+	case "FR_CA", "FR_CH":
+		language = "FR"
+	case "IT_CH":
+		language = "IT"
+	case "NL_BE":
+		language = "NL"
+	}
 	if language == "AR" || language == "FA" {
 		// Arabic and Persian share most of the Arabic script. Reward the shared
 		// script for both, then use their distinctive letters to break ties.
@@ -5346,6 +5643,22 @@ func (service *service) ListSupportedLanguages() (string, *dbus.Error) {
 	return string(data), nil
 }
 
+// SearchEmoji deliberately runs outside maliit-server.  Importing the complete
+// multilingual index into Qt 5.6's JavaScript engine can retain hundreds of
+// megabytes until Maliit exits; streaming the compressed catalogue here keeps
+// the keyboard process bounded to the visible emoji rows.
+func (service *service) SearchEmoji(query, languagesCSV string) (string, *dbus.Error) {
+	codes, err := searchEmojiIndex(emojiSearchIndexPath, query, languagesCSV)
+	if err != nil {
+		return "", dbus.MakeFailedError(err)
+	}
+	encoded, err := json.Marshal(codes)
+	if err != nil {
+		return "", dbus.MakeFailedError(err)
+	}
+	return string(encoded), nil
+}
+
 func (service *service) SuppressClipboardCapture(
 	sender dbus.Sender, token, text string) (bool, *dbus.Error) {
 	if !service.trustedNamedVaultCaller(sender, "com.jolla.settings") ||
@@ -5536,6 +5849,121 @@ func validAndroidSwipeWord(word string) bool {
 		}
 	}
 	return true
+}
+
+func androidCursorKey(horizontal bool, negative bool) string {
+	if horizontal {
+		if negative {
+			return "KEYCODE_DPAD_LEFT"
+		}
+		return "KEYCODE_DPAD_RIGHT"
+	}
+	if negative {
+		return "KEYCODE_DPAD_UP"
+	}
+	return "KEYCODE_DPAD_DOWN"
+}
+
+func absInt32(value int32) int32 {
+	if value < 0 {
+		return -value
+	}
+	return value
+}
+
+func androidProcessMarker(value string) bool {
+	lowerValue := strings.ToLower(strings.TrimSpace(value))
+	return strings.HasPrefix(lowerValue, "/system/") ||
+		strings.Contains(lowerValue, "/appsupport/") ||
+		strings.Contains(lowerValue, "apkd-bridge") ||
+		strings.Contains(lowerValue, "aliendalvik") ||
+		strings.Contains(lowerValue, "surfaceflinger")
+}
+
+func processLooksAndroid(pid int32) bool {
+	if pid <= 0 {
+		return false
+	}
+	procRoot := filepath.Join("/proc", strconv.FormatInt(int64(pid), 10))
+	if executable, err := os.Readlink(filepath.Join(procRoot, "exe")); err == nil {
+		if androidProcessMarker(executable) {
+			return true
+		}
+	}
+	for _, name := range []string{"comm", "cmdline"} {
+		identity, err := os.ReadFile(filepath.Join(procRoot, name))
+		if err == nil && androidProcessMarker(strings.ReplaceAll(string(identity), "\x00", " ")) {
+			return true
+		}
+	}
+	status, err := os.ReadFile(filepath.Join(procRoot, "status"))
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(string(status), "\n") {
+		if !strings.HasPrefix(line, "Uid:") {
+			continue
+		}
+		fields := strings.Fields(strings.TrimPrefix(line, "Uid:"))
+		if len(fields) == 0 {
+			return false
+		}
+		uid, parseErr := strconv.ParseInt(fields[0], 10, 64)
+		return parseErr == nil && uid >= 500000 && uid < 600000
+	}
+	return false
+}
+
+// CursorTargetIsAndroid classifies the compositor-owned client process rather
+// than its policy id. Lipstick may assign hexadecimal policy ids to both native
+// and Android surfaces, whereas AppSupport clients live under /system or the
+// mapped Android uid range.
+func (service *service) CursorTargetIsAndroid(sender dbus.Sender,
+	pid int32) (bool, *dbus.Error) {
+	if !service.trustedNamedVaultCaller(sender, "com.jolla.keyboard") {
+		return false, nil
+	}
+	return processLooksAndroid(pid), nil
+}
+
+// InjectAndroidCursor provides the cursor-pad equivalent of Maliit's arrow-key
+// events for an ordinary Android AppSupport editor. AppSupport does not forward
+// those Maliit events consistently, so the same tightly restricted bridge used
+// by the explicit compatibility keyboard sends only DPAD navigation keys.
+func (service *service) InjectAndroidCursor(sender dbus.Sender,
+	horizontalSteps int32, verticalSteps int32, selecting bool) (bool, *dbus.Error) {
+	if !service.trustedNamedVaultCaller(sender, "com.jolla.keyboard") {
+		return false, nil
+	}
+	if horizontalSteps < -48 || horizontalSteps > 48 ||
+		verticalSteps < -24 || verticalSteps > 24 {
+		return false, nil
+	}
+
+	type cursorRun struct {
+		key   string
+		count int32
+	}
+	runs := make([]cursorRun, 0, 2)
+	if horizontalSteps != 0 {
+		runs = append(runs, cursorRun{
+			key: androidCursorKey(true, horizontalSteps < 0), count: absInt32(horizontalSteps),
+		})
+	}
+	if verticalSteps != 0 {
+		runs = append(runs, cursorRun{
+			key: androidCursorKey(false, verticalSteps < 0), count: absInt32(verticalSteps),
+		})
+	}
+	if len(runs) == 0 {
+		return true, nil
+	}
+
+	if err := service.androidCursor.send(horizontalSteps, verticalSteps, selecting); err != nil {
+		log.Printf("could not stream Android AppSupport cursor movement: %v", err)
+		return false, nil
+	}
+	return true, nil
 }
 
 // InjectAndroidKey is available only for a short period after the user invokes
@@ -6231,6 +6659,7 @@ func main() {
 	}
 	defer application.engine.close()
 	defer application.swipeEngine.close()
+	defer application.androidCursor.close()
 	defer application.CancelVoiceInput()
 
 	if err := connection.Export(application, objectPath, interfaceName); err != nil {

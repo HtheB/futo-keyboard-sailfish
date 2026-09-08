@@ -4,7 +4,7 @@
 %global _missing_build_ids_terminate_build 0
 
 Name:           futo-keyboard-sailfish
-Version:        0.3.1
+Version:        0.4.0
 Release:        1
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
 License:        LicenseRef-FUTO-Source-First-1.1-kb AND GPL-3.0-only AND BSD-3-Clause AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND LGPL-2.1-or-later AND (LGPL-2.1-only OR LGPL-3.0-only)
@@ -23,6 +23,7 @@ Requires:       libngf-qt5-declarative
 Requires:       qt5-qtfeedback
 Requires:       jolla-settings-system
 Requires:       qt5-qtsvg
+Requires:       fontconfig
 Requires:       pulseaudio
 Requires:       libstdc++
 Requires:       systemd
@@ -33,9 +34,10 @@ Requires:       polkit
 Requires:       qt5-qtwayland-wayland_egl >= 5.6.3
 
 %description
-An independent, modified Sailfish OS integration using FUTO Keyboard dictionary
-data. It provides one native FUTO layout with simultaneous suggestions across
-selectable prediction languages, per-language visual layout assignment,
+An independent, modified Sailfish OS integration using FUTO Keyboard layout and
+dictionary data. It provides directly typed FUTO language layouts with
+simultaneous suggestions across selectable prediction languages, per-language
+visual layout assignment,
 automatic language weighting, context and next-word learning, configurable typo
 correction, keyboard-layout-aware swipe typing, optional offline FUTO voice typing,
 private clipboard history, an on-device personal dictionary, and
@@ -58,6 +60,7 @@ make -f packaging/Makefile install DESTDIR=%{buildroot} PREFIX=%{_prefix} \
     ARCH=%{_target_cpu} BUILD_DIR=build/%{_target_cpu} LIBDIR=%{_libdir}
 
 %post
+/usr/bin/fc-cache -f >/dev/null 2>&1 || :
 /usr/libexec/futo-keyboard-install-wayland-deadkey-hook || :
 /usr/libexec/futo-keyboard-install-textinput-bottom-hook || :
 /usr/bin/systemctl-user daemon-reload >/dev/null 2>&1 || :
@@ -73,6 +76,7 @@ if [ "$1" -eq 0 ]; then
 fi
 
 %postun
+/usr/bin/fc-cache -f >/dev/null 2>&1 || :
 /usr/bin/systemctl-user daemon-reload >/dev/null 2>&1 || :
 /usr/bin/systemctl-user reload dbus.service >/dev/null 2>&1 || :
 /usr/bin/systemctl-user try-restart maliit-server.service >/dev/null 2>&1 || :
@@ -96,6 +100,7 @@ fi
 %license %{_licensedir}/%{name}/LIBX11-COMPOSE-LICENSE.txt
 %license %{_licensedir}/%{name}/QT-COMPOSE-NOTICE.md
 %license %{_licensedir}/%{name}/AMIRI-FONT-LICENSE.txt
+%license %{_licensedir}/%{name}/NOTO-FONTS-OFL.txt
 %license %{_licensedir}/%{name}/YEKA-ZIP-LICENSE.txt
 %license %{_licensedir}/%{name}/MODIFIED-NOTICE.md
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-engine
@@ -117,6 +122,9 @@ fi
 %{_datadir}/X11/locale/compose.dir
 %{_datadir}/X11/locale/locale.alias
 %{_datadir}/futo-keyboard-sailfish/
+%{_datadir}/fonts/futo-keyboard-sailfish/
+%{_datadir}/fonts/amiri/00-futo-amiri-regular.ttf
+%config(noreplace) %{_sysconfdir}/fonts/conf.d/65-futo-keyboard-symbols.conf
 %{_datadir}/maliit/plugins/com/jolla/FutoInputHandler.qml
 %{_datadir}/maliit/plugins/com/jolla/FutoHorizontalPredictionListView.qml
 %{_datadir}/maliit/plugins/com/jolla/FutoVerticalPredictionListView.qml
@@ -135,8 +143,6 @@ fi
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoEmojiKey.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoEmojiPanel.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoEmojiData.js
-%{_datadir}/maliit/plugins/com/jolla/layouts/FutoEmojiSearchProvider.qml
-%{_datadir}/maliit/plugins/com/jolla/layouts/FutoEmojiSearchData.js
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoExtendedSymbolGrid.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoExtendedSymbolKey.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoExtendedSymbolsKey.qml
@@ -147,8 +153,14 @@ fi
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoDesktopToolbar.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoDesktopToolbarSide.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoSymbolData.js
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoGeneratedLayouts.js
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoLanguageCatalogue.js
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoLanguageData.js
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoLetterLayouts.js
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoLayoutKey.qml
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoLetterRow.qml
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoNumberKey.qml
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoGeneratedNumberRow.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoLayoutEditor.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoClipboardPanel.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoCredentialPanel.qml
@@ -171,6 +183,17 @@ fi
 %{_userunitdir}/maliit-server.service.d/10-futo-hardware-policy.conf
 
 %changelog
+
+* Fri Sep 04 2026 HtheB - 0.4.0-1
+- Type directly on the FUTO language layouts, generated for 140 languages
+  and 97 layouts, instead of mapping every language onto one native layout.
+- Search emoji by name across the selected languages.
+- Add fonts for Arabic, Khmer, Myanmar, Sinhala and Tifinagh so those
+  layouts render on a stock device.
+- Show the Saudi riyal symbol correctly through bundled symbol fonts.
+- Move the cursor and select text with the spacebar inside Android App
+  Support applications.
+
 * Wed Sep 02 2026 HtheB - 0.3.1-1
 - Make System default keyboard sounds follow Sailfish Silent mode.
 - Show an explicit confirmation action for clearing the current clipboard value.

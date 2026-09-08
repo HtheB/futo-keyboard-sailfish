@@ -30,13 +30,16 @@ const allCases = [
     ["AR", "مرحبا"], ["CS", "ahoj"], ["DA", "hej"], ["DE", "danke"],
     ["EL", "γεια"], ["EN", "as"], ["EN", "I'm"], ["EN", "can't"],
     ["EN", "don't"], ["EN", "you're"],
-    ["EN_GB", "thanks"], ["ES", "hola"],
+    ["EN_GB", "thanks"], ["EN_IN", "thanks"], ["ES", "hola"],
+    ["ES_419", "hola"], ["ES_US", "hola"],
     ["FA", "میکنم"], ["FI", "kiitos"], ["FR", "merci"], ["FR", "d'une"],
+    ["DE_CH", "danke"], ["FR_CA", "merci"], ["FR_CH", "merci"],
     ["HR", "hvala"], ["HU", "szia"], ["IT", "ciao"], ["IT", "l'anno"],
+    ["IT_CH", "ciao"],
     ["LT", "labas"], ["LV", "sveiki"], ["NB", "hei"], ["NL", "hallo"],
     ["NL", "zo'n"], ["PL", "część"],
     ["PT_BR", "obrigado"], ["PT_PT", "obrigado"], ["RO", "salut"],
-    ["RU", "привет"], ["SL", "hvala"], ["SR", "хвала"],
+    ["NL_BE", "hallo"], ["RU", "привет"], ["SL", "hvala"], ["SR", "хвала"],
     ["SR_LATN", "hvala"], ["SV", "tack"], ["TR", "merhaba"],
     ["TR", "e-posta"]
 ];
@@ -49,9 +52,24 @@ const mustRankFirst = new Set(["EN\tI'm", "EN\tcan't"]);
 
 function loadLayouts() {
     let source = fs.readFileSync(path.join(root, "layouts", "FutoLetterLayouts.js"), "utf8");
-    source = source.replace(/^\s*\.pragma\s+library\s*$/m, "");
+    source = source.replace(/^\s*\.pragma\s+library\s*$/m, "")
+        .replace(/^\.import .*$/gm, "");
     source += "\n;globalThis.__layouts = layouts; globalThis.__defaults = languageDefaults;";
-    const context = {};
+    function dataVariable(file, variable) {
+        const dataSource = fs.readFileSync(path.join(root, "layouts", file), "utf8")
+            .replace(/^\s*\.pragma\s+library\s*$/m, "");
+        const dataContext = {};
+        vm.runInNewContext(dataSource, dataContext, { filename: file });
+        return dataContext[variable];
+    }
+    const context = {
+        Generated: {
+            layouts: dataVariable("FutoGeneratedLayouts.js", "layouts"),
+            languageLayoutIds: dataVariable("FutoGeneratedLayouts.js", "languageLayoutIds"),
+            languageAlternatives: dataVariable("FutoGeneratedLayouts.js", "languageAlternatives")
+        },
+        Catalogue: { languages: dataVariable("FutoLanguageCatalogue.js", "languages") }
+    };
     vm.runInNewContext(source, context, { filename: "FutoLetterLayouts.js" });
     return { layouts: context.__layouts, defaults: context.__defaults };
 }
@@ -60,14 +78,17 @@ function geometryFor(rows) {
     const keys = new Map();
     const geometry = [];
     rows.forEach((row, rowIndex) => {
-        row.forEach((letter, column) => {
+        const letters = row.map(item => typeof item === "string" ? item
+            : item && item.kind === "character" ? item.output || item.caption : "")
+            .filter(Boolean);
+        letters.forEach((letter, column) => {
             let x;
-            if (rowIndex === 0 || row.length >= 10) {
-                x = (column + 0.5) / row.length;
+            if (rowIndex === 0 || letters.length >= 10) {
+                x = (column + 0.5) / letters.length;
             } else if (rowIndex === 1) {
-                x = (column + 1.0) / (row.length + 1.0);
+                x = (column + 1.0) / (letters.length + 1.0);
             } else {
-                x = (column + 1.5) / (row.length + 3.0);
+                x = (column + 1.5) / (letters.length + 3.0);
             }
             const y = (rowIndex + 0.5) / 3.0;
             const point = { letter: String(letter).toLowerCase(), x, y };
@@ -136,10 +157,14 @@ async function main() {
         argumentsList.push("--decoder", decoder);
     if (fs.existsSync(lmModel) && fs.existsSync(lmVocab))
         argumentsList.push("--lm-model", lmModel, "--lm-vocab", lmVocab);
+    const dictionaryAliases = {
+        DE_CH: "de", EN_IN: "en_GB", ES_419: "es", ES_US: "es",
+        FR_CA: "fr", FR_CH: "fr", IT_CH: "it", NL_BE: "nl"
+    };
     for (const [language] of cases) {
-        const filename = language === "EN" ? "en_US"
+        const filename = dictionaryAliases[language] || (language === "EN" ? "en_US"
             : (language === "EN_GB" ? "en_GB"
-               : (language === "SR_LATN" ? "sr_Latn" : language.toLowerCase()));
+               : (language === "SR_LATN" ? "sr_Latn" : language.toLowerCase())));
         const dictionary = path.join(root, "build", "dictionaries", `${filename}.fksidx`);
         if (!fs.existsSync(dictionary))
             throw new Error(`compiled dictionary is missing: ${dictionary}`);

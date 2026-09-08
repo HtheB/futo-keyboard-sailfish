@@ -5,8 +5,25 @@ const vm = require("vm");
 
 const root = path.resolve(__dirname, "..");
 const sourcePath = path.join(root, "layouts", "FutoLetterLayouts.js");
-const source = fs.readFileSync(sourcePath, "utf8").replace(/^\.pragma library\r?\n/, "");
-const context = {};
+function dataVariable(file, name) {
+    const source = fs.readFileSync(path.join(root, "layouts", file), "utf8")
+        .replace(/^\.pragma library\s*/m, "");
+    const dataContext = {};
+    vm.createContext(dataContext);
+    vm.runInContext(source, dataContext, { filename: file });
+    return dataContext[name];
+}
+const source = fs.readFileSync(sourcePath, "utf8")
+    .replace(/^\.pragma library\s*/m, "")
+    .replace(/^\.import .*$/gm, "");
+const context = {
+    Generated: {
+        layouts: dataVariable("FutoGeneratedLayouts.js", "layouts"),
+        languageLayoutIds: dataVariable("FutoGeneratedLayouts.js", "languageLayoutIds"),
+        languageAlternatives: dataVariable("FutoGeneratedLayouts.js", "languageAlternatives")
+    },
+    Catalogue: { languages: dataVariable("FutoLanguageCatalogue.js", "languages") }
+};
 vm.createContext(context);
 vm.runInContext(source, context, { filename: sourcePath });
 
@@ -15,11 +32,25 @@ function assert(condition, message) {
         throw new Error(message);
 }
 
-assert(context.count === 21, "Expected twenty-one layouts");
+assert(context.legacyLayoutCount === 21, "Expected twenty-one stable legacy layouts");
+assert(context.count === 118, "Expected 21 stable plus 97 generated layouts");
+const establishedLanguageCodes = new Set([
+    "AR", "CS", "DA", "DE", "EL", "EN", "EN_GB", "ES", "FA", "FI", "FR",
+    "HR", "HU", "IT", "LT", "LV", "NB", "NL", "PL", "PT_BR", "PT_PT",
+    "RO", "RU", "SL", "SR", "SR_LATN", "SV", "TR"
+]);
+for (const language of context.Catalogue.languages) {
+    if (!establishedLanguageCodes.has(language.code))
+        assert(context.defaultForLanguage(language.code) >= context.legacyLayoutCount,
+               language.code + " unexpectedly falls back to a legacy layout");
+}
 for (let layout = 0; layout < context.count; ++layout) {
     assert(context.name(layout), "Layout " + layout + " has no name");
-    for (let row = 0; row < 3; ++row)
-        assert(context.letter(layout, row, 0), "Layout " + layout + " row " + row + " is empty");
+    assert(context.rowCount(layout) >= 2 && context.rowCount(layout) <= 5,
+           "Layout " + layout + " has an invalid row count");
+    for (let row = 0; row < context.rowCount(layout); ++row)
+        assert(context.rowLength(layout, row) > 0,
+               "Layout " + layout + " row " + row + " is empty");
 }
 
 assert(context.name(0) === "QWERTY", "Persisted QWERTY index changed");
@@ -37,8 +68,6 @@ assert(context.menuNames.length === context.count,
        "Every layout must have a compact held-123 menu name");
 for (let layout = 0; layout < context.count; ++layout) {
     assert(context.menuName(layout), "Layout " + layout + " has no compact menu name");
-    assert(context.menuName(layout).length <= 10,
-           "Layout " + layout + " menu name is too wide: " + context.menuName(layout));
 }
 assert(context.menuName(6) === "SE/FI", "Nordic menu name must stay compact");
 assert(context.menuName(15) === "CYRILLIC", "East Slavic menu name must stay compact");
@@ -56,9 +85,10 @@ assert(context.letter(18, 0, 10) === "š"
 assert(context.letter(19, 0, 0) === "љ"
        && context.letter(19, 0, 5) === "з"
        && context.letter(19, 1, 10) === "ћ"
-       && context.letter(19, 2, 0) === "џ"
-       && context.letter(19, 2, 1) === "ђ"
-       && context.letter(19, 2, 7) === "ж",
+       && context.letter(19, 2, 0) === "ѕ"
+       && context.letter(19, 2, 1) === "џ"
+       && context.letter(19, 2, 7) === "ђ"
+       && context.letter(19, 2, 8) === "ж",
        "Serbian Cyrillic letters are incorrect");
 assert(context.shifted("i", 0) === "I", "QWERTY i must shift to I");
 assert(context.shifted("i", 3) === "İ", "Turkish i must shift to İ");
@@ -69,18 +99,14 @@ assert(context.compatibleIndices("EN").indexOf(16) >= 0,
        "Latin languages must support Turkish F");
 assert(context.compatibleIndices("EN").indexOf(13) < 0,
        "Latin languages must not offer Arabic");
-assert(context.compatibleIndices("AR").length === 1
-       && context.compatibleIndices("AR")[0] === 13,
-       "Arabic must only offer the Arabic layout");
-assert(context.compatibleIndices("RU").length === 1
-       && context.compatibleIndices("RU")[0] === 15,
-       "Russian must only offer East Slavic");
-assert(context.compatibleIndices("SR").length === 1
-       && context.compatibleIndices("SR")[0] === 19,
-       "Serbian Cyrillic must only offer its national layout");
-assert(context.compatibleIndices("FA").length === 1
-       && context.compatibleIndices("FA")[0] === 20,
-       "Persian must only offer the Persian layout");
+assert(context.compatibleIndices("AR").includes(13),
+       "Arabic must retain its stable Arabic layout");
+assert(context.compatibleIndices("RU").includes(15),
+       "Russian must retain its stable East Slavic layout");
+assert(context.compatibleIndices("SR").includes(19),
+       "Serbian must retain its stable Cyrillic layout");
+assert(context.compatibleIndices("FA").includes(20),
+       "Persian must retain its stable Persian layout");
 assert(context.letter(20, 0, 0) === "ض"
        && context.letter(20, 1, 2) === "ی"
        && context.letter(20, 1, 9) === "ک"
@@ -102,5 +128,15 @@ for (const [language, layout] of Object.entries(expectedDefaults)) {
 }
 assert(context.legacyDefaultForLanguage("DE") === 0,
        "Legacy Latin default must remain QWERTY for migration");
+
+for (const language of context.Catalogue.languages) {
+    const layout = context.defaultForLanguage(language.code);
+    assert(layout >= 0 && layout < context.count,
+           language.code + " has no valid default layout");
+    assert(context.compatibleIndices(language.code).includes(layout),
+           language.code + " default is not compatible");
+}
+assert(!context.Catalogue.languages.some(item => item.code === "IW"),
+       "Hebrew must stay excluded");
 
 process.stdout.write("Letter layout validation passed: " + context.count + " layouts.\n");

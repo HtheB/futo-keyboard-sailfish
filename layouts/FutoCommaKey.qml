@@ -8,6 +8,7 @@ ContextAwareCommaKey {
 	id: commaKey
 
     property int symbolNumberLayout
+	property Item targetLayout
 	property bool pointerDown
 	property bool heldForVoice
 	property bool pushToTalkActive
@@ -21,13 +22,18 @@ ContextAwareCommaKey {
 			&& String(caption) === ","
 	readonly property bool fallbackVoiceActive: fallbackVoiceEnabled
 			&& (voiceHandler.voiceRecording || voiceHandler.voiceBusy)
+	readonly property bool localizedComma: targetLayout
+			&& targetLayout.usesLocalizedDigits !== undefined
+			&& targetLayout.usesLocalizedDigits && String(caption) === ","
+	readonly property string inputText: attributes.inSymView && symView.length > 0
+			? (attributes.inSymView2 ? symView2 : symView)
+			: (localizedComma ? "،" : String(caption))
 
     symView: symbolNumberLayout === 1 ? "0" : ","
     symView2: ","
+	text: inputText
 	keyText: fallbackVoiceActive ? ""
-			 : (attributes.inSymView && symView.length > 0
-			    ? (attributes.inSymView2 ? symView2 : symView)
-			    : (attributes.isShifted ? captionShifted : caption))
+			 : inputText
 
 	ConfigurationGroup {
 		id: voiceSettings

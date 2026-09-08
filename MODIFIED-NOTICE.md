@@ -1,6 +1,6 @@
 # Modified derivative notice
 
-This is **FUTO Keyboard for Sailfish OS 0.3.0**, an independent and modified
+This is **FUTO Keyboard for Sailfish OS 0.4.0**, an independent and modified
 Sailfish OS integration. It is not an official FUTO product and is not built,
 published, or supported by FUTO.
 
@@ -14,8 +14,9 @@ multilingual native settings, a local D-Bus service, a native dictionary worker,
 configurable auto-correction with undo, cross-language typo/prefix ranking, and
 a private on-device personal dictionary. Version 0.1.0 also adds local context
 and next-word learning, automatic per-word language weighting, configurable
-letter/symbol/emoji pages, seventeen per-language arrangements adapted from the
-Apache-2.0 FUTO layout repository and standard Turkish F arrangement,
+letter/symbol/emoji pages, a generated catalogue of directly typed language
+layouts adapted from the Apache-2.0 FUTO layout repository, the existing
+SwiftKey-style choices, and a standard Turkish F arrangement,
 Sailfish-native typing gestures, selectable
 top-row/aligned-numpad symbol layouts, compact settings subpages, a dedicated
 Turkish layout, device-authenticated dictionary access, live height adjustment,
@@ -67,7 +68,14 @@ Release 44 removes the unreliable one-handed side/maximize overlays and makes
 left- and right-handed geometry explicit, independently selectable modes. It
 also adds persistent symbol Favorites, complete common/Arabic numeric rows,
 de-duplicates emoji artwork from the symbol grid, bundles Amiri for Arabic
-religious ligatures, and strengthens the selected-tab indicators.
+religious ligatures, and strengthens the selected-tab indicators. Later font
+coverage preserves the dedicated Saudi Riyal, Iranian Rial, and Jalla Jalaluhu
+Unicode characters without changing the typeface of ordinary keyboard text.
+The Iranian Rial outline is taken from Android AppSupport's compact Noto Naskh
+Arabic UI font for consistent rendering in both the keyboard and native apps.
+For native Sailfish Qt, that single outline is applied to an otherwise
+unchanged copy of Sailfish's Amiri fallback and installed beside the OS font;
+the original system file and all other Amiri glyphs remain unchanged.
 
 Release 45 synchronizes orientation-specific mode changes between the live
 keyboard and Settings, refines picker tabs and Favorites interaction, and makes
@@ -87,8 +95,8 @@ Compose sequences.
 Together with the release-43 libX11 table, this restores both composed accents
 and standalone dead-key output. It also makes rotation select the current
 surface's saved mode immediately and arranges Arabic religious ligatures in a
-semantic right-to-left sequence, using a readable compatibility phrase where
-Sailfish's native fonts lack U+FDFB.
+semantic right-to-left sequence. Bundled font coverage now preserves the real
+U+FDFB Jalla Jalaluhu character instead of replacing it with decomposed text.
 
 The Sailfish edition adds portable password export and restore. One ZIP
 contains separate browser-compatible website CSV files and a FUTO app-account
@@ -104,3 +112,9 @@ and full Arabic prediction/swipe support. The universal encoder handles every
 supported language; FUTO's additional English decoder and context model are
 activated only for a single English QWERTY language. The unmodified model
 weights are distributed separately under the FUTO Model Weights License 1.0.
+
+The 0.4.0 development line also imports FUTO's directly typed language-layout
+catalogue while keeping the established SwiftKey-style QWERTY as a separate
+choice. Explicit display names cover locales missing from Sailfish's Qt 5.6
+locale database. Unmodified OFL-licensed Noto fonts provide the Tifinagh,
+Sinhala, Myanmar, Khmer and extended Latin glyphs absent from the base device.

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"net/url"
 	"os"
@@ -13,6 +14,102 @@ import (
 
 	securezip "github.com/yeka/zip"
 )
+
+func writeEmojiSearchFixture(t *testing.T, entries []emojiSearchEntry) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "emoji-search.json.gz")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compressed := gzip.NewWriter(file)
+	if err := json.NewEncoder(compressed).Encode(entries); err != nil {
+		_ = compressed.Close()
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := compressed.Close(); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestEmojiSearchStreamsLocalizedIndex(t *testing.T) {
+	path := writeEmojiSearchFixture(t, []emojiSearchEntry{
+		{Code: "1f37a", Names: "beer mug", Languages: map[string]string{"NL": "bier pul"}},
+		{Code: "1f43b", Names: "bear", Languages: map[string]string{"NL": "beer", "TR": "ayı"}},
+		{Code: "1f600", Names: "grinning face happy", Languages: map[string]string{"NL": "blij"}},
+		{Code: "1f622", Names: "crying face unhappy", Languages: map[string]string{"NL": "verdrietig"}},
+	})
+	codes, err := searchEmojiIndex(path, "beer", "EN,NL")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(codes, []string{"1f37a", "1f43b"}) {
+		t.Fatalf("bilingual beer search = %#v", codes)
+	}
+	codes, err = searchEmojiIndex(path, "AYI", "TR")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(codes, []string{"1f43b"}) {
+		t.Fatalf("Turkish AYI search = %#v", codes)
+	}
+	codes, err = searchEmojiIndex(path, "happy", "EN")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(codes, []string{"1f600"}) {
+		t.Fatalf("happy search matched an unhappy emoji: %#v", codes)
+	}
+	codes, err = searchEmojiIndex(path, "hap", "EN")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(codes, []string{"1f600"}) {
+		t.Fatalf("happy prefix search = %#v", codes)
+	}
+}
+
+func TestEmojiSearchGeneratedIndex(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "layouts", "FutoEmojiSearchData.json.gz")
+	codes, err := searchEmojiIndex(path, "beer", "EN,NL")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{"1f37a": true, "1f43b": true}
+	for _, code := range codes {
+		delete(want, code)
+	}
+	if len(want) != 0 {
+		t.Fatalf("generated bilingual beer search missed %#v", want)
+	}
+	codes, err = searchEmojiIndex(path, "AYI", "TR")
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundBear := false
+	for _, code := range codes {
+		foundBear = foundBear || code == "1f43b"
+	}
+	if !foundBear {
+		t.Fatal("generated Turkish AYI search missed the bear")
+	}
+	codes, err = searchEmojiIndex(path, "happy", "EN")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, code := range codes {
+		switch code {
+		case "1f610", "1f611", "1f612", "1f622", "1f62d", "1f61e", "1f629":
+			t.Fatalf("happy search matched unhappy emoji %s", code)
+		}
+	}
+}
 
 func testEncryptionKey() []byte {
 	return bytes.Repeat([]byte{0x5a}, 32)
@@ -1292,5 +1389,45 @@ func TestValidAndroidSwipeWord(t *testing.T) {
 		if validAndroidSwipeWord(word) {
 			t.Errorf("invalid swipe word accepted: %q", word)
 		}
+	}
+}
+
+func TestAndroidCursorKeyDirections(t *testing.T) {
+	tests := []struct {
+		horizontal bool
+		negative   bool
+		want       string
+	}{
+		{horizontal: true, negative: true, want: "KEYCODE_DPAD_LEFT"},
+		{horizontal: true, negative: false, want: "KEYCODE_DPAD_RIGHT"},
+		{horizontal: false, negative: true, want: "KEYCODE_DPAD_UP"},
+		{horizontal: false, negative: false, want: "KEYCODE_DPAD_DOWN"},
+	}
+	for _, test := range tests {
+		if got := androidCursorKey(test.horizontal, test.negative); got != test.want {
+			t.Fatalf("androidCursorKey(%v, %v) = %q; want %q",
+				test.horizontal, test.negative, got, test.want)
+		}
+	}
+	if got := absInt32(-24); got != 24 {
+		t.Fatalf("absInt32(-24) = %d; want 24", got)
+	}
+	if processLooksAndroid(int32(os.Getpid())) {
+		t.Fatal("native test process was classified as Android")
+	}
+	if processLooksAndroid(0) {
+		t.Fatal("pid 0 was classified as Android")
+	}
+	for _, identity := range []string{
+		"apkd-bridge",
+		"/usr/libexec/appsupport/apkd-bridge",
+		"/system/bin/surfaceflinger",
+	} {
+		if !androidProcessMarker(identity) {
+			t.Fatalf("Android process marker rejected: %q", identity)
+		}
+	}
+	if androidProcessMarker("/usr/bin/jolla-notes -prestart") {
+		t.Fatal("native Sailfish process was classified as Android")
 	}
 }

@@ -77,6 +77,15 @@ InputHandler {
 	        desktopModifierSummary()
 	property int pendingCursorHorizontalSteps: 0
 	property int pendingCursorVerticalSteps: 0
+	property int cursorTargetSerial: 0
+	property bool cursorTargetResolved: false
+	property bool cursorAndroidTarget: false
+	property int unresolvedCursorHorizontalSteps: 0
+	property int unresolvedCursorVerticalSteps: 0
+	property int androidCursorHorizontalSteps: 0
+	property int androidCursorVerticalSteps: 0
+	property bool androidCursorSelection: false
+	property bool androidCursorCallPending: false
 	property bool voiceRecording: false
 	property bool voiceBusy: false
 	property string voiceMessage: ""
@@ -235,6 +244,13 @@ InputHandler {
             hardwareKeyboardAvailable = available
         if (hardwareKeyboardSuppressed)
             hideForHardwareKeyboard()
+    }
+
+    function searchEmoji(query, languagesCSV, onSuccess, onError) {
+        return helper.typedCall("SearchEmoji", [
+            { "type": "s", "value": String(query) },
+            { "type": "s", "value": String(languagesCSV) }
+        ], onSuccess, onError)
     }
 
     function refreshHardwareKeyboardState() {
@@ -4958,6 +4974,11 @@ InputHandler {
 		spacebarGestureActive = true
 		cursorMoveMode = false
 		cursorSelectionMode = false
+		androidCursorHorizontalSteps = 0
+		androidCursorVerticalSteps = 0
+		androidCursorSelection = false
+		androidCursorCallPending = false
+		resolveCursorInputTarget()
 		cancelSwipeSession()
 		if (keyboard.closeSwipeActive !== undefined)
 			keyboard.closeSwipeActive = false
@@ -4984,8 +5005,18 @@ InputHandler {
 
 	function endSpacebarGesture(delayed) {
 		cancelSwipeSession()
+		flushAndroidCursorSteps()
 		cursorMoveMode = false
 		cursorSelectionMode = false
+		cursorTargetSerial++
+		cursorTargetResolved = false
+		cursorAndroidTarget = false
+		unresolvedCursorHorizontalSteps = 0
+		unresolvedCursorVerticalSteps = 0
+		androidCursorHorizontalSteps = 0
+		androidCursorVerticalSteps = 0
+		androidCursorSelection = false
+		androidCursorCallPending = false
 		if (delayed) {
 			// KeyboardBase can deliver the release/click after the Space MouseArea.
 			// Keep swallowing that tail briefly so no crossed letter is committed.
@@ -5267,16 +5298,125 @@ InputHandler {
         }
     }
 
+	function resolveCursorInputTarget() {
+		var serial = ++cursorTargetSerial
+		cursorTargetResolved = false
+		cursorAndroidTarget = false
+		unresolvedCursorHorizontalSteps = 0
+		unresolvedCursorVerticalSteps = 0
+		applicationCompositor.typedCall(
+				"privateTopmostWindowProcessId", [], function(processId) {
+			if (serial !== futoHandler.cursorTargetSerial
+					|| !futoHandler.spacebarGestureActive)
+				return
+			helper.typedCall("CursorTargetIsAndroid", [
+				{ "type": "i", "value": Math.round(Number(processId || 0)) }
+			], function(isAndroid) {
+				if (serial !== futoHandler.cursorTargetSerial
+						|| !futoHandler.spacebarGestureActive)
+					return
+				futoHandler.cursorAndroidTarget = !!isAndroid
+				futoHandler.cursorTargetResolved = true
+				futoHandler.flushUnresolvedCursorSteps()
+			}, function() {
+				if (serial !== futoHandler.cursorTargetSerial
+						|| !futoHandler.spacebarGestureActive)
+					return
+				futoHandler.cursorTargetResolved = true
+				futoHandler.cursorAndroidTarget = false
+				futoHandler.flushUnresolvedCursorSteps()
+			})
+		}, function() {
+			if (serial !== futoHandler.cursorTargetSerial
+					|| !futoHandler.spacebarGestureActive)
+				return
+			futoHandler.cursorTargetResolved = true
+			futoHandler.cursorAndroidTarget = false
+			futoHandler.flushUnresolvedCursorSteps()
+		})
+	}
+
+	function flushUnresolvedCursorSteps() {
+		var horizontalSteps = unresolvedCursorHorizontalSteps
+		var verticalSteps = unresolvedCursorVerticalSteps
+		unresolvedCursorHorizontalSteps = 0
+		unresolvedCursorVerticalSteps = 0
+		if (horizontalSteps !== 0 || verticalSteps !== 0)
+			sendCursorSteps(horizontalSteps, verticalSteps)
+	}
+
+	function sendNativeCursorSteps(horizontalSteps, verticalSteps, modifiers) {
+		modifiers = Number(modifiers || 0)
+		var horizontalKey = horizontalSteps < 0 ? Qt.Key_Left : Qt.Key_Right
+		for (var i = 0; i < Math.abs(horizontalSteps); ++i)
+			MInputMethodQuick.sendKey(horizontalKey, modifiers, "", Maliit.KeyClick)
+		var verticalKey = verticalSteps < 0 ? Qt.Key_Up : Qt.Key_Down
+		for (var j = 0; j < Math.abs(verticalSteps); ++j)
+			MInputMethodQuick.sendKey(verticalKey, modifiers, "", Maliit.KeyClick)
+	}
+
+	function flushAndroidCursorSteps() {
+		androidCursorTimer.stop()
+		if (androidCursorCallPending)
+			return
+		var horizontalSteps = androidCursorHorizontalSteps
+		var verticalSteps = androidCursorVerticalSteps
+		var selecting = androidCursorSelection
+		var requestSerial = cursorTargetSerial
+		androidCursorHorizontalSteps = 0
+		androidCursorVerticalSteps = 0
+		androidCursorSelection = false
+		if (horizontalSteps === 0 && verticalSteps === 0)
+			return
+		androidCursorCallPending = true
+		helper.typedCall("InjectAndroidCursor", [
+			{ "type": "i", "value": horizontalSteps },
+			{ "type": "i", "value": verticalSteps },
+			{ "type": "b", "value": selecting }
+		], function(injected) {
+			if (requestSerial !== futoHandler.cursorTargetSerial)
+				return
+			futoHandler.androidCursorCallPending = false
+			if (!injected)
+				futoHandler.sendNativeCursorSteps(horizontalSteps, verticalSteps,
+						selecting ? Qt.ShiftModifier : 0)
+			if (futoHandler.androidCursorHorizontalSteps !== 0
+					|| futoHandler.androidCursorVerticalSteps !== 0)
+				androidCursorTimer.start()
+		}, function() {
+			if (requestSerial !== futoHandler.cursorTargetSerial)
+				return
+			futoHandler.androidCursorCallPending = false
+			futoHandler.sendNativeCursorSteps(horizontalSteps, verticalSteps,
+					selecting ? Qt.ShiftModifier : 0)
+			if (futoHandler.androidCursorHorizontalSteps !== 0
+					|| futoHandler.androidCursorVerticalSteps !== 0)
+				androidCursorTimer.start()
+		})
+	}
+
     function sendCursorSteps(horizontalSteps, verticalSteps) {
 		var modifiers = cursorSelectionMode ? Qt.ShiftModifier : 0
         horizontalSteps = Math.round(Number(horizontalSteps || 0))
         verticalSteps = Math.round(Number(verticalSteps || 0))
-        var horizontalKey = horizontalSteps < 0 ? Qt.Key_Left : Qt.Key_Right
-        for (var i = 0; i < Math.abs(horizontalSteps); ++i)
-			MInputMethodQuick.sendKey(horizontalKey, modifiers, "", Maliit.KeyClick)
-        var verticalKey = verticalSteps < 0 ? Qt.Key_Up : Qt.Key_Down
-        for (var j = 0; j < Math.abs(verticalSteps); ++j)
-			MInputMethodQuick.sendKey(verticalKey, modifiers, "", Maliit.KeyClick)
+		if (spacebarGestureActive && !cursorTargetResolved) {
+			unresolvedCursorHorizontalSteps = Math.max(-48, Math.min(48,
+					unresolvedCursorHorizontalSteps + horizontalSteps))
+			unresolvedCursorVerticalSteps = Math.max(-24, Math.min(24,
+					unresolvedCursorVerticalSteps + verticalSteps))
+			return
+		}
+		if (cursorAndroidTarget) {
+			androidCursorHorizontalSteps = Math.max(-48, Math.min(48,
+					androidCursorHorizontalSteps + horizontalSteps))
+			androidCursorVerticalSteps = Math.max(-24, Math.min(24,
+					androidCursorVerticalSteps + verticalSteps))
+			androidCursorSelection = androidCursorSelection || cursorSelectionMode
+			if (!androidCursorCallPending && !androidCursorTimer.running)
+				androidCursorTimer.start()
+			return
+		}
+		sendNativeCursorSteps(horizontalSteps, verticalSteps, modifiers)
     }
 
     function moveCursor(steps) {
@@ -5330,6 +5470,13 @@ InputHandler {
 				futoHandler.sendCursorSteps(horizontalSteps, verticalSteps)
         }
     }
+
+	Timer {
+		id: androidCursorTimer
+		interval: 12
+		repeat: false
+		onTriggered: futoHandler.flushAndroidCursorSteps()
+	}
 
     function deletePreviousWord() {
         nextPredictionTimer.stop()

@@ -143,12 +143,16 @@ Item {
                 spacing: 2
 
                 Repeater {
-                    model: 3
+                    model: targetLayout.rowCountForLayout(previewCard.layoutIndex)
                     Row {
                         id: miniRow
                         property int rowIndex: index
                         anchors.horizontalCenter: parent.horizontalCenter
-                        height: (keyRows.height - 4) / 3
+                        height: (keyRows.height
+                                 - Math.max(0, targetLayout.rowCountForLayout(
+                                                previewCard.layoutIndex) - 1) * 2)
+                                / Math.max(1, targetLayout.rowCountForLayout(
+                                               previewCard.layoutIndex))
                         spacing: 2
 
                         Repeater {

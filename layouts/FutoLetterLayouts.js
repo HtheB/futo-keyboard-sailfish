@@ -1,9 +1,13 @@
 .pragma library
+.import "FutoGeneratedLayouts.js" as Generated
+.import "FutoLanguageCatalogue.js" as Catalogue
 
-// Layout rows are adapted from the Apache-2.0 licensed
-// futo-org/futo-keyboard-layouts project.  Keep these indices stable because
-// users persist layout indices in their per-language assignments.
-var layouts = [
+// Layout rows and language-specific long-press choices are adapted from the
+// pinned Apache-2.0 futo-org/futo-keyboard-layouts catalogue and the locale
+// data shipped by the pinned FUTO Android Keyboard revision. QWERTY keeps this
+// port's established SwiftKey-like arrangement. Keep these indices stable
+// because users persist layout indices in their per-language assignments.
+var legacyLayouts = [
     { name: "QWERTY", script: "latin", rows: [
         ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
         ["a", "s", "d", "f", "g", "h", "j", "k", "l"],
@@ -17,7 +21,7 @@ var layouts = [
     { name: "AZERTY", script: "latin", rows: [
         ["a", "z", "e", "r", "t", "y", "u", "i", "o", "p"],
         ["q", "s", "d", "f", "g", "h", "j", "k", "l", "m"],
-        ["w", "x", "c", "v", "b", "n", ","]
+        ["w", "x", "c", "v", "b", "n", "'"]
     ] },
     { name: "Turkish Q", script: "latin", rows: [
         ["q", "w", "e", "r", "t", "y", "u", "ı", "o", "p", "ğ", "ü"],
@@ -102,7 +106,7 @@ var layouts = [
     { name: "Serbian Cyrillic", script: "cyrillic", languages: ["SR"], rows: [
         ["љ", "њ", "е", "р", "т", "з", "у", "и", "о", "п", "ш"],
         ["а", "с", "д", "ф", "г", "х", "ј", "к", "л", "ч", "ћ"],
-        ["џ", "ђ", "ц", "в", "б", "н", "м", "ж"]
+        ["ѕ", "џ", "ц", "в", "б", "н", "м", "ђ", "ж"]
     ] },
     { name: "Persian", script: "persian", languages: ["FA"], rows: [
         ["ض", "ص", "ث", "ق", "ف", "غ", "ع", "ه", "خ", "ح", "ج"],
@@ -111,6 +115,92 @@ var layouts = [
     ] }
 ]
 
+// Explicit single-character more-keys from the corresponding upstream FUTO
+// layout YAML. FUTO entries whose visible label maps to a multi-codepoint
+// output use the closest single-codepoint Unicode form supported by Sailfish's
+// character popper.
+var letterAlternatives = {
+    13: {
+        "ق": "ڨ", "ف": "ڤڢڥ", "ه": "ﻫ", "ج": "چ",
+        "ش": "ڜ", "ي": "ئى", "ب": "پ", "ل": "ﻻﻷﻹﻵ",
+        "ا": "آءأإٱ", "ك": "گک", "ى": "ئ", "ز": "ژ"
+    },
+    14: {
+        ";": "%:·",
+        "ε": "έὲἐἑἔἕἒἓ",
+        "ρ": "ῥ",
+        "υ": "ύϋΰὺῦὐὑὔὕὒὓὖὗῢῧ",
+        "ι": "ίϊΐὶῖἰἱἴἵἲἳἶἷῒῗ",
+        "ο": "όὸὀὁὄὅὂὃ",
+        "α": "άὰᾶἀἁἄἅἂἃἆἇᾳᾴᾲᾷᾀᾁᾄᾅᾂᾃᾆᾇ",
+        "η": "ήὴῆἠἡἤἥἢἣἦἧῃῄῂῇᾐᾑᾔᾕᾒᾓᾖᾗ",
+        "ω": "ώὼῶὠὡὤὥὢὣὦὧῳῴῲῷᾠᾡᾤᾥᾢᾣᾦᾧ"
+    },
+    15: {
+        "е": "ё", "ь": "ъ"
+    },
+    17: {
+        "d": "đ"
+    },
+    19: {
+        "е": "ѐ", "и": "ѝ"
+    },
+    20: {
+        "ه": "ﻫۀة", "ی": "ئيى", "ا": "ٱءآأإ", "ت": "ة",
+        "ک": "ك", "و": "ؤ"
+    }
+}
+
+// Locale more-keys from FUTO Android Keyboard. When several languages share
+// one physical layout, their alternatives are merged in the same order as the
+// active languages, so a single QWERTY remains genuinely multilingual.
+var languageAlternatives = {
+    "CS": { "a": "á", "c": "č", "d": "ď", "e": "éě", "i": "í", "n": "ň", "o": "ó", "r": "ř", "s": "š", "t": "ť", "u": "úů", "y": "ý", "z": "ž" },
+    "DA": { "a": "åæ", "o": "ø" },
+    "DE": { "a": "ä", "o": "ö", "s": "ß", "u": "ü" },
+    "ES": { "a": "á", "e": "é", "i": "í", "n": "ñ", "o": "ó", "u": "úü" },
+    "FI": { "a": "äå", "o": "ö", "s": "š", "z": "ž" },
+    "FR": { "a": "àâæ", "c": "ç", "e": "éèêë", "i": "îï", "o": "ôœ", "u": "ùûü", "y": "ÿ" },
+    "HR": { "c": "čć", "d": "đ", "s": "š", "z": "ž" },
+    "HU": { "a": "á", "e": "é", "i": "í", "o": "óöő", "u": "úüű" },
+    "IT": { "a": "à", "e": "èé", "i": "ì", "o": "ò", "u": "ù" },
+    "LT": { "a": "ą", "c": "č", "e": "ėę", "i": "į", "s": "š", "u": "ūų", "z": "ž" },
+    "LV": { "a": "ā", "c": "č", "e": "ē", "g": "ģ", "i": "ī", "k": "ķ", "l": "ļ", "n": "ņ", "s": "š", "u": "ū", "z": "ž" },
+    "NB": { "a": "åæäàáâãā", "e": "éèêëęėē", "o": "øöôòóõœō", "u": "üûùúū" },
+    "NL": { "a": "áäâà", "e": "éëêè", "i": "íïìîįīĳ", "o": "óö", "u": "úü" },
+    "PL": { "a": "ą", "c": "ć", "e": "ę", "l": "ł", "n": "ń", "o": "ó", "s": "ś", "z": "żź" },
+    "PT_BR": { "a": "áãàâ", "c": "ç", "e": "éê", "i": "í", "o": "óõô", "u": "úü" },
+    "PT_PT": { "a": "áãàâ", "c": "ç", "e": "éê", "i": "í", "o": "óõô", "u": "úü" },
+    "RO": { "a": "ăâ", "i": "î", "s": "ș", "t": "ț" },
+    "SL": { "c": "č", "s": "š", "z": "ž" },
+    "SR_LATN": { "c": "čć", "d": "đ", "e": "è", "i": "ì", "s": "š", "z": "ž" },
+    "SV": { "a": "äå", "e": "é", "o": "ö" },
+    "TR": { "c": "ç", "g": "ğ", "i": "ı", "o": "ö", "s": "ş", "u": "ü" }
+}
+
+// Greek contains a few explicit shifted lists which cannot be derived by
+// uppercasing the normal list without changing their polytonic forms.
+var shiftedLetterAlternatives = {
+    14: {
+        ";": "%;·",
+        "α": "ΆᾺἈἉἌἍἊἋἎἏ",
+        "η": "ΉῊἨἩἬἭἪἫἮἯ",
+        "ω": "ΏῺὨὩὬὭὪὫὮὯ"
+    }
+}
+
+// Visible letter-page hints follow the SwiftKey arrangement used as the
+// reference for this port. The trailing cells cover wider language layouts.
+// Every position is unique so layouts such as Russian never show the same
+// shortcut twice.
+var secondarySymbols = [
+    ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "[", "]"],
+    ["@", "#", "&", "*", "-", "+", "=", "(", ")", "{", "}", "?"],
+    ["_", "€", "\"", "'", ":", ";", "/", "\\", "|", "<", ">", "~"]
+]
+
+var legacyLayoutCount = legacyLayouts.length
+var layouts = legacyLayouts.concat(Generated.layouts)
 var count = layouts.length
 
 // Compact names are used only in the narrow held-123 action strip.  The
@@ -121,6 +211,18 @@ var menuNames = [
     "WORKMAN", "ARABIC", "GREEK", "CYRILLIC", "TR-F", "SL-QWERTZ",
     "HR/SR-QW", "SR-CYRL", "PERSIAN"
 ]
+
+for (var generatedMenuIndex = 0;
+        generatedMenuIndex < Generated.layouts.length; ++generatedMenuIndex) {
+    menuNames.push(String(Generated.layouts[generatedMenuIndex].name).toUpperCase())
+}
+
+var generatedIndexById = {}
+for (var generatedLayoutIndex = 0;
+        generatedLayoutIndex < Generated.layouts.length; ++generatedLayoutIndex) {
+    generatedIndexById[Generated.layouts[generatedLayoutIndex].id]
+            = legacyLayoutCount + generatedLayoutIndex
+}
 
 // Match the first/best conventional layout offered for each language by the
 // upstream FUTO layout catalogue, using the closest dedicated layout that this
@@ -157,6 +259,20 @@ var languageDefaults = {
     "TR": 3
 }
 
+// Keep the first 21 persisted choices stable for existing users. Languages
+// newly exposed by the complete FUTO catalogue start on their canonical
+// upstream layout; the established languages above retain this port's current
+// defaults and can select the FUTO variant in the visual editor.
+for (var catalogueIndex = 0; catalogueIndex < Catalogue.languages.length;
+        ++catalogueIndex) {
+    var catalogueLanguage = Catalogue.languages[catalogueIndex]
+    if (languageDefaults[catalogueLanguage.code] === undefined
+            && generatedIndexById[catalogueLanguage.layoutId] !== undefined) {
+        languageDefaults[catalogueLanguage.code]
+                = generatedIndexById[catalogueLanguage.layoutId]
+    }
+}
+
 function clampedIndex(value) {
     var parsed = Number(value)
     if (!isFinite(parsed))
@@ -176,8 +292,20 @@ function script(value) {
     return layouts[clampedIndex(value)].script
 }
 
+function catalogueEntry(languageCode) {
+    languageCode = String(languageCode).toUpperCase()
+    for (var i = 0; i < Catalogue.languages.length; ++i) {
+        if (Catalogue.languages[i].code === languageCode)
+            return Catalogue.languages[i]
+    }
+    return null
+}
+
 function languageScript(languageCode) {
     languageCode = String(languageCode).toUpperCase()
+    var generatedEntry = catalogueEntry(languageCode)
+    if (generatedEntry)
+        return generatedEntry.script
     if (languageCode === "AR")
         return "arabic"
     if (languageCode === "EL")
@@ -193,15 +321,9 @@ function defaultForLanguage(languageCode) {
     languageCode = String(languageCode).toUpperCase()
     if (languageDefaults[languageCode] !== undefined)
         return languageDefaults[languageCode]
-    var languageScriptValue = languageScript(languageCode)
-    if (languageScriptValue === "arabic")
-        return 13
-    if (languageScriptValue === "greek")
-        return 14
-    if (languageScriptValue === "persian")
-        return 20
-    if (languageScriptValue === "cyrillic")
-        return 15
+    var generatedEntry = catalogueEntry(languageCode)
+    if (generatedEntry && generatedIndexById[generatedEntry.layoutId] !== undefined)
+        return generatedIndexById[generatedEntry.layoutId]
     return 0
 }
 
@@ -226,24 +348,136 @@ function compatibleIndices(languageCode) {
     languageCode = String(languageCode).toUpperCase()
     var wantedScript = languageScript(languageCode)
     var result = []
-    for (var i = 0; i < layouts.length; ++i) {
-        var allowedLanguages = layouts[i].languages
-        if (layouts[i].script === wantedScript
-                && (!allowedLanguages
-                    || allowedLanguages.indexOf(languageCode) >= 0))
-            result.push(i)
+    if (wantedScript === "latin") {
+        // As agreed for the visual layout editor, direct Latin layouts are
+        // interchangeable (for example English can use Turkish F).
+        for (var i = 0; i < layouts.length; ++i) {
+            if (layouts[i].script === "latin")
+                result.push(i)
+        }
+        return result
     }
+
+    // Do not fall back from one non-Latin script layout to another. Offer the
+    // exact upstream layout, plus the stable legacy layout where this port had
+    // already exposed that same language before the complete catalogue.
+    var legacy = languageDefaults[languageCode]
+    if (legacy !== undefined && legacy < legacyLayoutCount)
+        result.push(legacy)
+    var entry = catalogueEntry(languageCode)
+    if (entry && generatedIndexById[entry.layoutId] !== undefined
+            && result.indexOf(generatedIndexById[entry.layoutId]) < 0)
+        result.push(generatedIndexById[entry.layoutId])
     return result
 }
 
-function letter(value, row, column) {
+function rawKey(value, row, column) {
     var rows = layouts[clampedIndex(value)].rows
     if (row < 0 || row >= rows.length || column < 0 || column >= rows[row].length)
+        return null
+    var source = rows[row][column]
+    if (typeof source === "string")
+        return { kind: "character", caption: source, output: source, more: [] }
+    return source
+}
+
+function letter(value, row, column) {
+    var item = rawKey(value, row, column)
+    return item && item.kind === "character" ? String(item.caption || "") : ""
+}
+
+function rowCount(value) {
+    return layouts[clampedIndex(value)].rows.length
+}
+
+function rowLength(value, row) {
+    var layoutIndex = clampedIndex(value)
+    var rows = layouts[layoutIndex].rows
+    if (row < 0 || row >= rows.length)
+        return 0
+    return layoutIndex < legacyLayoutCount && row === rows.length - 1
+            ? rows[row].length + 2 : rows[row].length
+}
+
+function key(value, row, column) {
+    var layoutIndex = clampedIndex(value)
+    var rows = layouts[layoutIndex].rows
+    if (layoutIndex < legacyLayoutCount && row === rows.length - 1) {
+        if (column === 0)
+            return { kind: "shift" }
+        if (column === rows[row].length + 1)
+            return { kind: "delete" }
+        column--
+    }
+    var item = rawKey(layoutIndex, row, column)
+    return item || { kind: "gap" }
+}
+
+function keyKind(value, row, column) {
+    return String(key(value, row, column).kind || "gap")
+}
+
+function caption(value, row, column, shiftedValue) {
+    var item = key(value, row, column)
+    if (item.kind !== "character")
         return ""
-    return rows[row][column]
+    if (shiftedValue && item.shiftedCaption !== undefined)
+        return String(item.shiftedCaption)
+    if (shiftedValue && layouts[clampedIndex(value)].shiftable !== false)
+        return shifted(String(item.caption || ""), value)
+    return String(item.caption || "")
+}
+
+function output(value, row, column, shiftedValue) {
+    var item = key(value, row, column)
+    if (item.kind !== "character")
+        return ""
+    if (shiftedValue && item.shiftedOutput !== undefined)
+        return String(item.shiftedOutput)
+    if (shiftedValue && layouts[clampedIndex(value)].shiftable !== false)
+        return shifted(String(item.output || item.caption || ""), value)
+    return String(item.output || item.caption || "")
+}
+
+function numberRow(value) {
+    return layouts[clampedIndex(value)].numberRow || []
+}
+
+function numberRowLength(value) {
+    return numberRow(value).length
+}
+
+function numberKey(value, column) {
+    var row = numberRow(value)
+    return column >= 0 && column < row.length ? row[column] : { kind: "gap" }
+}
+
+function numberRowRequired(value) {
+    var mode = String(layouts[clampedIndex(value)].numberRowMode || "Default")
+    return numberRow(value).length > 0 && mode === "AlwaysEnabled"
+}
+
+function usesIndependentSizing(value) {
+    var layoutIndex = clampedIndex(value)
+    if (layoutIndex < legacyLayoutCount) {
+        var activeScript = layouts[layoutIndex].script
+        return activeScript === "arabic" || activeScript === "persian"
+                || activeScript === "cyrillic"
+                || layoutIndex === 17 || layoutIndex === 18
+    }
+    return !!layouts[layoutIndex].independentSizing
+}
+
+function secondarySymbol(row, column) {
+    if (row < 0 || row >= secondarySymbols.length
+            || column < 0 || column >= secondarySymbols[row].length)
+        return ""
+    return secondarySymbols[row][column]
 }
 
 function shifted(letterValue, layoutValue) {
+    if (clampedIndex(layoutValue) === 14 && letterValue === "ς")
+        return "ς"
     if (letterValue === "ı")
         return "I"
     if (letterValue === "i" && (clampedIndex(layoutValue) === 3
@@ -258,4 +492,131 @@ function shifted(letterValue, layoutValue) {
     if (letterValue === ".")
         return ">"
     return String(letterValue).toUpperCase()
+}
+
+function appendUniqueCharacters(result, value, excluded) {
+    value = String(value || "")
+    for (var i = 0; i < value.length; ++i) {
+        var character = value.charAt(i)
+        if (character !== "%" && character !== " "
+                && excluded.indexOf(character) < 0
+                && result.indexOf(character) < 0)
+            result += character
+    }
+    return result
+}
+
+function alternatives(layoutValue, letterValue, languageCodes, shiftedValue) {
+    var layoutIndex = clampedIndex(layoutValue)
+    var base = String(letterValue || "")
+    if (base === "")
+        return ""
+
+    var excluded = shiftedValue ? shifted(base, layoutIndex) : base
+    var result = ""
+    var layoutValues = letterAlternatives[layoutIndex]
+    var explicitShiftedValues = shiftedLetterAlternatives[layoutIndex]
+    var layoutResult = layoutValues && layoutValues[base] !== undefined
+            ? String(layoutValues[base]) : ""
+    if (shiftedValue) {
+        if (explicitShiftedValues && explicitShiftedValues[base] !== undefined)
+            layoutResult = String(explicitShiftedValues[base])
+        else
+            layoutResult = layoutResult.toUpperCase()
+    }
+    result = appendUniqueCharacters(result, layoutResult, excluded)
+
+    var languages = String(languageCodes || "").toUpperCase().split("+")
+    for (var i = 0; i < languages.length; ++i) {
+        var values = languageAlternatives[languages[i]]
+        if (!values || values[base] === undefined)
+            continue
+        var languageResult = String(values[base])
+        if (shiftedValue)
+            languageResult = languageResult.toUpperCase()
+        result = appendUniqueCharacters(result, languageResult, excluded)
+    }
+    return result
+}
+
+function appendChoice(result, choice, excludedOutput) {
+    if (!choice || choice.kind !== undefined && choice.kind !== "character")
+        return
+    var captionValue = String(choice.caption !== undefined
+                              ? choice.caption : choice.output || "")
+    var outputValue = String(choice.output !== undefined
+                             ? choice.output : captionValue)
+    if (outputValue === "" || outputValue === excludedOutput)
+        return
+    for (var i = 0; i < result.length; ++i) {
+        if (result[i].output === outputValue)
+            return
+    }
+    result.push({ caption: captionValue, output: outputValue })
+}
+
+function upperChoice(choice, languageCode) {
+    var code = String(languageCode || "").toUpperCase()
+    var captionValue = String(choice.caption !== undefined
+                              ? choice.caption : choice.output || "")
+    var outputValue = String(choice.output !== undefined
+                             ? choice.output : captionValue)
+    if (code === "TR" || code.indexOf("AZ") === 0) {
+        captionValue = captionValue.replace(/i/g, "İ").replace(/ı/g, "I")
+        outputValue = outputValue.replace(/i/g, "İ").replace(/ı/g, "I")
+    }
+    return { caption: captionValue.toUpperCase(), output: outputValue.toUpperCase() }
+}
+
+function stringChoices(value) {
+    var result = []
+    value = String(value || "")
+    for (var i = 0; i < value.length; ++i)
+        appendChoice(result, { caption: value.charAt(i), output: value.charAt(i) }, "")
+    return result
+}
+
+function alternativeChoices(layoutValue, row, column, languageCodes, shiftedValue) {
+    var layoutIndex = clampedIndex(layoutValue)
+    var item = key(layoutIndex, row, column)
+    if (item.kind !== "character")
+        return []
+
+    // The stable pre-catalogue layouts keep their established broad accent
+    // collection. Generated layouts use FUTO's exact structured choices,
+    // including distinct labels/outputs and multi-codepoint results.
+    if (layoutIndex < legacyLayoutCount) {
+        return stringChoices(alternatives(layoutIndex, item.caption,
+                                          languageCodes, shiftedValue))
+    }
+
+    var result = []
+    var excluded = output(layoutIndex, row, column, shiftedValue)
+    var direct = shiftedValue && item.shiftedMore !== undefined
+            ? item.shiftedMore : (item.more || [])
+    for (var directIndex = 0; directIndex < direct.length; ++directIndex)
+        appendChoice(result, direct[directIndex], excluded)
+
+    var languages = String(languageCodes || "").toUpperCase().split("+")
+    var base = String(item.caption || "")
+    for (var languageIndex = 0; languageIndex < languages.length; ++languageIndex) {
+        var languageCode = languages[languageIndex]
+        var languageMap = Generated.languageAlternatives[languageCode]
+        var choices = languageMap && languageMap[base] ? languageMap[base] : []
+        for (var choiceIndex = 0; choiceIndex < choices.length; ++choiceIndex) {
+            appendChoice(result, shiftedValue
+                         ? upperChoice(choices[choiceIndex], languageCode)
+                         : choices[choiceIndex], excluded)
+        }
+    }
+    return result
+}
+
+function hasExactAlternatives(layoutValue) {
+    return clampedIndex(layoutValue) >= legacyLayoutCount
+}
+
+function secondarySymbolForLayout(layoutValue, row, column) {
+    return clampedIndex(layoutValue) < legacyLayoutCount
+            ? secondarySymbol(row, column) : ""
 }

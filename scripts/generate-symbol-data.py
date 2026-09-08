@@ -18,18 +18,18 @@ from fontTools.ttLib import TTFont
 # unusual characters.
 NORMAL_KEYBOARD_SYMBOLS = set(
     "!\"#$%&'()*+,-./0123456789:;<=>?@[\\]^_`{|}~"
-    "£€﷼₺¥¢½¼¹⅛⅓⅔²³¾⅜⁴⅝ⁿ…•×„“«»”ʼ‡†‹›≈≠±¯—–‰÷"
+    "£€₺⃁﷼¥¢½¼¹⅛⅓⅔²³¾⅜⁴⅝ⁿ…•×„“«»”ʼ‡†‹›≈≠±¯—–‰÷"
     "©®™§¶°¬¦"
 )
 
 REQUIRED_SYMBOLS = set(
-    "←↑→↓↔↕↨∂∆∏∑∙√∞▀▄█▌▐░▒▓■□▪▫▬▲►▼◄◊○◌●◘◙◦☺☻ﷲﷴﷺﷻ﷽"
+    "←↑→↓↔↕↨∂∆∏∑∙√∞▀▄█▌▐░▒▓■□▪▫▬▲►▼◄◊○◌●◘◙◦☺☻⃁﷼ﷲﷴﷺﷻ﷽"
 )
 
 # Keep the most useful families complete and in a predictable order. These
 # intentionally duplicate a handful of normal long-press alternatives: an
 # exhaustive picker should not make the user hunt across two interfaces.
-CURRENCY_PRIORITY = "$£€﷼₺¥¢"
+CURRENCY_PRIORITY = "$£€₺⃁﷼¥¢"
 NUMBER_PRIORITY = (
     "⁰¹²³⁴⁵⁶⁷⁸⁹ⁿ"
     "₀₁₂₃₄₅₆₇₈₉"

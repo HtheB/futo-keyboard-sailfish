@@ -8,10 +8,19 @@ CharacterKey {
     id: futoKey
     property string letterAccents: defaultAccents(caption, false)
     property string letterAccentsShifted: defaultAccents(caption, true)
+    property string keyOutput: caption
+    property string keyOutputShifted: captionShifted
+    property var letterAlternativeChoices: []
+    property var letterAlternativeChoicesShifted: []
+    property bool exactAlternativeMode: false
+    property string preferredFontFamily: ""
+    property string specialArabicFontFamily: "Noto Naskh Arabic"
+    property string androidRiyalFontFamily: "FUTO Android Riyal"
     property string secondarySymbol: symView
     property bool secondaryHintEligible: true
     property bool popupArmed: false
     property string popupHighlightedText: ""
+    property string popupHighlightedOutput: ""
     property var managedPopperTimer: null
     property bool popupAlways: symbolPopupChoices(baseKeyText()) !== ""
 	readonly property bool gesturePreviewSuppressed: keyboard.inputHandler
@@ -42,6 +51,27 @@ CharacterKey {
                : (attributes.isShifted ? captionShifted : caption)
     }
 
+    function baseKeyOutput() {
+        return attributes.inSymView && symView.length > 0
+               ? (attributes.inSymView2 ? symView2 : symView)
+               : (attributes.isShifted ? keyOutputShifted : keyOutput)
+    }
+
+    function activeStructuredChoices() {
+        if (!exactAlternativeMode || attributes.inSymView)
+            return []
+        var source = attributes.isShifted
+                ? letterAlternativeChoicesShifted : letterAlternativeChoices
+        return source && source.length !== undefined ? source : []
+    }
+
+    function placeholderAccents(count) {
+        var result = ""
+        for (var i = 0; i < count; ++i)
+            result += String.fromCharCode(0xE100 + (i % 0x180))
+        return result
+    }
+
     function symbolPopupChoices(base) {
         var arabicAlternatives = keyboard && keyboard.layout
                 && keyboard.layout.usesArabicDigits !== undefined
@@ -52,8 +82,8 @@ CharacterKey {
         var localizedAlternatives = arabicAlternatives || persianAlternatives
         var localizedDigits = persianAlternatives ? "۰۱۲۳۴۵۶۷۸۹" : "٠١٢٣٤٥٦٧٨٩"
         switch (base) {
-        case "$": return "£€\uFDFC₺¥¢"
-        case "€": return "£$\uFDFC₺¥¢"
+        case "$": return "£€₺\u20C1¥¢"
+        case "€": return "£$₺\u20C1¥¢"
         case "0": return localizedAlternatives ? localizedDigits.charAt(0) : ""
         case "1": return (localizedAlternatives ? localizedDigits.charAt(1) : "") + "½¼¹⅛⅓"
         case "2": return (localizedAlternatives ? localizedDigits.charAt(2) : "") + "⅔²"
@@ -158,6 +188,11 @@ CharacterKey {
         var symbolChoices = symbolPopupChoices(baseKeyText())
         if (symbolChoices !== "")
             return symbolChoices
+        var structured = activeStructuredChoices()
+        if (structured.length > 0)
+            return placeholderAccents(structured.length)
+        if (exactAlternativeMode && !attributes.inSymView)
+            return ""
         return accentChoices(attributes.isShifted
                              ? letterAccentsShifted : letterAccents,
                              secondarySymbol)
@@ -194,16 +229,80 @@ CharacterKey {
         return null
     }
 
+    function findPopperModel(item) {
+        if (!item)
+            return null
+        if (item.count !== undefined && typeof item.clear === "function"
+                && typeof item.append === "function"
+                && typeof item.get === "function")
+            return item
+        var values = item.data
+        if (!values || values.length === undefined)
+            return null
+        for (var i = 0; i < values.length; ++i) {
+            var match = findPopperModel(values[i])
+            if (match)
+                return match
+        }
+        return null
+    }
+
+    function replacePopperChoices(popper) {
+        var choices = activeStructuredChoices()
+        if (!popper || choices.length < 1)
+            return
+        var model = findPopperModel(popper)
+        if (!model)
+            return
+        var activeCell = Number(popper.activeCell)
+        if (!isFinite(activeCell) || activeCell < 0)
+            activeCell = Math.floor((choices.length + 1) / 2)
+        activeCell = Math.min(choices.length, Math.round(activeCell))
+        var rows = []
+        var sourceIndex = 0
+        for (var cell = 0; cell < choices.length + 1; ++cell) {
+            if (cell === activeCell) {
+                rows.push({ labelText: baseKeyText(), inputText: baseKeyOutput() })
+            } else {
+                var choice = choices[sourceIndex++] || {}
+                rows.push({
+                    labelText: String(choice.caption !== undefined
+                                      ? choice.caption : choice.output || ""),
+                    inputText: String(choice.output !== undefined
+                                      ? choice.output : choice.caption || "")
+                })
+            }
+        }
+        model.clear()
+        for (var row = 0; row < rows.length; ++row)
+            model.append(rows[row])
+    }
+
     function applyPopupGlyphFonts(item) {
         if (!item)
             return
-        // U+FDFC is present in Amiri on Sailfish OS, but not in Sail Sans.
-        // Relying on implicit fallback produces a malformed/tiny Rial ligature
-        // inside the narrow popup cell, especially with synthetic bold.
-        if (item.text !== undefined && String(item.text) === "\uFDFC"
+        // These three symbols are absent or malformed in Sailfish's native
+        // fonts. Keep their fallback exact so ordinary Arabic and Latin text
+        // continues to use the system typeface.
+        if (item.text !== undefined
+                && usesAndroidRiyalFont(String(item.text))
                 && item.font !== undefined) {
-            item.font.family = "Amiri"
+            item.font.family = androidRiyalFontFamily
             item.font.bold = false
+            item.font.weight = Font.Normal
+        } else if (item.text !== undefined
+                && usesSpecialArabicFont(String(item.text))
+                && item.font !== undefined) {
+            item.font.family = specialArabicFontFamily
+            item.font.bold = false
+            item.font.weight = Font.Normal
+        } else if (item.text !== undefined && item.font !== undefined
+                   && preferredFontFamily !== "") {
+            var popupUsesBundledFont = shouldUsePreferredFont(String(item.text))
+            item.font.family = popupUsesBundledFont
+                    ? preferredFontFamily : Theme.fontFamily
+            item.font.bold = false
+            item.font.weight = popupUsesBundledFont ? Font.Light : Font.Normal
         }
         var children = item.children
         if (!children || children.length === undefined)
@@ -212,12 +311,90 @@ CharacterKey {
             applyPopupGlyphFonts(children[i])
     }
 
+    function isBundledScriptCodepoint(codepoint) {
+        // Extended Latin is needed by the Amazigh-Latin layout. Restrict the
+        // generic Noto Sans face to those missing glyphs so ordinary Latin
+        // keys keep Sailfish's native Sail Sans appearance.
+        return (codepoint >= 0x0250 && codepoint <= 0x02AF)
+                || (codepoint >= 0x1E00 && codepoint <= 0x1EFF)
+                || (codepoint >= 0x2D30 && codepoint <= 0x2D7F)
+                || (codepoint >= 0x0D80 && codepoint <= 0x0DFF)
+                || (codepoint >= 0x1000 && codepoint <= 0x109F)
+                || (codepoint >= 0xA9E0 && codepoint <= 0xA9FF)
+                || (codepoint >= 0xAA60 && codepoint <= 0xAA7F)
+                || (codepoint >= 0x1780 && codepoint <= 0x17FF)
+                || (codepoint >= 0x19E0 && codepoint <= 0x19FF)
+    }
+
+    function shouldUsePreferredFont(value) {
+        if (preferredFontFamily === "")
+            return false
+        value = String(value || "")
+        for (var i = 0; i < value.length; ++i) {
+            var codepoint = value.charCodeAt(i)
+            if (isBundledScriptCodepoint(codepoint))
+                return true
+        }
+        return false
+    }
+
+    function usesSpecialArabicFont(value) {
+        value = String(value || "")
+        for (var i = 0; i < value.length; ++i) {
+            var codepoint = value.charCodeAt(i)
+            if (codepoint === 0x20C1 || codepoint === 0xFDFB)
+                return true
+        }
+        return false
+    }
+
+    function usesAndroidRiyalFont(value) {
+        value = String(value || "")
+        for (var i = 0; i < value.length; ++i) {
+            if (value.charCodeAt(i) === 0xFDFC)
+                return true
+        }
+        return false
+    }
+
+    function applyKeyGlyphFont(item) {
+        if (!item)
+            return
+        if (item !== futoKey && item.text !== undefined
+                && item.font !== undefined
+                && String(item.text) === String(futoKey.keyText)) {
+            var value = String(item.text)
+            var usesAndroidFont = usesAndroidRiyalFont(value)
+            var usesSpecialFont = usesSpecialArabicFont(value)
+            var usesBundledFont = shouldUsePreferredFont(value)
+            if (usesAndroidFont)
+                item.font.family = androidRiyalFontFamily
+            else if (usesSpecialFont)
+                item.font.family = specialArabicFontFamily
+            else
+                item.font.family = usesBundledFont
+                        ? preferredFontFamily : Theme.fontFamily
+            item.font.bold = false
+            item.font.weight = usesBundledFont && !usesSpecialFont
+                    && !usesAndroidFont
+                    ? Font.Light : Font.Normal
+        }
+        var children = item.children
+        if (!children || children.length === undefined)
+            return
+        for (var i = 0; i < children.length; ++i)
+            applyKeyGlyphFont(children[i])
+    }
+
     function hasPopupChoices() {
         return symbolPopupChoices(baseKeyText()) !== ""
                 || ((!attributes.inSymView)
                     && ((visualSettings.secondarySymbolsEnabled
                          && secondarySymbol !== "")
-                        || letterAccents !== "" || letterAccentsShifted !== ""))
+                        || activeStructuredChoices().length > 0
+                        || (!exactAlternativeMode
+                            && (letterAccents !== ""
+                                || letterAccentsShifted !== ""))))
     }
 
     function armSecondaryPopup() {
@@ -231,6 +408,7 @@ CharacterKey {
         // making the visible key hint the long-press default.
         popupArmed = true
         popupHighlightedText = ""
+        popupHighlightedOutput = ""
         managedPopperTimer = null
         popupDelayTimer.interval = Math.max(200,
                                             visualSettings.secondaryKeyHoldMs)
@@ -260,6 +438,7 @@ CharacterKey {
                                : ((!attributes.inSymView
                                    && visualSettings.secondarySymbolsEnabled)
                                   ? secondarySymbol : "")
+        popupHighlightedOutput = popupHighlightedText
         popupArmed = false
 
         var popper = findPopper(keyboard)
@@ -269,6 +448,7 @@ CharacterKey {
             managedPopperTimer.stop()
         popper.hasAccents = true
         popper.setup()
+        replacePopperChoices(popper)
         applyPopupGlyphFonts(popper)
         keyboard.inputHandler._handleKeyRelease()
         popper.expanded = true
@@ -281,15 +461,11 @@ CharacterKey {
             managedPopperTimer.stop()
         popupArmed = false
         popupHighlightedText = ""
+        popupHighlightedOutput = ""
         managedPopperTimer = null
     }
 
-    function defaultAccents(base, shifted) {
-        // Keep the pop-up compact and derive it from the key that is actually
-        // shown.  The 0.4 layout attached the A alternatives to Q in QWERTY,
-        // which made several pop-ups both incorrect and unnecessarily wide.
-        if (base === undefined || base.length !== 1)
-            return ""
+    function fallbackAccents(base, shifted) {
         switch (base) {
         case "a": return shifted ? "ÄÁÀÂÃÅÆĄ" : "äáàâãåæą"
         case "c": return shifted ? "ÇČĆ" : "çčć"
@@ -310,12 +486,40 @@ CharacterKey {
         }
     }
 
+    function mergeAccentCharacters(first, second) {
+        var result = ""
+        var combined = String(first || "") + String(second || "")
+        for (var i = 0; i < combined.length; ++i) {
+            var character = combined.charAt(i)
+            if (result.indexOf(character) < 0)
+                result += character
+        }
+        return result
+    }
+
+    function defaultAccents(base, shifted) {
+        // Keep the pop-up derived from the key that is actually shown. FUTO's
+        // locale choices come first; the established broad Latin choices stay
+        // available afterwards for this port's multilingual QWERTY layout.
+        if (base === undefined || base.length !== 1)
+            return ""
+        var officialAlternatives = ""
+        if (keyboard && keyboard.layout
+                && keyboard.layout.letterAlternatives !== undefined) {
+            officialAlternatives = String(
+                    keyboard.layout.letterAlternatives(base, shifted) || "")
+        }
+        return mergeAccentCharacters(officialAlternatives,
+                                     fallbackAccents(base, shifted))
+    }
+
     // Once a gesture is known to be swipe typing, do not expose alternatives
     // to the platform Popper at all.  Popper caches hasAccents when its target
     // changes, so FutoInputHandler also detaches that target at swipe start.
     accents: gesturePreviewSuppressed ? "" : popupChoices()
     accentsShifted: gesturePreviewSuppressed ? "" : popupChoices()
     keyText: popupHighlightedText !== "" ? popupHighlightedText : baseKeyText()
+    text: popupHighlightedOutput !== "" ? popupHighlightedOutput : baseKeyOutput()
     pixelSize: Math.round(Theme.fontSizeLarge
                           * Math.max(0.8, Math.min(1.3, visualSettings.keyFontScale)))
     fontSizeMode: Text.Fit
@@ -344,6 +548,19 @@ CharacterKey {
         repeat: false
         onTriggered: futoKey.prepareSecondaryPopup()
     }
+
+    Timer {
+        id: glyphFontRefresh
+        interval: 0
+        repeat: false
+        onTriggered: futoKey.applyKeyGlyphFont(futoKey)
+    }
+
+    Component.onCompleted: glyphFontRefresh.restart()
+    onPreferredFontFamilyChanged: glyphFontRefresh.restart()
+    onSpecialArabicFontFamilyChanged: glyphFontRefresh.restart()
+    onAndroidRiyalFontFamilyChanged: glyphFontRefresh.restart()
+    onKeyTextChanged: glyphFontRefresh.restart()
 
     onPressedChanged: {
 		if (pressed && !gesturePreviewSuppressed)

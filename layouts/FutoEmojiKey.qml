@@ -1,7 +1,6 @@
 /* Image-backed Emoji 17 key with data-driven skin-tone variants. */
 import QtQuick 2.0
 import Sailfish.Silica 1.0
-import Nemo.Configuration 1.0
 import ".."
 
 CharacterKey {
@@ -12,6 +11,8 @@ CharacterKey {
     property var variants: []
     property int emojiStyle
     property int skinTone
+    property bool separatedKeysEnabled: true
+    property real keyGapScale: 1.0
     property string commitOverride: ""
     property bool held
     property bool moved
@@ -95,24 +96,17 @@ CharacterKey {
                                  : (effectiveVariant ? effectiveVariant.t : emojiText)
     showPopper: false
 
-    ConfigurationGroup {
-        id: visualSettings
-        path: "/sailfish/text_input/futo_keyboard"
-        property bool separatedKeysEnabled: true
-        property real keyGapScale: 1.0
-    }
-
     Rectangle {
         anchors.fill: parent
         anchors.margins: Math.max(1, Theme.paddingSmall / 3
                                   * Math.max(0.5, Math.min(2.0,
-                                                         visualSettings.keyGapScale)))
+                                                         emojiKey.keyGapScale)))
         radius: Theme.paddingSmall
         z: -2
         color: Theme.rgba(parent.palette.primaryColor, parent.pressed ? 0.24 : 0.12)
         border.width: 1
         border.color: Theme.rgba(parent.palette.primaryColor, 0.12)
-        visible: visualSettings.separatedKeysEnabled
+        visible: emojiKey.separatedKeysEnabled
     }
 
     Image {
@@ -125,10 +119,10 @@ CharacterKey {
 		sourceSize.height: Math.max(1, Math.ceil(height))
         fillMode: Image.PreserveAspectFit
         smooth: true
-		// The grid is row-virtualized, so only the visible cells exist. Loading
-		// these small local assets synchronously avoids Qt 5.6's slow serial
-		// asynchronous SVG queue when changing categories.
-		asynchronous: false
+		// SVG parsing must not block Maliit's render thread while a row enters
+		// the viewport. The grid keeps a small bounded look-ahead buffer so these
+		// requests normally finish before the row becomes visible.
+		asynchronous: true
 		// Do not retain every decoded emoji visited while scrolling. The grid is
 		// virtualized and local assets are cheap to reload when they return.
 		cache: false
@@ -155,31 +149,17 @@ CharacterKey {
     onStyleDirectoryChanged: emojiImage.bundledFallback = false
     onEffectiveVariantChanged: emojiImage.bundledFallback = false
 
-    Canvas {
+    Label {
         id: toneIndicator
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.rightMargin: Math.max(2, Theme.paddingSmall / 3)
         anchors.bottomMargin: Math.max(2, Theme.paddingSmall / 3)
-        width: Math.max(8, Math.min(parent.width, parent.height) * 0.16)
-        height: width
         z: 4
         visible: emojiKey.toneCapable
-        property color indicatorColor: Theme.highlightColor
-
-        onIndicatorColorChanged: requestPaint()
-        Component.onCompleted: requestPaint()
-        onPaint: {
-            var context = getContext("2d")
-            context.clearRect(0, 0, width, height)
-            context.fillStyle = indicatorColor
-            context.beginPath()
-            context.moveTo(width, 0)
-            context.lineTo(width, height)
-            context.lineTo(0, height)
-            context.closePath()
-            context.fill()
-        }
+        text: "◢"
+        color: Theme.highlightColor
+        font.pixelSize: Math.max(8, Math.min(parent.width, parent.height) * 0.18)
     }
 
     Timer {

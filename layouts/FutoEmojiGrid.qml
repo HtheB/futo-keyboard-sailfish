@@ -1,6 +1,7 @@
 /* Complete, scrollable Emoji 17 grid with searchable categories and tones. */
 import QtQuick 2.0
 import Sailfish.Silica 1.0
+import Nemo.Configuration 1.0
 
 Item {
     id: emojiGrid
@@ -33,6 +34,16 @@ Item {
     readonly property bool split: targetLayout && targetLayout.splitActive
     readonly property real splitGap: split ? Number(targetLayout.avoidanceWidth) : 0
     height: targetLayout ? 3 * targetLayout.keyHeight : 0
+
+    // All emoji keys share these two values. Keeping one settings subscriber
+    // for the grid avoids constructing a ConfigurationGroup for every cell
+    // that enters the viewport.
+    ConfigurationGroup {
+        id: visualSettings
+        path: "/sailfish/text_input/futo_keyboard"
+        property bool separatedKeysEnabled: true
+        property real keyGapScale: 1.0
+    }
 
     function openTonePicker(key) {
         toneSourceKey = key
@@ -78,6 +89,12 @@ Item {
         readonly property real cellWidth: (width - emojiGrid.splitGap)
                                           / emojiGrid.columns
         readonly property real cellHeight: cellWidth
+        // Keep only a small, fixed number of rows ready on either side of the
+        // viewport. A zero buffer makes Qt destroy a row as soon as it leaves
+        // the screen, forcing its SVG files to be decoded again during even a
+        // tiny reverse flick. This remains bounded independently of category
+        // size while avoiding that repeated work.
+        cacheBuffer: Math.ceil(cellHeight * 8)
         model: Math.ceil(emojiGrid.entries.length / emojiGrid.columns)
 
         delegate: Item {
@@ -108,6 +125,8 @@ Item {
                     variants: entry && entry.v ? entry.v : []
                     emojiStyle: targetLayout.emojiStyle
                     skinTone: targetLayout.emojiSkinTone
+                    separatedKeysEnabled: visualSettings.separatedKeysEnabled
+                    keyGapScale: visualSettings.keyGapScale
                     onToneRequested: emojiGrid.openTonePicker(emojiDelegate)
                     onEmojiCommitted: targetLayout.recordEmoji(baseCode)
                 }

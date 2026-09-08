@@ -9,16 +9,16 @@ CharacterKey {
 
     property string symbolText
     property string arabicFontFamily
+    property string specialArabicFontFamily
+    property string androidRiyalFontFamily
     property Item targetLayout
     property bool moved
     property bool favoriteHoldTriggered
     property real pressX
     property real pressY
-    // Sailfish's native fallback fonts do not draw U+FDFB even though Android
-    // AppSupport does. Use its Unicode compatibility decomposition for both
-    // the key label and committed text so it renders consistently everywhere.
-    readonly property string committedSymbolText: symbolText === "ﷻ"
-            ? "جل جلاله" : symbolText
+    // Commit the actual Unicode symbol. Bundled fallback fonts provide its
+    // rendering in native Sailfish applications without altering the text.
+    readonly property string committedSymbolText: symbolText
 
     caption: ""
     keyText: ""
@@ -40,6 +40,23 @@ CharacterKey {
         keyboard.inputHandler._handleKeyClick(symbolCell)
         keyboard.inputHandler._handleKeyRelease()
         symbolCell.clicked()
+    }
+
+    // Qt 5.6's JavaScript engine does not provide String.codePointAt().
+    // Decode the first UTF-16 code point explicitly so supplementary-plane
+    // symbols remain supported on older Sailfish OS releases.
+    function firstCodePoint(value) {
+        if (!value || value.length === 0)
+            return 0
+
+        var first = value.charCodeAt(0)
+        if (first >= 0xD800 && first <= 0xDBFF && value.length > 1) {
+            var second = value.charCodeAt(1)
+            if (second >= 0xDC00 && second <= 0xDFFF)
+                return (first - 0xD800) * 0x400
+                        + (second - 0xDC00) + 0x10000
+        }
+        return first
     }
 
     Rectangle {
@@ -64,8 +81,13 @@ CharacterKey {
         textFormat: Text.PlainText
         color: symbolCell.pressed ? Theme.highlightColor : Theme.primaryColor
         font.family: {
-            var codepoint = symbolCell.symbolText.length > 0
-                    ? symbolCell.symbolText.codePointAt(0) : 0
+            var codepoint = symbolCell.firstCodePoint(symbolCell.symbolText)
+            if (codepoint === 0xFDFC
+                    && symbolCell.androidRiyalFontFamily !== "")
+                return symbolCell.androidRiyalFontFamily
+            if ((codepoint === 0x20C1 || codepoint === 0xFDFB)
+                    && symbolCell.specialArabicFontFamily !== "")
+                return symbolCell.specialArabicFontFamily
             return codepoint >= 0xFDF0 && codepoint <= 0xFDFD
                     && symbolCell.arabicFontFamily !== ""
                     ? symbolCell.arabicFontFamily : Theme.fontFamily

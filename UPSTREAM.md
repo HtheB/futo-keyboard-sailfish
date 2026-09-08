@@ -27,9 +27,57 @@ Keyboard layout definitions:
 - Repository: https://github.com/futo-org/futo-keyboard-layouts
 - Commit: `fb4dad270790d980c32417b60359104bd0c32c1c`
 - License: Apache-2.0
-- The Serbian Cyrillic arrangement follows the upstream South Slavic layout,
-  with its primary keys limited to the modern Serbian alphabet (the obsolete
-  Cyrillic Dze is not kept as an extra primary key).
+- `scripts/generate-futo-layout-catalogue.py` converts the corresponding pinned
+  FUTO YAML definitions into the generated Sailfish catalogue. Primary rows,
+  labels, committed text, shifted forms and explicit number rows are retained;
+  Sailfish continues to supply its platform-specific bottom control row.
+- The existing SwiftKey-style QWERTY remains available separately from the
+  exact generated FUTO QWERTY. Existing layout indices stay stable so upgrades
+  do not rewrite users' per-language choices.
+- Language-specific long-press choices are taken from the locale data in the
+  pinned Android Keyboard revision above. Generated popups retain separate
+  display labels and committed text, including multi-codepoint Arabic output.
+
+Native script fonts:
+
+- The bundled Amiri 1.003 font used for Arabic ligatures is an unmodified
+  upstream OFL binary. SHA-256:
+  `cd2550c0f4c05eb341bf97958211aaa39382bca96577ba3a67d4a3b4912c43c0`.
+- Sailfish OS 5.2's Amiri 0.107 is reproduced with only U+FDFC's outline and
+  metrics replaced by Android AppSupport's compact Rial glyph. It is installed
+  beside, and never overwrites, the OS font. Its earlier filename makes native
+  Qt select this otherwise identical copy. Sailfish source SHA-256:
+  `8d441c9b07d0ebc200c9752a5ec505eb41a61468fba985b4f6d7c8157cf02da0`.
+  Derived SHA-256:
+  `7a0bd8b0481d3995196cf5161a1a290fd05ec23f3b5dafb47c06cc8acc832b93`.
+- Noto Sans Tifinagh, Noto Sans Sinhala, Noto Sans Myanmar, Noto Sans Khmer,
+  and Noto Naskh Arabic are unmodified upstream font binaries from the
+  corresponding Noto Project repositories listed in
+  `LICENSES/NOTO-FONTS-OFL.txt`.
+- License: SIL Open Font License 1.1.
+- SHA-256:
+  - Noto Sans Tifinagh: `0385b743cad34aa1681b8e1ffff43c93b9a626a0db348cdf0b86f2a7ffcc411b`
+  - Noto Sans Sinhala Light: `c645fa43ca3c384cbee102d3f398ba69d00c014378f62068c29d889b65a94f4b`
+  - Noto Sans Myanmar Light: `6a70b1fcd6756173e51567554e4164687f76a3da88f93a5ac48e56c005152f72`
+  - Noto Sans Khmer Light: `fd21655895fcf5b16ba499671c0e06e8450faf093d8c65c9f9ced970aabe1e70`
+  - Noto Naskh Arabic 2.021: `c9a039ce48a477243c1eb7d561b13de115cfd651d8a83fa42e2f4d63c2e11b00`
+  - Android AppSupport compact Noto Naskh Arabic UI 1.08 source:
+    `61e022fdf23df726b4fdf2e5022c166c97ec4b3846c5dbb76fc0922798a2083a`
+  - Renamed `FUTO Android Riyal` font:
+    `8decb0be8598af58ce4f3d38862da6387b99acee44626963f2363b8ec54f4f79`
+- They provide native Sailfish rendering for layout scripts that are available
+  through Android's private font collection but absent from the base Sailfish
+  font installation. Noto Naskh Arabic is selected only for U+20C1, U+FDFB,
+  and U+FDFC inside the keyboard; ordinary Arabic retains Sailfish's system
+  typeface.
+- `scripts/build-android-riyal-font.py` creates the renamed font from
+  `/system/fonts/NotoNaskhArabicUI-Regular.ttf` in
+  `appsupport15-system-unprivileged-15.0.0.17.5-1.4.1.jolla.aarch64`. This
+  preserves Android's preferred Rial design without making that older font a
+  fallback for any other text.
+- `scripts/build-amiri-riyal-font.py` applies the outline to an exact copy of
+  Sailfish's Amiri source. Native Qt resolves U+FDFC through that family even
+  when fontconfig ranks the dedicated Rial family first.
 
 Offline voice input:
 

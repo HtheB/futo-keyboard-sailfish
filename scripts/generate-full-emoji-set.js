@@ -9,6 +9,7 @@
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const zlib = require("zlib");
 
 function argumentsByName(argv) {
     const result = {};
@@ -346,50 +347,15 @@ async function main() {
         "function entryForCode(code) { return byCode[String(code)] || null; }",
         ""
     ].join("\n");
-    const searchDataSource = [
-        "// Generated from Unicode Emoji 17.0; do not edit by hand.",
-        "var allEntries = " + jsonForQml(searchEntries) + ";",
-        "function standardFold(value) {",
-        "    return String(value).toLowerCase().replace(/\\u0307/g, \"\");",
-        "}",
-        "function turkishFold(value) {",
-        "    return String(value).replace(/I/g, \"ı\").replace(/İ/g, \"i\")",
-        "            .toLowerCase().replace(/\\u0307/g, \"\");",
-        "}",
-        "function foldForLanguage(value, language) {",
-        "    return String(language) === \"TR\" ? turkishFold(value) : standardFold(value);",
-        "}",
-        "function search(query, languages) {",
-        "    var rawQuery = String(query).trim();",
-        "    if (rawQuery === \"\") return allEntries.map(function(entry) { return entry.c; });",
-        "    var selected = languages && languages.length ? languages : [\"EN\"];",
-        "    var matches = [];",
-        "    for (var i = 0; i < allEntries.length; ++i) {",
-        "        var matched = false;",
-        "        for (var languageIndex = 0; languageIndex < selected.length; ++languageIndex) {",
-        "            var language = String(selected[languageIndex]);",
-        "            var searchable = \"\";",
-        "            if (language === \"EN\" || language === \"EN_GB\")",
-        "                searchable += \" \" + allEntries[i].n;",
-        "            if (allEntries[i].l && allEntries[i].l[language])",
-        "                searchable += \" \" + allEntries[i].l[language];",
-        "            searchable = foldForLanguage(searchable, language);",
-        "            var words = foldForLanguage(rawQuery, language).split(/\\s+/);",
-        "            var languageMatched = true;",
-        "            for (var j = 0; j < words.length; ++j) {",
-        "                if (searchable.indexOf(words[j]) < 0) { languageMatched = false; break; }",
-        "            }",
-        "            if (languageMatched) { matched = true; break; }",
-        "        }",
-        "        if (matched) matches.push(allEntries[i].c);",
-        "    }",
-        "    return matches;",
-        "}",
-        ""
-    ].join("\n");
+    // Keep the multilingual search catalogue out of Maliit's JavaScript heap.
+    // Qt 5.6 expands the compact object graph dramatically and retains imported
+    // JavaScript libraries for the lifetime of maliit-server.  The helper reads
+    // this compressed JSON array as a stream instead.
+    const searchDataSource = zlib.gzipSync(
+        Buffer.from(JSON.stringify(searchEntries), "utf8"), { level: 9 });
     if (searchOnly) {
-        fs.writeFileSync(path.join(projectRoot, "layouts", "FutoEmojiSearchData.js"),
-                         searchDataSource, "utf8");
+        fs.writeFileSync(path.join(projectRoot, "layouts", "FutoEmojiSearchData.json.gz"),
+                         searchDataSource);
         process.stdout.write(JSON.stringify({
             unicodeVersion: "17.0",
             searchEntries: searchEntries.length,
@@ -398,9 +364,9 @@ async function main() {
         return;
     }
     const dataStage = path.join(stage, "FutoEmojiData.js");
-    const searchDataStage = path.join(stage, "FutoEmojiSearchData.js");
+    const searchDataStage = path.join(stage, "FutoEmojiSearchData.json.gz");
     fs.writeFileSync(dataStage, dataSource, "utf8");
-    fs.writeFileSync(searchDataStage, searchDataSource, "utf8");
+    fs.writeFileSync(searchDataStage, searchDataSource);
 
     const manifest = {
         unicodeVersion: "17.0",
@@ -429,7 +395,7 @@ async function main() {
     }
     fs.copyFileSync(dataStage, path.join(projectRoot, "layouts", "FutoEmojiData.js"));
     fs.copyFileSync(searchDataStage,
-                    path.join(projectRoot, "layouts", "FutoEmojiSearchData.js"));
+                    path.join(projectRoot, "layouts", "FutoEmojiSearchData.json.gz"));
     fs.copyFileSync(path.join(stage, "manifest.json"), path.join(emojiRoot, "manifest.json"));
     fs.rmSync(stage, { recursive: true, force: true });
 

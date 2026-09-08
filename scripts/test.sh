@@ -6,6 +6,94 @@ ENGINE="$ROOT/build/futo-dictionary-compiler"
 
 node --check < "$ROOT/packaging/polkit/49-futo-keyboard-secrets.rules"
 node "$ROOT/scripts/check-symbol-data.js"
+echo '8decb0be8598af58ce4f3d38862da6387b99acee44626963f2363b8ec54f4f79  assets/fonts/FutoAndroidRiyal-Regular.ttf' |
+    (cd "$ROOT" && sha256sum -c -)
+echo 'c9a039ce48a477243c1eb7d561b13de115cfd651d8a83fa42e2f4d63c2e11b00  assets/fonts/NotoNaskhArabic-Regular.ttf' |
+    (cd "$ROOT" && sha256sum -c -)
+echo 'cd2550c0f4c05eb341bf97958211aaa39382bca96577ba3a67d4a3b4912c43c0  assets/fonts/Amiri-Regular.ttf' |
+    (cd "$ROOT" && sha256sum -c -)
+echo '7a0bd8b0481d3995196cf5161a1a290fd05ec23f3b5dafb47c06cc8acc832b93  assets/fonts/AmiriSailfishCompactRial-Regular.ttf' |
+    (cd "$ROOT" && sha256sum -c -)
+grep -Fq '0xFDFC' "$ROOT/scripts/build-android-riyal-font.py"
+grep -Fq 'RIAL_CODEPOINT = 0xFDFC' "$ROOT/scripts/build-amiri-riyal-font.py"
+grep -Fq '65-futo-keyboard-symbols.conf' "$ROOT/packaging/Makefile"
+node "$ROOT/scripts/check-generated-layouts.js"
+node - "$ROOT/layouts/FutoLetterLayouts.js" <<'NODE'
+const fs = require("fs")
+const vm = require("vm")
+const file = process.argv[2]
+const directory = require("path").dirname(file)
+function dataVariable(name, variable) {
+    const source = fs.readFileSync(require("path").join(directory, name), "utf8")
+        .replace(/^\.pragma library\s*/m, "")
+    const context = {}
+    vm.createContext(context)
+    vm.runInContext(source, context, { filename: name })
+    return context[variable]
+}
+const source = fs.readFileSync(file, "utf8")
+    .replace(/^\.pragma library\s*/m, "")
+    .replace(/^\.import .*$/gm, "")
+const layoutData = {
+    Generated: {
+        layouts: dataVariable("FutoGeneratedLayouts.js", "layouts"),
+        languageLayoutIds: dataVariable("FutoGeneratedLayouts.js", "languageLayoutIds"),
+        languageAlternatives: dataVariable("FutoGeneratedLayouts.js", "languageAlternatives")
+    },
+    Catalogue: { languages: dataVariable("FutoLanguageCatalogue.js", "languages") }
+}
+vm.createContext(layoutData)
+vm.runInContext(source, layoutData, { filename: file })
+
+function assert(condition, message) {
+    if (!condition)
+        throw new Error(message)
+}
+
+assert(layoutData.legacyLayoutCount === 21, "persisted layout indices changed")
+assert(layoutData.layouts.length === 118, "generated FUTO layouts missing")
+assert(layoutData.layouts.some(layout => layout.name === "QWERTY"),
+       "the established SwiftKey-style QWERTY entry must exist")
+assert(layoutData.layouts.filter(layout => layout.name === "QWERTY").length >= 2,
+       "the exact FUTO QWERTY entry must exist")
+assert(layoutData.letter(2, 2, 6) === "'", "AZERTY does not match FUTO")
+assert(layoutData.letter(13, 2, 0) === "ذ", "Arabic row is incomplete")
+assert(layoutData.letter(19, 2, 0) === "ѕ"
+       && layoutData.letter(19, 2, 7) === "ђ",
+       "Serbian Cyrillic does not match FUTO South Slavic")
+assert(layoutData.letter(20, 2, 2) === "ژ", "Persian row is incomplete")
+assert(layoutData.shifted("ς", 14) === "ς", "Greek final sigma must not shift")
+assert(layoutData.alternatives(15, "е", "RU", false) === "ё",
+       "Russian ё alternative is missing")
+assert(layoutData.alternatives(15, "ь", "RU", false) === "ъ",
+       "Russian ъ alternative is missing")
+assert(layoutData.alternatives(17, "d", "SL", false) === "đ",
+       "Slovenian đ alternative is missing")
+assert(layoutData.alternatives(0, "a", "PL", false).indexOf("ą") >= 0,
+       "Polish QWERTY alternative is missing")
+assert(layoutData.alternatives(0, "e", "NL+FR", false) === "éëêè",
+       "same-layout language alternatives are not merged deterministically")
+assert(layoutData.secondarySymbols[0].slice(0, 10).join("") === "1234567890",
+       "QWERTY number shortcuts do not match the reference")
+assert(layoutData.secondarySymbols[1].slice(0, 9).join("") === "@#&*-+=()",
+       "QWERTY middle-row shortcuts do not match the reference")
+assert(layoutData.secondarySymbols[2].slice(0, 7).join("") === "_€\"':;/",
+       "QWERTY bottom-row shortcuts do not match the reference")
+for (let layoutIndex = 0; layoutIndex < layoutData.legacyLayoutCount; ++layoutIndex) {
+    const seen = new Set()
+    const rows = layoutData.layouts[layoutIndex].rows
+    for (let row = 0; row < rows.length; ++row) {
+        for (let column = 0; column < rows[row].length; ++column) {
+            const symbol = layoutData.secondarySymbol(row, column)
+            assert(symbol !== "", "missing secondary shortcut")
+            assert(!seen.has(symbol),
+                   layoutData.layouts[layoutIndex].name
+                   + " repeats secondary shortcut " + symbol)
+            seen.add(symbol)
+        }
+    }
+}
+NODE
 if [[ -x "$ROOT/build/host-swipe/futo-keyboard-swipe" \
         && -s "$ROOT/swipe/models/honorable_sturgeon/model_fp32.pte" ]]; then
     node "$ROOT/scripts/test-futo-swipe.js"
@@ -186,20 +274,20 @@ grep -Fq 'SilicaListView {' \
     "$ROOT/layouts/FutoEmojiGrid.qml"
 grep -Fq 'model: Math.ceil(emojiGrid.entries.length / emojiGrid.columns)' \
     "$ROOT/layouts/FutoEmojiGrid.qml"
+grep -Fq 'cacheBuffer: Math.ceil(cellHeight * 8)' "$ROOT/layouts/FutoEmojiGrid.qml"
 grep -Fq 'emojiTabAssetPath(index)' "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'EMOJI_TAB_CODEPOINTS :=' "$ROOT/packaging/Makefile"
 grep -Fq '1f550 1f600 1f44b 1f43b 1f354 1f697 26bd 1f4a1 2764 1f3f3' \
     "$ROOT/scripts/build-rpm.sh"
-grep -Fq 'asynchronous: false' "$ROOT/layouts/FutoEmojiKey.qml"
+grep -Fq 'asynchronous: true' "$ROOT/layouts/FutoEmojiKey.qml"
 grep -Fq 'cache: false' "$ROOT/layouts/FutoEmojiKey.qml"
 grep -Fq 'source: "FutoEmojiPanel.qml"' "$ROOT/layouts/FutoQwertyLayout.qml"
 ! grep -Fq 'import "FutoEmojiData.js"' "$ROOT/layouts/FutoQwertyLayout.qml"
 grep -Fq 'import "FutoEmojiData.js"' "$ROOT/layouts/FutoEmojiPanel.qml"
-grep -Fq 'import "FutoEmojiSearchData.js"' \
-    "$ROOT/layouts/FutoEmojiSearchProvider.qml"
-grep -Fq 'active: panel.targetLayout && panel.targetLayout.emojiPage < 0' \
-    "$ROOT/layouts/FutoEmojiPanel.qml"
-grep -Fq 'layouts/FutoEmojiSearchData.js' "$ROOT/packaging/Makefile"
+! grep -Fq 'FutoEmojiSearchData.js' "$ROOT/layouts/FutoEmojiPanel.qml"
+grep -Fq 'SearchEmoji' "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'emoji-search-index.json.gz' "$ROOT/packaging/Makefile"
+test -s "$ROOT/layouts/FutoEmojiSearchData.json.gz"
 grep -Fq 'layouts/FutoEmojiPanel.qml' "$ROOT/packaging/Makefile"
 grep -Fq 'signalsEnabled: true' "$ROOT/qml/FutoEmojiSettingsPage.qml"
 grep -Fq 'function contentChanged(packId, state)' \

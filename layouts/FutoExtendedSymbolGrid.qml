@@ -27,15 +27,21 @@ Item {
 
     FontLoader {
         id: amiriFont
-        source: "file:///usr/share/futo-keyboard-sailfish/fonts/Amiri-Regular.ttf"
+        source: "file:///usr/share/fonts/futo-keyboard-sailfish/Amiri-Regular.ttf"
+    }
+    FontLoader {
+        id: notoNaskhArabicFont
+        source: "file:///usr/share/fonts/futo-keyboard-sailfish/NotoNaskhArabic-Regular.ttf"
+    }
+    FontLoader {
+        id: androidRiyalFont
+        source: "file:///usr/share/fonts/futo-keyboard-sailfish/FutoAndroidRiyal-Regular.ttf"
     }
 
     function cellSpan(value) {
         if (!value || value.length === 0)
             return 1
         var codepoint = value.charCodeAt(0)
-        if (codepoint === 0xFDFB) // Decomposed Jalla Jalaluhu label
-            return 2
         if (codepoint === 0xFDFD) // Full besmele ligature
             return 4
         return 1
@@ -178,6 +184,12 @@ Item {
                     height: grid.cellHeight
                     symbolText: String(modelData)
                     arabicFontFamily: amiriFont.name
+                    specialArabicFontFamily:
+                            String(notoNaskhArabicFont.name || "") !== ""
+                            ? notoNaskhArabicFont.name : "Noto Naskh Arabic"
+                    androidRiyalFontFamily:
+                            String(androidRiyalFont.name || "") !== ""
+                            ? androidRiyalFont.name : "FUTO Android Riyal"
                     targetLayout: symbolGrid.targetLayout
                 }
             }

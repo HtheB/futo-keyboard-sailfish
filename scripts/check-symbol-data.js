@@ -28,12 +28,12 @@ if (context.categories[0].id !== "favorites"
     throw new Error("Favorites must be the empty, runtime-populated first category");
 
 const entries = context.categories.flatMap(category => category.entries);
-if (entries.length !== 5817)
-    throw new Error(`Expected 5817 generated symbols, got ${entries.length}`);
+if (entries.length !== 5818)
+    throw new Error(`Expected 5818 generated symbols, got ${entries.length}`);
 if (new Set(entries).size !== entries.length)
     throw new Error("Extended-symbol data contains duplicates");
 
-const required = Array.from("←↑→↓↔↕↨∂∆∏∑∙√∞▀▄█▌▐░▒▓■□▪▫▬▲►▼◄◊○◌●◘◙◦☺☻ﷲﷴﷺﷻ﷽");
+const required = Array.from("←↑→↓↔↕↨∂∆∏∑∙√∞▀▄█▌▐░▒▓■□▪▫▬▲►▼◄◊○◌●◘◙◦☺☻⃁﷼ﷲﷴﷺﷻ﷽");
 for (const symbol of required) {
     if (!entries.includes(symbol))
         throw new Error(`Missing required symbol U+${symbol.codePointAt(0).toString(16).toUpperCase()}`);
@@ -49,8 +49,16 @@ if (numberEntries.slice(0, expectedNumberPrefix.length).join("")
 
 const currencyEntries = context.categories.find(category =>
     category.id === "currency").entries;
-if (currencyEntries.slice(0, 7).join("") !== "$£€﷼₺¥¢")
+if (currencyEntries.slice(0, 8).join("") !== "$£€₺⃁﷼¥¢")
     throw new Error("Currency category is missing its common-symbol prefix");
+if (!entries.includes("ﷻ"))
+    throw new Error("Jalla Jalaluhu must remain the actual U+FDFB character");
+
+const symbolKeySource = fs.readFileSync(
+    path.join(root, "layouts", "FutoExtendedSymbolKey.qml"), "utf8");
+if (!/committedSymbolText:\s*symbolText/.test(symbolKeySource)
+        || symbolKeySource.includes("جل جلاله"))
+    throw new Error("Extended symbol keys must commit U+FDFB without text substitution");
 
 const culturalEntries = context.categories.find(category =>
     category.id === "cultural").entries;

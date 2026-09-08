@@ -15,7 +15,10 @@ KeyboardRow {
                                  ? targetLayout.avoidanceWidth : 0
 
     FutoSymbolKey { targetLayout: spacebarRow.targetLayout }
-    FutoCommaKey { symbolNumberLayout: spacebarRow.symbolNumberLayout }
+    FutoCommaKey {
+        symbolNumberLayout: spacebarRow.symbolNumberLayout
+        targetLayout: spacebarRow.targetLayout
+    }
     FutoVoiceKey { targetLayout: spacebarRow.targetLayout }
     FutoSpacebarKey {
         languageLabel: (keyboard.inputHandler && keyboard.inputHandler.detectedLanguage

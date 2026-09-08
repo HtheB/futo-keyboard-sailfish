@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 ARCH=${FUTO_ARCH:-aarch64}
-VERSION=0.3.1
+VERSION=0.4.0
 RELEASE=1
 NAME=futo-keyboard-sailfish
 TOPDIR=$(mktemp -d)
@@ -24,7 +24,7 @@ mkdir -p "$TOPDIR"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
 mkdir -p "$STAGING/$NAME-$VERSION"
 tar -C "$ROOT" \
     --exclude='./.git' \
-    --exclude='./.gitignore' \
+    --exclude='./.mb2' \
     --exclude='./reference' \
     --exclude='./build/rpm' \
 	--exclude='./build' \

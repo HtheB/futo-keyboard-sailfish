@@ -20,6 +20,36 @@ FutoKeyboardLayout {
                           || extendedSymbolMode || controlMode
 	                      || credentialMode
 
+    FontLoader {
+        id: notoTifinaghFont
+        source: "file:///usr/share/fonts/futo-keyboard-sailfish/NotoSansTifinagh-Regular.ttf"
+    }
+    FontLoader {
+        id: notoSinhalaFont
+        source: "file:///usr/share/fonts/futo-keyboard-sailfish/NotoSansSinhala-Light.ttf"
+    }
+    FontLoader {
+        id: notoMyanmarFont
+        source: "file:///usr/share/fonts/futo-keyboard-sailfish/NotoSansMyanmar-Light.ttf"
+    }
+    FontLoader {
+        id: notoKhmerFont
+        source: "file:///usr/share/fonts/futo-keyboard-sailfish/NotoSansKhmer-Light.ttf"
+    }
+    FontLoader {
+        id: notoNaskhArabicFont
+        source: "file:///usr/share/fonts/futo-keyboard-sailfish/NotoNaskhArabic-Regular.ttf"
+    }
+    FontLoader {
+        id: androidRiyalFont
+        source: "file:///usr/share/fonts/futo-keyboard-sailfish/FutoAndroidRiyal-Regular.ttf"
+    }
+
+    readonly property string specialArabicSymbolFontFamily:
+            fontLoaderName(notoNaskhArabicFont, "Noto Naskh Arabic")
+    readonly property string androidRiyalSymbolFontFamily:
+            fontLoaderName(androidRiyalFont, "FUTO Android Riyal")
+
     ConfigurationGroup {
         id: layoutSettings
         path: "/sailfish/text_input/futo_keyboard"
@@ -59,8 +89,12 @@ FutoKeyboardLayout {
     readonly property real emojiSizeScale: clampedEmojiSizeScale(
                                                layoutSettings.emojiSizeScale)
     readonly property bool numberRowEnabled: layoutSettings.numberRowEnabled
+	readonly property int letterRowCount: LetterLayouts.rowCount(layoutVariant)
+	readonly property bool effectiveNumberRowEnabled: numberRowEnabled
+			|| LetterLayouts.numberRowRequired(layoutVariant)
 	readonly property real numberRowHeightScale: 1.0
-	readonly property real keyboardPanelHeight: (4 + (numberRowEnabled
+	readonly property real keyboardPanelHeight: (1 + letterRowCount
+			+ (effectiveNumberRowEnabled
 			? numberRowHeightScale : 0)) * keyHeight
     readonly property bool automaticPrivateInput: MInputMethodQuick.hiddenText
             || !MInputMethodQuick.predictionEnabled
@@ -93,6 +127,26 @@ FutoKeyboardLayout {
     readonly property bool usesArabicDigits: LetterLayouts.script(layoutVariant) === "arabic"
     readonly property bool usesPersianDigits: LetterLayouts.script(layoutVariant) === "persian"
     readonly property bool usesLocalizedDigits: usesArabicDigits || usesPersianDigits
+
+    function fontLoaderName(loader, fallback) {
+        return loader && String(loader.name || "") !== ""
+                ? String(loader.name) : fallback
+    }
+
+    function keyFontFamilyForLayout(index) {
+        var layoutScript = LetterLayouts.script(index)
+        if (layoutScript === "tifinagh")
+            return fontLoaderName(notoTifinaghFont, "Noto Sans Tifinagh")
+        if (layoutScript === "sinhala")
+            return fontLoaderName(notoSinhalaFont, "Noto Sans Sinhala")
+        if (layoutScript === "myanmar")
+            return fontLoaderName(notoMyanmarFont, "Noto Sans Myanmar")
+        if (layoutScript === "khmer")
+            return fontLoaderName(notoKhmerFont, "Noto Sans Khmer")
+        if (LetterLayouts.name(index) === "AZERTY (Amazigh-Latin)")
+            return "DejaVu Sans"
+        return ""
+    }
     readonly property string currentLayoutMenuLanguageLabel: {
         if (!languagesShareActiveLayout)
             return selectedPredictionLanguage(layoutVariant)
@@ -108,6 +162,8 @@ FutoKeyboardLayout {
     property bool emojiMode: false
     property bool emojiSearchMode: false
     property string emojiSearchQuery: ""
+    property var emojiSearchCodes: []
+    property int emojiSearchRequestSerial: 0
     property int emojiPage: 1
     property bool extendedSymbolMode: false
     property bool extraKeysMode: false
@@ -407,14 +463,15 @@ FutoKeyboardLayout {
     }
 
     function letterForLayout(layoutValue, row, column) {
-        return LetterLayouts.letter(layoutValue, row, column)
+        return LetterLayouts.caption(layoutValue, row, column, false)
     }
 
     function rowLengthForLayout(layoutValue, row) {
-        var count = 0
-        while (count < 12 && LetterLayouts.letter(layoutValue, row, count) !== "")
-            count++
-        return count
+        return LetterLayouts.rowLength(layoutValue, row)
+    }
+
+    function rowCountForLayout(layoutValue) {
+        return LetterLayouts.rowCount(layoutValue)
     }
 
     function letterLayoutName(value) {
@@ -422,18 +479,20 @@ FutoKeyboardLayout {
     }
 
     function letterAt(row, column) {
-        return LetterLayouts.letter(layoutVariant, row, column)
+        return LetterLayouts.caption(layoutVariant, row, column, false)
     }
 
     function shiftedLetterAt(row, column) {
-        return LetterLayouts.shifted(letterAt(row, column), layoutVariant)
+        return LetterLayouts.caption(layoutVariant, row, column, true)
+    }
+
+    function letterAlternatives(base, shifted) {
+        return LetterLayouts.alternatives(layoutVariant, base,
+                                          currentLayoutLanguageCodes, shifted)
     }
 
     function letterRowLength(row) {
-        var count = 0
-        while (count < 12 && letterAt(row, count) !== "")
-            count++
-        return count
+        return LetterLayouts.rowLength(layoutVariant, row)
     }
 
     function letterRowsUseIndependentSizing() {
@@ -442,10 +501,7 @@ FutoKeyboardLayout {
         // Latin layouts have eleven-letter rows plus a differently sized
         // Shift/Backspace row, so sharing that width compresses the letters
         // into a narrow centred block. Let them consume each row's width.
-        var activeScript = LetterLayouts.script(layoutVariant)
-        return activeScript === "arabic" || activeScript === "persian"
-                || activeScript === "cyrillic"
-                || layoutVariant === 17 || layoutVariant === 18
+        return LetterLayouts.usesIndependentSizing(layoutVariant)
     }
 
     function digitForLayout(value) {
@@ -466,21 +522,30 @@ FutoKeyboardLayout {
         return usesArabicDigits ? "أبج" : (usesPersianDigits ? "ابپ" : "ABC")
     }
 
+    function punctuationForLayout(value) {
+        value = String(value)
+        if (!usesLocalizedDigits)
+            return value
+        if (value === ",") return "،"
+        if (value === "?") return "؟"
+        if (value === ";") return "؛"
+        if (value === "%") return "٪"
+        return value
+    }
+
     function secondarySymbolAt(row, column) {
-        var symbols = row === 0
-                ? ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "×", "%"]
-                : row === 1
-                  ? ["*", "#", "+", "-", "=", "(", ")", "!", "?", ";", "!", "?"]
-                  : ["@", "&", "/", "\\", "'", ";", ":", "^", "|", "§", "°", "~"]
-        if (column < 0 || column >= symbols.length)
+        var result = LetterLayouts.secondarySymbolForLayout(layoutVariant,
+                                                             row, column)
+        if (result === "")
             return ""
         // The Arabic letter page offers Arabic-Indic digits from the held
         // letter shortcuts.  If a dedicated Arabic number row is visible,
         // those shortcuts become Western digits so both forms stay one hold
         // away.  The actual 123 page itself always uses Western digits.
-        return row === 0 && column < 10 && usesLocalizedDigits
+        result = row === 0 && column < 10 && usesLocalizedDigits
                 && !attributes.inSymView && !numberRowEnabled
-                ? digitForLayout(symbols[column]) : symbols[column]
+                ? digitForLayout(result) : result
+        return punctuationForLayout(result)
     }
 
     function secondSymbolAt(row, column) {
@@ -489,7 +554,10 @@ FutoKeyboardLayout {
                 : row === 1
                   ? ["`", "^", "|", "_", "§", "{", "}", "¡", "¿", "~", "¡", "¿"]
                   : ["«", "»", "\"", "“", "”", "„", "~", "®", "§", "¶", "°", "·"]
-        return column >= 0 && column < symbols.length ? symbols[column] : ""
+        if (row === 0 && column >= 0 && column < 10 && usesLocalizedDigits)
+            return digitForLayout(String((column + 1) % 10))
+        return column >= 0 && column < symbols.length
+                ? punctuationForLayout(symbols[column]) : ""
     }
 
     function applyConfiguredAutocaps() {
@@ -641,8 +709,43 @@ FutoKeyboardLayout {
             return []
         var recentCodes = recentEmojiViewActive ? recentEmojiViewEntries
                                                 : recentEmojiCodes()
-        return provider.entriesForPage(emojiPage, emojiSearchQuery,
-                                       enabledPredictionLanguages(), recentCodes)
+        return provider.entriesForPage(emojiPage, emojiSearchCodes, recentCodes)
+    }
+
+    function clearEmojiSearchResults() {
+        emojiSearchRequestSerial++
+        emojiSearchCodes = []
+        if (emojiPanelLoader.item)
+            emojiPanelLoader.item.searchRevision++
+    }
+
+    function requestEmojiSearchResults() {
+        var query = String(emojiSearchQuery).trim()
+        clearEmojiSearchResults()
+        if (query === "" || !handler || !handler.searchEmoji)
+            return
+        var serial = emojiSearchRequestSerial
+        var languages = enabledPredictionLanguages()
+        handler.searchEmoji(query, languages.join(","), function(resultJson) {
+            if (serial !== root.emojiSearchRequestSerial)
+                return
+            var result = []
+            try {
+                result = JSON.parse(String(resultJson))
+            } catch (error) {
+                result = []
+            }
+            root.emojiSearchCodes = result && result.length !== undefined
+                    ? result : []
+            if (emojiPanelLoader.item)
+                emojiPanelLoader.item.searchRevision++
+        }, function() {
+            if (serial === root.emojiSearchRequestSerial) {
+                root.emojiSearchCodes = []
+                if (emojiPanelLoader.item)
+                    emojiPanelLoader.item.searchRevision++
+            }
+        })
     }
 
     function recordEmoji(baseCode) {
@@ -675,6 +778,7 @@ FutoKeyboardLayout {
 		credentialMode = false
         emojiSearchMode = false
         emojiSearchQuery = ""
+        clearEmojiSearchResults()
         emojiPage = recentEmojiCodes().length > 0 ? 0 : 1
         if (emojiPage === 0)
             beginRecentEmojiView()
@@ -688,6 +792,7 @@ FutoKeyboardLayout {
         emojiMode = false
         emojiSearchMode = false
         emojiSearchQuery = ""
+        clearEmojiSearchResults()
         endRecentEmojiView()
         updateSizes()
     }
@@ -724,6 +829,7 @@ FutoKeyboardLayout {
     function selectEmojiPage(pageIndex) {
         emojiSearchMode = false
         emojiSearchQuery = ""
+        clearEmojiSearchResults()
         var nextPage = Math.max(0, Math.min(emojiCategoryCount - 1, pageIndex))
         if (nextPage !== emojiPage) {
             if (nextPage === 0)
@@ -754,11 +860,13 @@ FutoKeyboardLayout {
         emojiPage = emojiSearchQuery === "" ? 1 : -1
         endRecentEmojiView()
         emojiMode = true
+        requestEmojiSearchResults()
         updateSizes()
     }
 
     function cancelEmojiSearch() {
         emojiSearchQuery = ""
+        clearEmojiSearchResults()
         emojiSearchMode = false
         emojiPage = recentEmojiCodes().length > 0 ? 0 : 1
         if (emojiPage === 0)
@@ -1042,7 +1150,8 @@ FutoKeyboardLayout {
                  && !root.extraKeysMode
                  && !root.layoutEditorMode && !root.clipboardMode
 				 && !root.credentialMode
-                 && !root.numpadMode && layoutSettings.numberRowEnabled
+                 && !root.numpadMode && root.effectiveNumberRowEnabled
+                 && LetterLayouts.numberRowLength(root.layoutVariant) === 0
         FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("1"); captionShifted: caption; symView: "!"; symView2: "¹" }
         FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("2"); captionShifted: caption; symView: "@"; symView2: "²" }
         FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("3"); captionShifted: caption; symView: "#"; symView2: "³" }
@@ -1055,76 +1164,21 @@ FutoKeyboardLayout {
         FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("0"); captionShifted: caption; symView: ")"; symView2: "]" }
     }
 
-    KeyboardRow {
-        opacity: root.cursorMoveMode ? 0 : 1
+    FutoGeneratedNumberRow {
+        targetLayout: root
+        layoutIndex: root.layoutVariant
         visible: !root.emojiMode && !root.extendedSymbolMode
-                 && !root.extraKeysMode
-                 && !root.layoutEditorMode && !root.clipboardMode
-				 && !root.credentialMode
-                 && !root.numpadMode
-        separateButtonSizes: root.letterRowsUseIndependentSizing()
-        splitIndex: Math.ceil(root.letterRowLength(0) / 2)
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(0, 0); captionShifted: root.shiftedLetterAt(0, 0); secondarySymbol: root.secondarySymbolAt(0, 0); symView: secondarySymbol; symView2: root.secondSymbolAt(0, 0) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(0, 1); captionShifted: root.shiftedLetterAt(0, 1); secondarySymbol: root.secondarySymbolAt(0, 1); symView: secondarySymbol; symView2: root.secondSymbolAt(0, 1) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(0, 2); captionShifted: root.shiftedLetterAt(0, 2); secondarySymbol: root.secondarySymbolAt(0, 2); symView: secondarySymbol; symView2: root.secondSymbolAt(0, 2) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(0, 3); captionShifted: root.shiftedLetterAt(0, 3); secondarySymbol: root.secondarySymbolAt(0, 3); symView: secondarySymbol; symView2: root.secondSymbolAt(0, 3) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(0, 4); captionShifted: root.shiftedLetterAt(0, 4); secondarySymbol: root.secondarySymbolAt(0, 4); symView: secondarySymbol; symView2: root.secondSymbolAt(0, 4) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(0, 5); captionShifted: root.shiftedLetterAt(0, 5); secondarySymbol: root.secondarySymbolAt(0, 5); symView: secondarySymbol; symView2: root.secondSymbolAt(0, 5) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(0, 6); captionShifted: root.shiftedLetterAt(0, 6); secondarySymbol: root.secondarySymbolAt(0, 6); symView: secondarySymbol; symView2: root.secondSymbolAt(0, 6) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(0, 7); captionShifted: root.shiftedLetterAt(0, 7); secondarySymbol: root.secondarySymbolAt(0, 7); symView: secondarySymbol; symView2: root.secondSymbolAt(0, 7) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(0, 8); captionShifted: root.shiftedLetterAt(0, 8); secondarySymbol: root.secondarySymbolAt(0, 8); symView: secondarySymbol; symView2: root.secondSymbolAt(0, 8) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(0, 9); captionShifted: root.shiftedLetterAt(0, 9); secondarySymbol: root.secondarySymbolAt(0, 9); symView: secondarySymbol; symView2: root.secondSymbolAt(0, 9) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(0, 10); captionShifted: root.shiftedLetterAt(0, 10); secondarySymbol: root.secondarySymbolAt(0, 10); symView: secondarySymbol; symView2: root.secondSymbolAt(0, 10) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(0, 11); captionShifted: root.shiftedLetterAt(0, 11); secondarySymbol: root.secondarySymbolAt(0, 11); symView: secondarySymbol; symView2: root.secondSymbolAt(0, 11) }
+                 && !root.extraKeysMode && !root.layoutEditorMode
+                 && !root.clipboardMode && !root.credentialMode
+                 && !root.numpadMode && root.effectiveNumberRowEnabled
+                 && LetterLayouts.numberRowLength(root.layoutVariant) > 0
     }
 
-    KeyboardRow {
-        opacity: root.cursorMoveMode ? 0 : 1
-        visible: !root.emojiMode && !root.extendedSymbolMode
-                 && !root.extraKeysMode
-                 && !root.layoutEditorMode && !root.clipboardMode
-				 && !root.credentialMode
-                 && !root.numpadMode
-        separateButtonSizes: root.letterRowsUseIndependentSizing()
-        splitIndex: Math.ceil(root.letterRowLength(1) / 2)
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(1, 0); captionShifted: root.shiftedLetterAt(1, 0); secondarySymbol: root.secondarySymbolAt(1, 0); symView: secondarySymbol; symView2: root.secondSymbolAt(1, 0) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(1, 1); captionShifted: root.shiftedLetterAt(1, 1); secondarySymbol: root.secondarySymbolAt(1, 1); symView: secondarySymbol; symView2: root.secondSymbolAt(1, 1) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(1, 2); captionShifted: root.shiftedLetterAt(1, 2); secondarySymbol: root.secondarySymbolAt(1, 2); symView: secondarySymbol; symView2: root.secondSymbolAt(1, 2) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(1, 3); captionShifted: root.shiftedLetterAt(1, 3); secondarySymbol: root.secondarySymbolAt(1, 3); symView: secondarySymbol; symView2: root.secondSymbolAt(1, 3) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(1, 4); captionShifted: root.shiftedLetterAt(1, 4); secondarySymbol: root.secondarySymbolAt(1, 4); symView: secondarySymbol; symView2: root.secondSymbolAt(1, 4) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(1, 5); captionShifted: root.shiftedLetterAt(1, 5); secondarySymbol: root.secondarySymbolAt(1, 5); symView: secondarySymbol; symView2: root.secondSymbolAt(1, 5) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(1, 6); captionShifted: root.shiftedLetterAt(1, 6); secondarySymbol: root.secondarySymbolAt(1, 6); symView: secondarySymbol; symView2: root.secondSymbolAt(1, 6) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(1, 7); captionShifted: root.shiftedLetterAt(1, 7); secondarySymbol: root.secondarySymbolAt(1, 7); symView: secondarySymbol; symView2: root.secondSymbolAt(1, 7) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(1, 8); captionShifted: root.shiftedLetterAt(1, 8); secondarySymbol: root.secondarySymbolAt(1, 8); symView: secondarySymbol; symView2: root.secondSymbolAt(1, 8) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(1, 9); captionShifted: root.shiftedLetterAt(1, 9); secondarySymbol: root.secondarySymbolAt(1, 9); symView: secondarySymbol; symView2: root.secondSymbolAt(1, 9) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(1, 10); captionShifted: root.shiftedLetterAt(1, 10); secondarySymbol: root.secondarySymbolAt(1, 10); symView: secondarySymbol; symView2: root.secondSymbolAt(1, 10) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(1, 11); captionShifted: root.shiftedLetterAt(1, 11); secondarySymbol: root.secondarySymbolAt(1, 11); symView: secondarySymbol; symView2: root.secondSymbolAt(1, 11) }
-    }
-
-    KeyboardRow {
-        opacity: root.cursorMoveMode ? 0 : 1
-        visible: !root.emojiMode && !root.extendedSymbolMode
-                 && !root.extraKeysMode
-                 && !root.layoutEditorMode && !root.clipboardMode
-				 && !root.credentialMode
-                 && !root.numpadMode
-        separateButtonSizes: root.letterRowsUseIndependentSizing()
-        splitIndex: 1 + Math.ceil(root.letterRowLength(2) / 2)
-        FutoShiftKey { targetLayout: root }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(2, 0); captionShifted: root.shiftedLetterAt(2, 0); secondarySymbol: root.secondarySymbolAt(2, 0); symView: secondarySymbol; symView2: root.secondSymbolAt(2, 0) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(2, 1); captionShifted: root.shiftedLetterAt(2, 1); secondarySymbol: root.secondarySymbolAt(2, 1); symView: secondarySymbol; symView2: root.secondSymbolAt(2, 1) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(2, 2); captionShifted: root.shiftedLetterAt(2, 2); secondarySymbol: root.secondarySymbolAt(2, 2); symView: secondarySymbol; symView2: root.secondSymbolAt(2, 2) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(2, 3); captionShifted: root.shiftedLetterAt(2, 3); secondarySymbol: root.secondarySymbolAt(2, 3); symView: secondarySymbol; symView2: root.secondSymbolAt(2, 3) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(2, 4); captionShifted: root.shiftedLetterAt(2, 4); secondarySymbol: root.secondarySymbolAt(2, 4); symView: secondarySymbol; symView2: root.secondSymbolAt(2, 4) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(2, 5); captionShifted: root.shiftedLetterAt(2, 5); secondarySymbol: root.secondarySymbolAt(2, 5); symView: secondarySymbol; symView2: root.secondSymbolAt(2, 5) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(2, 6); captionShifted: root.shiftedLetterAt(2, 6); secondarySymbol: root.secondarySymbolAt(2, 6); symView: secondarySymbol; symView2: root.secondSymbolAt(2, 6) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(2, 7); captionShifted: root.shiftedLetterAt(2, 7); secondarySymbol: root.secondarySymbolAt(2, 7); symView: secondarySymbol; symView2: root.secondSymbolAt(2, 7) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(2, 8); captionShifted: root.shiftedLetterAt(2, 8); secondarySymbol: root.secondarySymbolAt(2, 8); symView: secondarySymbol; symView2: root.secondSymbolAt(2, 8) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(2, 9); captionShifted: root.shiftedLetterAt(2, 9); secondarySymbol: root.secondarySymbolAt(2, 9); symView: secondarySymbol; symView2: root.secondSymbolAt(2, 9) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(2, 10); captionShifted: root.shiftedLetterAt(2, 10); secondarySymbol: root.secondarySymbolAt(2, 10); symView: secondarySymbol; symView2: root.secondSymbolAt(2, 10) }
-        FutoCharacterKey { active: caption !== ""; caption: root.letterAt(2, 11); captionShifted: root.shiftedLetterAt(2, 11); secondarySymbol: root.secondarySymbolAt(2, 11); symView: secondarySymbol; symView2: root.secondSymbolAt(2, 11) }
-        FutoBackspaceKey {}
-    }
+    FutoLetterRow { targetLayout: root; layoutIndex: root.layoutVariant; rowIndex: 0 }
+    FutoLetterRow { targetLayout: root; layoutIndex: root.layoutVariant; rowIndex: 1 }
+    FutoLetterRow { targetLayout: root; layoutIndex: root.layoutVariant; rowIndex: 2 }
+    FutoLetterRow { targetLayout: root; layoutIndex: root.layoutVariant; rowIndex: 3 }
+    FutoLetterRow { targetLayout: root; layoutIndex: root.layoutVariant; rowIndex: 4 }
 
     FutoSpacebarRow {
         opacity: root.cursorMoveMode ? 0 : 1

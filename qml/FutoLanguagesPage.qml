@@ -6,6 +6,7 @@ import Nemo.DBus 2.0
 // The settings page is installed separately from the Maliit layout files.
 // Keep a packaged copy beside this page so the import also resolves on-device.
 import "FutoLetterLayouts.js" as LetterLayouts
+import "FutoLanguageData.js" as LanguageData
 
 Page {
     id: page
@@ -16,6 +17,7 @@ Page {
     property string pendingDictionaryCode: ""
     property string requestedDictionaryCode: ""
     property int languageSelectionRevision: 0
+    property var languageModel: LanguageData.displayLanguages()
 
     onStatusChanged: {
         if (status === PageStatus.Active) {
@@ -43,18 +45,8 @@ Page {
     }
 
     function dictionaryPackId(code) {
-        return "dictionary-" + String(code).toLowerCase().replace("_", "-")
-                    .replace(/^en$/, "en-us")
-    }
-
-    function dictionaryCode(packId) {
-        var value = String(packId)
-        if (value.indexOf("dictionary-") !== 0)
-            return ""
-        value = value.substring(11)
-        if (value === "en-us")
-            return "EN"
-        return value.toUpperCase().replace(/-/g, "_")
+        var pack = LanguageData.dictionaryPack(code)
+        return pack === "" ? "" : "dictionary-" + pack
     }
 
     function storeLanguage(code, enabled) {
@@ -161,7 +153,7 @@ Page {
         var codes = enabledCodes()
         var index = codes.indexOf(code)
         if (!enabled && index >= 0 && codes.length <= 1) {
-            statusText = qsTr("At least one prediction language must stay enabled")
+            statusText = qsTr("At least one language must stay enabled")
             return
         }
         if (enabled && index < 0 && predictionSupported(code)) {
@@ -209,7 +201,7 @@ Page {
     }
 
     function predictionSupported(code) {
-        return true
+        return LanguageData.predictionSupported(code)
     }
 
     ConfigurationGroup {
@@ -232,14 +224,17 @@ Page {
         watchServiceStatus: true
 
         function contentChanged(packId, state) {
-            var code = page.dictionaryCode(packId)
-            if (code !== "") {
-                if (String(state) === "installed") {
-                    page.storeLanguage(code, true)
-                    if (page.requestedDictionaryCode === code)
-                        page.requestedDictionaryCode = ""
-                } else if (String(state) === "removed") {
-                    page.storeLanguage(code, false)
+            packId = String(packId)
+            if (String(state) === "installed"
+                    && page.requestedDictionaryCode !== ""
+                    && page.dictionaryPackId(page.requestedDictionaryCode) === packId) {
+                page.storeLanguage(page.requestedDictionaryCode, true)
+                page.requestedDictionaryCode = ""
+            } else if (String(state) === "removed") {
+                for (var i = 0; i < LanguageData.languages.length; ++i) {
+                    var code = LanguageData.languages[i].code
+                    if (page.dictionaryPackId(code) === packId)
+                        page.storeLanguage(code, false)
                 }
             }
             page.refreshDictionaryContent()
@@ -253,39 +248,6 @@ Page {
 
     Component.onCompleted: refreshDictionaryContent()
 
-    ListModel {
-        id: languageModel
-        ListElement { code: "CS"; title: "Čeština" }
-        ListElement { code: "DA"; title: "Dansk" }
-        ListElement { code: "DE"; title: "Deutsch" }
-        ListElement { code: "EN_GB"; title: "English (UK)" }
-        ListElement { code: "EN"; title: "English (US)" }
-        ListElement { code: "ES"; title: "Español" }
-        ListElement { code: "FR"; title: "Français" }
-        ListElement { code: "HR"; title: "Hrvatski" }
-        ListElement { code: "IT"; title: "Italiano" }
-        ListElement { code: "LV"; title: "Latviešu" }
-        ListElement { code: "LT"; title: "Lietuvių" }
-        ListElement { code: "HU"; title: "Magyar" }
-        ListElement { code: "NL"; title: "Nederlands" }
-        ListElement { code: "NB"; title: "Norsk bokmål" }
-        ListElement { code: "PL"; title: "Polski" }
-        ListElement { code: "PT_BR"; title: "Português (Brasil)" }
-        ListElement { code: "PT_PT"; title: "Português (Portugal)" }
-        ListElement { code: "RO"; title: "Română" }
-        ListElement { code: "SL"; title: "Slovenščina" }
-        ListElement { code: "SR_LATN"; title: "Srpski (latinica)" }
-        ListElement { code: "FI"; title: "Suomi" }
-        ListElement { code: "SV"; title: "Svenska" }
-        ListElement { code: "TR"; title: "Türkçe" }
-        // Non-Latin scripts are grouped after the Latin layouts.
-        ListElement { code: "EL"; title: "Ελληνικά" }
-        ListElement { code: "RU"; title: "Русский" }
-        ListElement { code: "SR"; title: "Српски (ћирилица)" }
-        ListElement { code: "AR"; title: "العربية" }
-        ListElement { code: "FA"; title: "فارسی" }
-    }
-
     SilicaFlickable {
         anchors.fill: parent
         contentHeight: content.height + Theme.paddingLarge
@@ -295,7 +257,7 @@ Page {
             id: content
             width: parent.width
 
-            PageHeader { title: qsTr("Prediction languages") }
+            PageHeader { title: qsTr("Languages and layouts") }
 
             Label {
                 x: Theme.horizontalPageMargin
@@ -329,9 +291,11 @@ Page {
 			}
 
             Repeater {
-                model: languageModel
+                model: page.languageModel
                 BackgroundItem {
                     id: languageItem
+                    property string code: String(modelData.code)
+                    property string title: String(modelData.title)
                     width: content.width
                     height: Math.max(Theme.itemSizeLarge,
                                      languageLabels.height + 2 * Theme.paddingMedium)
@@ -371,7 +335,8 @@ Page {
                             // compact label beside the switch. Giving Arabic the
                             // full row width would place it at the screen edge.
                             width: Math.min(implicitWidth, languageLabels.width)
-                            horizontalAlignment: code === "AR" || code === "FA"
+                            horizontalAlignment: LetterLayouts.languageScript(code) === "arabic"
+                                                 || LetterLayouts.languageScript(code) === "persian"
                                                  ? Text.AlignRight : Text.AlignLeft
                             color: languageToggleArea.pressed
                                    ? Theme.highlightColor : Theme.primaryColor

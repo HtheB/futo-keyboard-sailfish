@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-VERSION=0.3.1
+VERSION=0.4.0
 NAME=futo-keyboard-sailfish
 STAGING=$(mktemp -d)
 cleanup() {
@@ -13,7 +13,6 @@ trap cleanup EXIT
 mkdir -p "$STAGING/$NAME-$VERSION"
 tar -C "$ROOT" \
     --exclude='./.git' \
-    --exclude='./.gitignore' \
     --exclude='./.mb2' \
     --exclude='./build' \
     --exclude='./reference' \

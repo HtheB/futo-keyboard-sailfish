@@ -110,7 +110,7 @@ if [[ -z "$STRIP" || ! -x "$STRIP" ]]; then
     exit 1
 fi
 
-if [[ ! -s "$SWIPE_ET_BUILD/libexecutorch.a" ]]; then
+if [[ ${FUTO_SKIP_CORE_BUILD:-0} != 1 && ! -s "$SWIPE_ET_BUILD/libexecutorch.a" ]]; then
     FUTO_ARCH="$ARCH" FUTO_CC="$CC" FUTO_CXX="$CXX" \
         FUTO_TARGET_SYSROOT="$TARGET_SYSROOT" \
         FUTO_SWIPE_SOURCE="$SWIPE_SOURCE" \

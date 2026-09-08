@@ -22,6 +22,11 @@ Column {
                 ? targetLayout.numberPageLabel() : "123"
     }
 
+    function mark(value) {
+        return targetLayout && targetLayout.punctuationForLayout
+                ? targetLayout.punctuationForLayout(value) : String(value)
+    }
+
     FutoNumpadRow {
         width: parent.width
         height: numpad.targetLayout ? numpad.targetLayout.keyHeight : 0
@@ -34,7 +39,8 @@ Column {
         ] : [
             { "text": "#" }, { "text": "€" }, { "text": "&" },
             { "text": "_" }, { "text": "-" }, { "text": numpad.digit("1") },
-			{ "text": numpad.digit("2") }, { "text": numpad.digit("3") }, { "text": "?" }
+			{ "text": numpad.digit("2") }, { "text": numpad.digit("3") },
+			{ "text": numpad.mark("?") }
         ]
     }
 
@@ -61,12 +67,12 @@ Column {
 		totalSpans: 9
         cells: numpad.secondPage ? [
             { "text": "Fn", "action": "desktopKeys" }, { "text": "`" },
-            { "text": ";" }, { "text": "÷" }, { "text": "\\" },
+            { "text": numpad.mark(";") }, { "text": "÷" }, { "text": "\\" },
             { "text": "|" }, { "text": "¦" }, { "text": "¬" },
 			{ "text": "", "action": "backspace" }
         ] : [
             { "text": "{&=", "action": "extendedSymbols" }, { "text": "'" },
-            { "text": ":" }, { "text": "%" }, { "text": "/" },
+            { "text": ":" }, { "text": numpad.mark("%") }, { "text": "/" },
             { "text": numpad.digit("7") }, { "text": numpad.digit("8") }, { "text": numpad.digit("9") },
 			{ "text": "", "action": "backspace" }
         ]
@@ -85,7 +91,7 @@ Column {
         ] : [
             { "text": "ABC", "action": "abc" }, { "text": "\"" },
             { "text": "", "action": "space", "span": 2 }, { "text": "*" },
-            { "text": "," }, { "text": numpad.digit("0") }, { "text": "." },
+            { "text": numpad.mark(",") }, { "text": numpad.digit("0") }, { "text": "." },
 			{ "text": "", "action": "enter" }
         ]
     }

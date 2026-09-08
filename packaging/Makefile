@@ -39,8 +39,6 @@ LAYOUT_FILES := \
 	layouts/FutoEmojiKey.qml \
 	layouts/FutoEmojiPanel.qml \
 	layouts/FutoEmojiData.js \
-	layouts/FutoEmojiSearchProvider.qml \
-	layouts/FutoEmojiSearchData.js \
 	layouts/FutoExtendedSymbolGrid.qml \
 	layouts/FutoExtendedSymbolKey.qml \
 	layouts/FutoExtendedSymbolsKey.qml \
@@ -51,8 +49,14 @@ LAYOUT_FILES := \
 	layouts/FutoDesktopToolbar.qml \
 	layouts/FutoDesktopToolbarSide.qml \
 	layouts/FutoSymbolData.js \
+	layouts/FutoGeneratedLayouts.js \
+	layouts/FutoLanguageCatalogue.js \
 	layouts/FutoLanguageData.js \
 	layouts/FutoLetterLayouts.js \
+	layouts/FutoLayoutKey.qml \
+	layouts/FutoLetterRow.qml \
+	layouts/FutoNumberKey.qml \
+	layouts/FutoGeneratedNumberRow.qml \
 	layouts/FutoLayoutEditor.qml \
 	layouts/FutoClipboardPanel.qml \
 	layouts/FutoCredentialPanel.qml \
@@ -112,13 +116,22 @@ DICTIONARY_FILES := \
 	sr_Latn.fksidx ar.fksidx fa.fksidx
 
 EMOJI_STYLES := twemoji openmoji noto
+EMOJI_SEARCH_INDEX := layouts/FutoEmojiSearchData.json.gz
 EMOJI_EXPECTED_FILES := 3944
 EMOJI_PREVIEW_CODEPOINTS := 1f600 1f44d 1f389 2764
 EMOJI_TAB_CODEPOINTS := 1f550 1f600 1f44b 1f43b 1f354 1f697 26bd 1f4a1 2764 1f3f3
 SOUND_FILES := $(wildcard assets/sounds/*.wav)
 SOUND_EXPECTED_FILES := 30
 ICON_FILES := assets/icons/icon-m-emoji.svg
-FONT_FILES := assets/fonts/Amiri-Regular.ttf
+FONT_FILES := \
+	assets/fonts/Amiri-Regular.ttf \
+	assets/fonts/NotoSansTifinagh-Regular.ttf \
+	assets/fonts/NotoSansSinhala-Light.ttf \
+	assets/fonts/NotoSansMyanmar-Light.ttf \
+	assets/fonts/NotoSansKhmer-Light.ttf \
+	assets/fonts/NotoNaskhArabic-Regular.ttf \
+	assets/fonts/FutoAndroidRiyal-Regular.ttf
+SYSTEM_AMIRI_RIYAL_FONT := assets/fonts/AmiriSailfishCompactRial-Regular.ttf
 
 .PHONY: check install
 
@@ -173,6 +186,7 @@ check:
 		packaging/polkit/org.hb.futo.keyboard.policy || exit 1
 	@for file in $(LAYOUT_FILES); do test -s "$$file" || exit 1; done
 	@test -s emoji/manifest.json || exit 1
+	@test -s "$(EMOJI_SEARCH_INDEX)" || exit 1
 	@grep -q '"unicodeVersion": "17.0"' emoji/manifest.json || exit 1
 	@grep -q '"fullyQualifiedSequences": 3944' emoji/manifest.json || exit 1
 	@for style in twemoji openmoji; do \
@@ -200,11 +214,14 @@ check:
 	@test -s LICENSES/QT-COMPOSE-NOTICE.md || exit 1
 	@test -s LICENSES/FUTO-VOICE-SOURCE-FIRST-LICENSE.md || exit 1
 	@test -s LICENSES/AMIRI-FONT-LICENSE.txt || exit 1
+	@test -s LICENSES/NOTO-FONTS-OFL.txt || exit 1
 	@test -s LICENSES/YEKA-ZIP-LICENSE.txt || exit 1
 	@test "$$(printf '%s\n' $(SOUND_FILES) | wc -l)" -eq $(SOUND_EXPECTED_FILES) || exit 1
 	@test -z "$$(find assets/sounds -maxdepth 1 -type f -name '*.wav' -size 0 -print -quit)" || exit 1
 	@for file in $(ICON_FILES); do test -s "$$file" || exit 1; done
 	@for file in $(FONT_FILES); do test -s "$$file" || exit 1; done
+	@test -s "$(SYSTEM_AMIRI_RIYAL_FONT)" || exit 1
+	@test -s packaging/fontconfig/65-futo-keyboard-symbols.conf || exit 1
 
 install: check
 	install -Dm0755 "$(ENGINE_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-engine"
@@ -262,6 +279,12 @@ install: check
 	done
 	install -Dm0644 layouts/FutoLetterLayouts.js \
 		"$(DESTDIR)$(PREFIX)/share/jolla-settings/pages/futo-keyboard-sailfish/FutoLetterLayouts.js"
+	install -Dm0644 layouts/FutoGeneratedLayouts.js \
+		"$(DESTDIR)$(PREFIX)/share/jolla-settings/pages/futo-keyboard-sailfish/FutoGeneratedLayouts.js"
+	install -Dm0644 layouts/FutoLanguageCatalogue.js \
+		"$(DESTDIR)$(PREFIX)/share/jolla-settings/pages/futo-keyboard-sailfish/FutoLanguageCatalogue.js"
+	install -Dm0644 layouts/FutoLanguageData.js \
+		"$(DESTDIR)$(PREFIX)/share/jolla-settings/pages/futo-keyboard-sailfish/FutoLanguageData.js"
 	@for file in $(LAYOUT_FILES); do \
 		install -Dm0644 "$$file" "$(MALIIT_ROOT)/layouts/$$(basename "$$file")"; \
 	done
@@ -281,6 +304,8 @@ install: check
 		install -m0644 "emoji/noto/$$codepoint.png" \
 			"$(PACKAGE_ROOT)/emoji-tabs/$$codepoint.png"; \
 	done
+	install -Dm0644 "$(EMOJI_SEARCH_INDEX)" \
+		"$(PACKAGE_ROOT)/emoji-search-index.json.gz"
 	install -d "$(PACKAGE_ROOT)/icons"
 	@for file in $(ICON_FILES); do \
 		install -m0644 "$$file" "$(PACKAGE_ROOT)/icons/"; \
@@ -289,10 +314,15 @@ install: check
 	@for file in $(SOUND_FILES); do \
 		install -m0644 "$$file" "$(PACKAGE_ROOT)/sounds/"; \
 	done
-	install -d "$(PACKAGE_ROOT)/fonts"
+	install -d "$(DESTDIR)$(PREFIX)/share/fonts/futo-keyboard-sailfish"
 	@for file in $(FONT_FILES); do \
-		install -m0644 "$$file" "$(PACKAGE_ROOT)/fonts/"; \
+		install -m0644 "$$file" \
+			"$(DESTDIR)$(PREFIX)/share/fonts/futo-keyboard-sailfish/"; \
 	done
+	install -Dm0644 "$(SYSTEM_AMIRI_RIYAL_FONT)" \
+		"$(DESTDIR)$(PREFIX)/share/fonts/amiri/00-futo-amiri-regular.ttf"
+	install -Dm0644 packaging/fontconfig/65-futo-keyboard-symbols.conf \
+		"$(DESTDIR)/etc/fonts/conf.d/65-futo-keyboard-symbols.conf"
 	install -Dm0644 packaging/dbus/org.hb.FutoKeyboard1.service \
 		"$(DESTDIR)$(PREFIX)/share/dbus-1/services/org.hb.FutoKeyboard1.service"
 	install -Dm0644 packaging/systemd/futo-keyboard-helper.service \
@@ -338,6 +368,8 @@ install: check
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/QT-COMPOSE-NOTICE.md"
 	install -Dm0644 LICENSES/AMIRI-FONT-LICENSE.txt \
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/AMIRI-FONT-LICENSE.txt"
+	install -Dm0644 LICENSES/NOTO-FONTS-OFL.txt \
+		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/NOTO-FONTS-OFL.txt"
 	install -Dm0644 LICENSES/YEKA-ZIP-LICENSE.txt \
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/YEKA-ZIP-LICENSE.txt"
 	install -Dm0644 MODIFIED-NOTICE.md \
