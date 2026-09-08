@@ -199,6 +199,53 @@ var secondarySymbols = [
     ["_", "€", "\"", "'", ":", ";", "/", "\\", "|", "<", ">", "~"]
 ]
 
+// QWERTY carries one fixed set of alternates per key rather than a collection
+// merged from whichever languages are enabled, and the secondary symbol the key
+// prints sits at a set place inside that set, which is where it is highlighted.
+var qwertyAlternateSets = {
+    "q": "1", "w": "2", "e": "èê3ěęėëé", "r": "ř4", "t": "þț5ť",
+    "y": "ý6", "u": "ùûů7űüú", "i": "ìîı8ïí", "o": "òôõöøō9ó", "p": "0",
+    "a": "@ąăåäãâáà", "s": "ß#șšşś", "d": "ð&ď", "f": "*", "g": "ğ-",
+    "h": "+", "j": "=", "k": "(", "l": "ĺľł)",
+    "z": "ź_žż", "x": "$¢€\u20C1₺¥£", "c": "çč\"ć",
+    "v": "'", "b": ":", "n": "ñň;ń", "m": "\\/%"
+}
+
+// With the number row on screen the digits are already reachable, so the top
+// letter row carries these instead, on the key and inside the popup alike.
+// Each entry is [the digit it replaces, the symbol replacing it].
+var qwertyNumberRowSwap = {
+    "q": ["1", "%"], "w": ["2", "^"], "e": ["3", "~"], "r": ["4", "|"],
+    "t": ["5", "["], "y": ["6", "]"], "u": ["7", "<"], "i": ["8", ">"],
+    "o": ["9", "{"], "p": ["0", "}"]
+}
+
+function qwertySwapFor(letterValue) {
+    return qwertyNumberRowSwap[String(letterValue).toLowerCase()]
+}
+
+// "ß" uppercases to two characters; the popup gives one cell per entry, so a
+// letter without a single-character capital stays as it is.
+function shiftedAlternateSet(value) {
+    var result = ""
+    for (var i = 0; i < value.length; ++i) {
+        var character = value.charAt(i)
+        var upper = character.toUpperCase()
+        result += upper.length === 1 ? upper : character
+    }
+    return result
+}
+
+function qwertyAlternateSet(letterValue, numberRowVisible, shiftedValue) {
+    var set = qwertyAlternateSets[String(letterValue).toLowerCase()]
+    if (set === undefined)
+        return ""
+    var swap = numberRowVisible ? qwertySwapFor(letterValue) : undefined
+    if (swap !== undefined)
+        set = set.replace(swap[0], swap[1])
+    return shiftedValue ? shiftedAlternateSet(set) : set
+}
+
 var legacyLayoutCount = legacyLayouts.length
 var layouts = legacyLayouts.concat(Generated.layouts)
 var count = layouts.length
@@ -576,11 +623,18 @@ function stringChoices(value) {
     return result
 }
 
-function alternativeChoices(layoutValue, row, column, languageCodes, shiftedValue) {
+function alternativeChoices(layoutValue, row, column, languageCodes, shiftedValue,
+                            numberRowVisible) {
     var layoutIndex = clampedIndex(layoutValue)
     var item = key(layoutIndex, row, column)
     if (item.kind !== "character")
         return []
+
+    if (layoutIndex === 0) {
+        var fixed = qwertyAlternateSet(item.caption, numberRowVisible, shiftedValue)
+        if (fixed !== "")
+            return stringChoices(fixed)
+    }
 
     // The stable pre-catalogue layouts keep their established broad accent
     // collection. Generated layouts use FUTO's exact structured choices,
@@ -616,7 +670,26 @@ function hasExactAlternatives(layoutValue) {
     return clampedIndex(layoutValue) >= legacyLayoutCount
 }
 
-function secondarySymbolForLayout(layoutValue, row, column) {
-    return clampedIndex(layoutValue) < legacyLayoutCount
-            ? secondarySymbol(row, column) : ""
+// A row can open with a shift key and close with a backspace, while the hint
+// table is laid out by letter position. Counting the letters keeps the bottom
+// row from taking every hint from its neighbour.
+function letterIndexAt(layoutIndex, row, column) {
+    var index = 0
+    for (var i = 0; i < column; ++i) {
+        if (key(layoutIndex, row, i).kind === "character")
+            index++
+    }
+    return index
+}
+
+function secondarySymbolForLayout(layoutValue, row, column, numberRowVisible) {
+    var layoutIndex = clampedIndex(layoutValue)
+    if (layoutIndex >= legacyLayoutCount)
+        return ""
+    if (layoutIndex === 0 && numberRowVisible) {
+        var swap = qwertySwapFor(caption(layoutIndex, row, column, false))
+        if (swap !== undefined)
+            return swap[1]
+    }
+    return secondarySymbol(row, letterIndexAt(layoutIndex, row, column))
 }

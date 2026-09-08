@@ -23,6 +23,15 @@ Item {
     property string symView: keyKind === "character"
             ? LetterLayouts.secondarySymbolForLayout(
                   layoutIndex, rowIndex, columnIndex) : ""
+    // With the number row on screen the digits are already reachable, so the
+    // top letter row prints other symbols instead. The symbol page keeps its
+    // own arrangement, which is why this is separate from symView.
+    readonly property bool numberRowVisible: targetLayout
+            && targetLayout.effectiveNumberRowEnabled !== undefined
+            && targetLayout.effectiveNumberRowEnabled
+    property string secondaryHint: keyKind === "character"
+            ? LetterLayouts.secondarySymbolForLayout(
+                  layoutIndex, rowIndex, columnIndex, numberRowVisible) : ""
     property bool implicitSeparator: true
     property real leftPadding: 0
     property real rightPadding: 0
@@ -62,19 +71,21 @@ Item {
             androidRiyalFontFamily: targetLayout
                     ? targetLayout.androidRiyalSymbolFontFamily
                     : "FUTO Android Riyal"
-            secondarySymbol: cell.symView
-            symView: secondarySymbol
+            secondarySymbol: cell.secondaryHint
+            symView: cell.symView
             symView2: targetLayout
                       ? targetLayout.secondSymbolAt(cell.rowIndex, cell.columnIndex) : ""
             exactAlternativeMode: LetterLayouts.hasExactAlternatives(cell.layoutIndex)
             letterAlternativeChoices: targetLayout
                     ? LetterLayouts.alternativeChoices(
                           cell.layoutIndex, cell.rowIndex, cell.columnIndex,
-                          targetLayout.currentLayoutLanguageCodes, false) : []
+                          targetLayout.currentLayoutLanguageCodes, false,
+                          cell.numberRowVisible) : []
             letterAlternativeChoicesShifted: targetLayout
                     ? LetterLayouts.alternativeChoices(
                           cell.layoutIndex, cell.rowIndex, cell.columnIndex,
-                          targetLayout.currentLayoutLanguageCodes, true) : []
+                          targetLayout.currentLayoutLanguageCodes, true,
+                          cell.numberRowVisible) : []
         }
     }
 
