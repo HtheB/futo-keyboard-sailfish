@@ -2608,6 +2608,11 @@ InputHandler {
 			readonly property bool modifierStatusVisible:
 			        futoHandler.activeDesktopModifiers !== 0
 			        && !keyboardLayout.controlMode
+			        // The pickers put their own tabs here; a modifier note drawn
+			        // over them reads as a broken tab rather than as a note.
+			        && !keyboardLayout.extendedSymbolMode
+			        && !keyboardLayout.emojiMode
+			        && !keyboardLayout.emojiSearchMode
             readonly property bool emojiTabsVisible: keyboardLayout.emojiMode
             readonly property bool emojiSearchVisible: keyboardLayout.emojiSearchMode
             readonly property bool symbolTabsVisible: keyboardLayout.extendedSymbolMode
@@ -3066,12 +3071,13 @@ InputHandler {
                             index === keyboardLayout.extendedSymbolPage
                     readonly property string tabName:
                             keyboardLayout.extendedSymbolTabName(index)
-                    // Keep the category buttons comfortably wide.  With the
-                    // larger semantic category set the row is meant to flick,
-                    // not compress the representative glyphs into narrow tabs.
-                    width: Math.max(Theme.itemSizeMedium,
-                                    topStrip.width / Math.min(5,
-                                        keyboardLayout.extendedSymbolCategoryCount))
+                    // Sized like the emoji tabs, which share the strip between
+                    // their categories. There are far more symbol categories
+                    // than emoji ones, so they reach the floor and the row
+                    // flicks rather than spreading five tabs across the width.
+                    width: Math.max(Theme.itemSizeSmall,
+                                    topStrip.width
+                                    / (keyboardLayout.extendedSymbolCategoryCount + 1))
                     height: topStrip.height
 
                     MouseArea {
