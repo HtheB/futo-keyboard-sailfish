@@ -15,6 +15,8 @@ the fixes made since the previous release.
   numerals, and alternative letters.
 - Added the new Saudi Riyal symbol and improved the rendering of Arabic Rial
   and Jalla Jalaluhu symbols.
+- Added an optional "Add space after punctuation" setting (this excludes web
+  and email addresses).
 
 ## Fixes
 

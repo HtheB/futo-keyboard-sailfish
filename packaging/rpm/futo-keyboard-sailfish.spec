@@ -195,6 +195,8 @@ fi
   numerals and alternative letters.
 - Add the new Saudi Riyal symbol and improve the rendering of the Arabic
   Rial and Jalla Jalaluhu symbols.
+- Add an optional setting which puts a space after punctuation, excluding web
+  and email addresses.
 - Improve emoji search so unrelated results are no longer shown for
   searches such as happy.
 - Improve emoji picker scrolling in long categories such as flags.
