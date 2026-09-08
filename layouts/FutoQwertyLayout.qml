@@ -162,6 +162,18 @@ FutoKeyboardLayout {
                                          && !extendedSymbolMode
                                          && !extraKeysMode
     readonly property bool numpadLeftAligned: symbolNumberLayout === 2
+    // QWERTY draws its 123 page from its own arrangement rather than from the
+    // letter rows, which have neither the shape nor the symbols for it.
+    readonly property bool qwertySymbolPage: layoutVariant === 0
+                                         && symbolNumberLayout === 0
+                                         && attributes.inSymView
+                                         && !attributes.inSymView2
+                                         && !emojiMode
+                                         && !extendedSymbolMode
+                                         && !extraKeysMode
+                                         && !layoutEditorMode
+                                         && !clipboardMode
+                                         && !credentialMode
     property bool emojiMode: false
     property bool emojiSearchMode: false
     property string emojiSearchQuery: ""
@@ -1153,18 +1165,19 @@ FutoKeyboardLayout {
                  && !root.extraKeysMode
                  && !root.layoutEditorMode && !root.clipboardMode
 				 && !root.credentialMode
-                 && !root.numpadMode && root.effectiveNumberRowEnabled
+                 && !root.numpadMode
+                 && (root.effectiveNumberRowEnabled || root.qwertySymbolPage)
                  && LetterLayouts.numberRowLength(root.layoutVariant) === 0
-        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("1"); captionShifted: caption; symView: "!"; symView2: "¹" }
-        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("2"); captionShifted: caption; symView: "@"; symView2: "²" }
-        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("3"); captionShifted: caption; symView: "#"; symView2: "³" }
-        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("4"); captionShifted: caption; symView: "$"; symView2: "€" }
-        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("5"); captionShifted: caption; symView: "%"; symView2: "‰" }
-        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("6"); captionShifted: caption; symView: "^"; symView2: "¼" }
-        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("7"); captionShifted: caption; symView: "&"; symView2: "½" }
-        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("8"); captionShifted: caption; symView: "*"; symView2: "¾" }
-        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("9"); captionShifted: caption; symView: "("; symView2: "[" }
-        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("0"); captionShifted: caption; symView: ")"; symView2: "]" }
+        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("1"); captionShifted: caption; symView: root.layoutVariant === 0 ? caption : "!"; symView2: "¹" }
+        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("2"); captionShifted: caption; symView: root.layoutVariant === 0 ? caption : "@"; symView2: "²" }
+        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("3"); captionShifted: caption; symView: root.layoutVariant === 0 ? caption : "#"; symView2: "³" }
+        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("4"); captionShifted: caption; symView: root.layoutVariant === 0 ? caption : "$"; symView2: "€" }
+        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("5"); captionShifted: caption; symView: root.layoutVariant === 0 ? caption : "%"; symView2: "‰" }
+        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("6"); captionShifted: caption; symView: root.layoutVariant === 0 ? caption : "^"; symView2: "¼" }
+        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("7"); captionShifted: caption; symView: root.layoutVariant === 0 ? caption : "&"; symView2: "½" }
+        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("8"); captionShifted: caption; symView: root.layoutVariant === 0 ? caption : "*"; symView2: "¾" }
+        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("9"); captionShifted: caption; symView: root.layoutVariant === 0 ? caption : "("; symView2: "[" }
+        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("0"); captionShifted: caption; symView: root.layoutVariant === 0 ? caption : ")"; symView2: "]" }
     }
 
     FutoGeneratedNumberRow {
@@ -1175,6 +1188,12 @@ FutoKeyboardLayout {
                  && !root.clipboardMode && !root.credentialMode
                  && !root.numpadMode && root.effectiveNumberRowEnabled
                  && LetterLayouts.numberRowLength(root.layoutVariant) > 0
+    }
+
+    FutoSymbolLayout {
+        width: parent.width
+        targetLayout: root
+        visible: root.qwertySymbolPage
     }
 
     FutoLetterRow { targetLayout: root; layoutIndex: root.layoutVariant; rowIndex: 0 }

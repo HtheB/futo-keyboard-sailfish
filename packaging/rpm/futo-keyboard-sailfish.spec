@@ -168,6 +168,7 @@ fi
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoKeyboardLayout.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoNumpadLayout.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoPeriodKey.qml
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoSymbolLayout.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoNumpadRow.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoQwertyLayout.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoShiftKey.qml

@@ -18,6 +18,8 @@ KeyboardRow {
              && !targetLayout.extraKeysMode && !targetLayout.layoutEditorMode
              && !targetLayout.clipboardMode && !targetLayout.credentialMode
              && !targetLayout.numpadMode
+             && !(targetLayout.qwertySymbolPage !== undefined
+                  && targetLayout.qwertySymbolPage)
     separateButtonSizes: LetterLayouts.usesIndependentSizing(layoutIndex)
     splitIndex: Math.ceil(keyCount / 2)
 

@@ -64,6 +64,7 @@ LAYOUT_FILES := \
 	layouts/FutoKeyboardLayout.qml \
 	layouts/FutoNumpadLayout.qml \
 	layouts/FutoPeriodKey.qml \
+	layouts/FutoSymbolLayout.qml \
 	layouts/FutoNumpadRow.qml \
 	layouts/FutoQwertyLayout.qml \
 	layouts/FutoShiftKey.qml \
