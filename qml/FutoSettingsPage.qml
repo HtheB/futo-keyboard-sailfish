@@ -92,6 +92,7 @@ Page {
         settings.centerPredictions = false
         settings.suggestionCount = 12
         settings.smartPunctuationEnabled = true
+        settings.spaceAfterPunctuationEnabled = false
         settings.doubleSpacePeriodEnabled = true
         settings.autoCapitalizationEnabled = true
         settings.undoCorrectionEnabled = true
@@ -189,6 +190,7 @@ Page {
         property bool centerPredictions: false
         property int suggestionCount: 12
         property bool smartPunctuationEnabled: true
+        property bool spaceAfterPunctuationEnabled: false
         property bool doubleSpacePeriodEnabled: true
         property bool autoCapitalizationEnabled: true
         property bool undoCorrectionEnabled: true

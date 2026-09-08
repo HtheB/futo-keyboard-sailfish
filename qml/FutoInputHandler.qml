@@ -1521,6 +1521,7 @@ InputHandler {
         property bool showTypedWord: true
         property int suggestionCount: 12
         property bool smartPunctuationEnabled: true
+        property bool spaceAfterPunctuationEnabled: false
         property bool doubleSpacePeriodEnabled: true
         property bool autoCapitalizationEnabled: true
         property bool undoCorrectionEnabled: true
@@ -4515,6 +4516,7 @@ InputHandler {
             var cursor = MInputMethodQuick.cursorPosition
 			var addEditingSpace = keyboardSettings.autoSpaceAfterSuggestion
 			        && !urlField && !passwordField
+			        && !wordOpensAddress(replacement)
 			        && cursor === start + length
 			var replacementText = String(replacement)
 			        + (addEditingSpace ? " " : "")
@@ -4542,6 +4544,7 @@ InputHandler {
             return
         }
         var addSpace = keyboardSettings.autoSpaceAfterSuggestion
+                && !wordOpensAddress(replacement)
         candidateSpaceIndex = addSpace && MInputMethodQuick.surroundingTextValid
                 ? MInputMethodQuick.cursorPosition + replacement.length + 1 : -1
         var cursorBeforeSuggestion = MInputMethodQuick.surroundingTextValid
@@ -4761,9 +4764,12 @@ InputHandler {
                 }
                 handled = true
             } else {
+                var trailingSpace = punctuationKey
+                        && spaceAfterPunctuationAllowed(punctuationText)
+                        ? " " : ""
                 if (preedit !== "") {
                     learn(preedit)
-                    commit(preedit + pressedKey.text)
+                    commit(preedit + pressedKey.text + trailingSpace)
                 } else if (keyboardSettings.smartPunctuationEnabled
                            && punctuationKey && smartPunctuationField()
                            && spaceImmediatelyBeforeCursor()) {
@@ -4771,7 +4777,7 @@ InputHandler {
                     preedit = ""
                     clearCommittedSpace()
                 } else {
-                    MInputMethodQuick.sendCommit(pressedKey.text)
+                    MInputMethodQuick.sendCommit(pressedKey.text + trailingSpace)
                     clearCommittedSpace()
                 }
                 handled = true
@@ -5198,6 +5204,56 @@ InputHandler {
                 && MInputMethodQuick.cursorPosition > 0
                 && MInputMethodQuick.surroundingText.charAt(
                     MInputMethodQuick.cursorPosition - 1) === " "
+    }
+
+    // Addresses are the one place where a punctuation mark is part of the word
+    // rather than the end of it.  A scheme or an "@" is enough to recognise the
+    // ones people actually type; address and password fields are already ruled
+    // out by smartPunctuationField().
+    // Schemes whose colon belongs to the address rather than to the sentence.
+    // Any other word before a colon is ordinary text, as in "Note: ...".
+    readonly property var punctuationAddressSchemes: [
+        "http", "https", "ftp", "ftps", "sftp", "file", "mailto", "ws", "wss"
+    ]
+
+    // "www" and the scheme names open an address, so a space behind them
+    // would break the address the moment it is picked from the strip.
+    function wordOpensAddress(word) {
+        word = String(word).toLowerCase()
+        return word === "www" || punctuationAddressSchemes.indexOf(word) >= 0
+    }
+
+    function punctuationInsideAddress(mark) {
+        // Android editors publish the preedit inside surroundingText while
+        // native ones do not, so merge only the part which is not already
+        // there, the same way rawEditorText() does.
+        var before = contextBeforeCursor()
+        var composing = String(preedit)
+        var overlap = Math.min(before.length, composing.length)
+        while (overlap > 0
+                && before.substring(before.length - overlap)
+                        !== composing.substring(0, overlap))
+            --overlap
+        var text = before + composing.substring(overlap)
+        var start = text.length
+        while (start > 0 && !/\s/.test(text.charAt(start - 1)))
+            start--
+        var token = text.substring(start)
+        if (token.indexOf("@") >= 0)
+            return true
+        // An address which is already recognisable as one.
+        if (/^[a-z][a-z0-9+.-]*:\/\//i.test(token) || /^www\./i.test(token))
+            return true
+        // The mark which is about to turn it into one.
+        if (mark === ":" && punctuationAddressSchemes.indexOf(
+                    token.toLowerCase()) >= 0)
+            return true
+        return mark === "." && token.toLowerCase() === "www"
+    }
+
+    function spaceAfterPunctuationAllowed(mark) {
+        return keyboardSettings.spaceAfterPunctuationEnabled
+                && smartPunctuationField() && !punctuationInsideAddress(mark)
     }
 
     function smartPunctuationField() {

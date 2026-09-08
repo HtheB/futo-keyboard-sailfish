@@ -17,6 +17,7 @@ Page {
         property bool autoSpaceAfterSuggestion: true
         property int suggestionCount: 12
         property bool smartPunctuationEnabled: true
+        property bool spaceAfterPunctuationEnabled: false
         property bool doubleSpacePeriodEnabled: true
         property bool autoCapitalizationEnabled: true
         property bool undoCorrectionEnabled: true
@@ -158,6 +159,17 @@ Page {
                 checked: settings.smartPunctuationEnabled
                 text: qsTr("Remove the space before punctuation")
                 onClicked: settings.smartPunctuationEnabled = !checked
+            }
+
+            TextSwitch {
+                width: parent.width
+                automaticCheck: false
+                checked: settings.spaceAfterPunctuationEnabled
+                text: qsTr("Add space after punctuation")
+                description: qsTr("Separates a punctuation mark from the word "
+                                  + "which follows it. Web and email addresses "
+                                  + "are left as they are typed.")
+                onClicked: settings.spaceAfterPunctuationEnabled = !checked
             }
 
             TextSwitch {
