@@ -4484,6 +4484,31 @@ InputHandler {
 		clearEditingWord()
 	}
 
+	// A swiped word is finished, so a letter begins the next one and the
+	// separator the swipe is holding belongs between the two. Everything else
+	// carries on with the word just swiped: punctuation attaches to it, Space
+	// brings its own separator, Backspace is taking it back.
+	function swipeSeparatorPrecedesKey(key) {
+		if (!key || key.key === Qt.Key_Space || key.key === Qt.Key_Backspace
+				|| key.key === Qt.Key_Return || key.key === Qt.Key_Enter)
+		return false
+		var caption = String(key.caption || "")
+		return caption.length === 1 && isLetterCharacter(caption)
+	}
+
+	function insertPendingSwipeSeparator() {
+		var cursor = MInputMethodQuick.surroundingTextValid
+				? MInputMethodQuick.cursorPosition : -1
+		swipeAutoSpacePending = false
+		swipePendingForcedInput = false
+		// Only a following swipe consumes this; a typed letter never would.
+		swipeLeadingSpaceForGesture = false
+		MInputMethodQuick.sendCommit(" ")
+		armCommittedSpace(cursor < 0 ? -1 : cursor + 1)
+		candidateSpaceIndex = cursor < 0 ? -1 : cursor + 1
+		clearSwipeReplacementState()
+	}
+
 	function discardPendingSwipeWord() {
 		swipeAutoSpacePending = false
 		swipePendingForcedInput = false
@@ -4634,9 +4659,12 @@ InputHandler {
 		if (finishSwipeGesture())
 			return true
 		resetSwipePath()
-		// A tap or an ordinary typed key is not an implicit acceptance of the
-		// preceding swiped word.  Manual Space still inserts its own separator.
-		if (swipeAutoSpacePending || swipeReplacementActive)
+		// A typed key is not an implicit acceptance of the preceding swiped
+		// word, but a letter does start the next one, and the separator the
+		// swipe was holding goes between them. Manual Space still brings its own.
+		if (swipeAutoSpacePending && swipeSeparatorPrecedesKey(pressedKey))
+			insertPendingSwipeSeparator()
+		else if (swipeAutoSpacePending || swipeReplacementActive)
 			discardPendingSwipeWord()
         if (keyboard.layout && keyboard.layout.emojiSearchMode
                 && keyboard.layout.handleEmojiSearchKey)
