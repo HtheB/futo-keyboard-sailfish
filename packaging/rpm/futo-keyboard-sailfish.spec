@@ -185,18 +185,35 @@ fi
 %changelog
 
 * Fri Sep 04 2026 HtheB - 0.4.0-1
-- Type directly on the FUTO language layouts, generated for 140 languages
-  and 97 layouts, instead of mapping every language onto one native layout.
-- Search emoji by name across the selected languages.
-- Add fonts for Arabic, Khmer, Myanmar, Sinhala and Tifinagh so those
-  layouts render on a stock device.
-- Show the Saudi riyal symbol correctly through bundled symbol fonts.
-- Move the cursor and select text with the spacebar inside Android App
-  Support applications.
-
-* Wed Sep 02 2026 HtheB - 0.3.1-1
-- Make System default keyboard sounds follow Sailfish Silent mode.
-- Show an explicit confirmation action for clearing the current clipboard value.
+- Expand language and layout support with additional FUTO layouts, their
+  proper key order, and language-specific long-press characters.
+- Add predictions and swipe typing for additional languages where an
+  offline dictionary is available.
+- Add native Sailfish font support for scripts such as Amazigh, Sinhala,
+  Myanmar and Khmer.
+- Improve the Arabic and Persian layouts with appropriate punctuation,
+  numerals and alternative letters.
+- Add the new Saudi Riyal symbol and improve the rendering of the Arabic
+  Rial and Jalla Jalaluhu symbols.
+- Improve emoji search so unrelated results are no longer shown for
+  searches such as happy.
+- Improve emoji picker scrolling in long categories such as flags.
+- Make spacebar cursor control work smoothly in Android applications as
+  well as native ones.
+- Correct duplicated and misplaced secondary symbols across layouts.
+- Make System default keyboard sounds follow Sailfish Silent mode as well
+  as the Touch sounds setting.
+- Show an explicit confirmation action for clearing the current clipboard
+  value.
+- Restore downloads for the Arabic and Persian dictionaries and FUTO Swipe.
+- Make the optional number row match the letter-row height so it no longer
+  overlaps the top letter row.
+- Vibrate only at the first touched letter while swiping.
+- Give a swiped word its following space only when a suggestion is accepted
+  or the next word is swiped.
+- Keep swipe typing disabled until the FUTO Swipe content is installed.
+- Make Space accept the visibly highlighted correction instead of an unseen
+  suggestion.
 - Detect broken cross-compiler runtimes during the build environment check.
 
 * Wed Sep 02 2026 HtheB - 0.3.0-1
