@@ -184,7 +184,7 @@ fi
 
 %changelog
 
-* Fri Sep 04 2026 HtheB - 0.4.0-1
+* Tue Sep 08 2026 HtheB - 0.4.0-1
 - Expand language and layout support with additional FUTO layouts, their
   proper key order, and language-specific long-press characters.
 - Add predictions and swipe typing for additional languages where an
