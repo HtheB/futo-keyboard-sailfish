@@ -19,6 +19,7 @@ grep -Fq 'RIAL_CODEPOINT = 0xFDFC' "$ROOT/scripts/build-amiri-riyal-font.py"
 grep -Fq '65-futo-keyboard-symbols.conf' "$ROOT/packaging/Makefile"
 node "$ROOT/scripts/check-generated-layouts.js"
 node "$ROOT/scripts/check-punctuation-spacing.js"
+node "$ROOT/scripts/check-symbol-popups.js"
 node - "$ROOT/layouts/FutoLetterLayouts.js" <<'NODE'
 const fs = require("fs")
 const vm = require("vm")
