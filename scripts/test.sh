@@ -35,8 +35,8 @@ grep -Fq 'DICTIONARY_DROP_LOWEST=( [ro]=1 )' "$ROOT/scripts/build.sh"
 grep -Fq "grep -v ',f=1,'" "$ROOT/scripts/build.sh"
 # A rebuilt pack must carry a new version in both places, or the archive named
 # by the manifest is not the archive the builder writes.
-grep -Fq '[dictionary-ro]=0.4.2-2' "$ROOT/scripts/build-content-packs.sh"
-grep -Fq '"dictionary-ro": "0.4.2-2"' "$ROOT/scripts/generate-content-manifest.js"
+grep -Fq '[dictionary-ro]=0.4.2-1' "$ROOT/scripts/build-content-packs.sh"
+grep -Fq '"dictionary-ro": "0.4.2-1"' "$ROOT/scripts/generate-content-manifest.js"
 grep -Fq 'func (manager *contentManager) installedVersion(' \
     "$ROOT/helper/cmd/futo-keyboard-helper/content.go"
 # A loaded dictionary costs its text plus one fixed record per word. Three

@@ -13,7 +13,7 @@ const packVersion = "0.4.0-1";
 // Only these carry a new version and filename; every other archive already
 // published stays exactly where it is and is never re-downloaded.
 const packVersionOverrides = {
-    "dictionary-ro": "0.4.2-2"
+    "dictionary-ro": "0.4.2-1"
 };
 
 function versionFor(id) {

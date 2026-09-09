@@ -5,7 +5,7 @@
 
 Name:           futo-keyboard-sailfish
 Version:        0.4.2
-Release:        1
+Release:        2
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
 License:        LicenseRef-FUTO-Source-First-1.1-kb AND GPL-3.0-only AND BSD-3-Clause AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND LGPL-2.1-or-later AND (LGPL-2.1-only OR LGPL-3.0-only)
 Source0:        %{name}-%{version}.tar.gz
@@ -186,7 +186,7 @@ fi
 
 %changelog
 
-* Wed Sep 09 2026 HtheB - 0.4.2-1
+* Wed Sep 09 2026 HtheB - 0.4.2-2
 - Add an option which vibrates on every letter a swipe passes over.
 - Choose what holding Space does: nothing, move the cursor, or switch
   language by holding and moving onto the language wanted.

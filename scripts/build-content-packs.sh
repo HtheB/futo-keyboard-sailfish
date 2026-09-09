@@ -6,7 +6,7 @@ OUTPUT=${FUTO_CONTENT_OUTPUT:-"$ROOT/build/content-packs"}
 PACK_VERSION=0.4.0-1
 # Packs whose content changed after the release their base URL points at.
 # Keep this in step with packVersionOverrides in generate-content-manifest.js.
-declare -A PACK_VERSION_OVERRIDES=( [dictionary-ro]=0.4.2-2 )
+declare -A PACK_VERSION_OVERRIDES=( [dictionary-ro]=0.4.2-1 )
 
 mkdir -p "$OUTPUT" "$ROOT/content"
 find "$OUTPUT" -maxdepth 1 -type f \
