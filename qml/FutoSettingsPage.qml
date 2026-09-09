@@ -115,6 +115,7 @@ Page {
         settings.keepVirtualWithHardwareKeyboard = false
         settings.hardwareDeadKeysEnabled = false
         settings.spacebarCursorControlEnabled = true
+        settings.spacebarHoldAction = 1
         settings.swipeDeleteEnabled = true
 		settings.swipeTypingEnabled = false
         settings.voiceTypingEnabled = false
@@ -213,6 +214,7 @@ Page {
         property bool keepVirtualWithHardwareKeyboard: false
         property bool hardwareDeadKeysEnabled: false
         property bool spacebarCursorControlEnabled: true
+        property int spacebarHoldAction: -1
         property bool swipeDeleteEnabled: true
 		property bool swipeTypingEnabled: false
         property bool voiceTypingEnabled: false

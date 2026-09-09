@@ -256,7 +256,25 @@ grep -Fq 'function moveCursor2D(horizontalSteps, verticalSteps)' \
 grep -Fq 'Qt.Key_Up : Qt.Key_Down' "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'keyboard.inputHandler.beginCursorMoveMode()' \
     "$ROOT/layouts/FutoSpacebarKey.qml"
-grep -Fq 'if (!pointerDown || cursorMode || keyboardDismissed)' \
+grep -Fq 'if (!pointerDown || cursorMode || languageMode || keyboardDismissed)' \
+    "$ROOT/layouts/FutoSpacebarKey.qml"
+# Holding Space either chooses a language or moves the cursor, never both,
+# and the key says which by the mark it draws in its corner.
+grep -Fq 'function languageSwitchEntries()' "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'function applyLanguageSwitchIndex(index)' "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'readonly property bool onLetterPage: !attributes.inSymView' \
+    "$ROOT/layouts/FutoSpacebarKey.qml"
+grep -Fq 'spaceKey.finishLanguageMode(!spaceKey.languageAbandoned)' \
+    "$ROOT/layouts/FutoSpacebarKey.qml"
+grep -Fq 'label: qsTr("Hold Space")' "$ROOT/qml/FutoGesturesPage.qml"
+grep -Fq 'MenuItem { text: qsTr("Switch language") }' "$ROOT/qml/FutoGesturesPage.qml"
+grep -Fq 'property int spacebarHoldAction: -1' "$ROOT/qml/FutoSettingsPage.qml"
+# The 123 and {&= pages keep the cursor pad whatever the setting says.
+grep -Fq 'readonly property bool cursorControlOffered: !onLetterPage || holdAction === 1' \
+    "$ROOT/layouts/FutoSpacebarKey.qml"
+# A stored value below zero predates the setting and still means what
+# the old on/off switch meant.
+grep -Fq 'gestureSettings.spacebarCursorControlEnabled ? 1 : 0' \
     "$ROOT/layouts/FutoSpacebarKey.qml"
 grep -Fq 'spaceKey.pointerDown = false' \
     "$ROOT/layouts/FutoSpacebarKey.qml"

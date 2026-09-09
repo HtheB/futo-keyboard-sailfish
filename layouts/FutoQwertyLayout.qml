@@ -68,6 +68,10 @@ FutoKeyboardLayout {
 		property bool mergeSameLayoutLanguages: true
         property string manualPredictionLanguage: ""
         property int symbolNumberLayout: 0
+        // 0 nothing, 1 move the cursor, 2 switch language. Below zero means
+        // the choice predates this setting and follows the old on/off switch.
+        property int spacebarHoldAction: -1
+        property bool spacebarCursorControlEnabled: true
         property int emojiStyle: 3
         property int emojiSkinTone: 0
         property real emojiSizeScale: 1.0
@@ -128,6 +132,9 @@ FutoKeyboardLayout {
     readonly property string currentLayoutLanguageCodes: languagesShareActiveLayout
 			? languagesForLayout(layoutVariant).join("+")
 			: selectedPredictionLanguage(layoutVariant)
+    // Raised by the Space key while its language chooser is open, so the
+    // chooser paints over the rows above it instead of behind them.
+    property bool languagePopupActive: false
     readonly property bool usesArabicDigits: LetterLayouts.script(layoutVariant) === "arabic"
     readonly property bool usesPersianDigits: LetterLayouts.script(layoutVariant) === "persian"
     readonly property bool usesLocalizedDigits: usesArabicDigits || usesPersianDigits
@@ -669,6 +676,68 @@ FutoKeyboardLayout {
         }
         if (languages.indexOf(String(handler.detectedLanguage)) < 0)
             handler.detectedLanguage = languages[0]
+    }
+
+    // Holding Space offers the same choices, in the same order, that tapping
+    // the language button cycles through. One list serves both so the two can
+    // never disagree about what comes next.
+    function languageSwitchEntries() {
+        var result = []
+        var i
+        if (!languagesShareActiveLayout) {
+            var languages = enabledPredictionLanguages()
+            for (i = 0; i < languages.length; ++i) {
+                result.push({ "code": languages[i],
+                              "name": LanguageData.name(languages[i]),
+                              "layout": layoutForLanguage(languages[i]) })
+            }
+            return result
+        }
+        var groups = configuredLayoutGroups()
+        for (i = 0; i < groups.length; ++i) {
+            var codes = languagesForLayout(groups[i])
+            result.push({ "code": codes.length > 0 ? codes[0] : "",
+                          "name": languageNamesForLayout(groups[i]),
+                          "layout": groups[i] })
+        }
+        return result
+    }
+
+    function currentLanguageSwitchIndex() {
+        var entries = languageSwitchEntries()
+        var i
+        if (!languagesShareActiveLayout) {
+            var selected = selectedPredictionLanguage(layoutVariant)
+            for (i = 0; i < entries.length; ++i) {
+                if (entries[i].code === selected)
+                    return i
+            }
+            return 0
+        }
+        for (i = 0; i < entries.length; ++i) {
+            if (entries[i].layout === layoutVariant)
+                return i
+        }
+        return 0
+    }
+
+    function applyLanguageSwitchIndex(index) {
+        var entries = languageSwitchEntries()
+        if (index < 0 || index >= entries.length)
+            return
+        var entry = entries[index]
+        if (handler && handler.cancelSwipeSession)
+            handler.cancelSwipeSession()
+        if (layoutVariant !== entry.layout) {
+            suppressNextLayoutSwipeCancel = true
+            layoutSettings.layoutVariant = entry.layout
+        }
+        if (!languagesShareActiveLayout && entry.code !== "") {
+            if (String(layoutSettings.manualPredictionLanguage) !== entry.code)
+                suppressNextLanguageSwipeCancel = true
+            layoutSettings.manualPredictionLanguage = entry.code
+        }
+        synchronizeDetectedLanguage()
     }
 
     function cycleLetterLayout() {

@@ -1,17 +1,15 @@
-# FUTO Keyboard for Sailfish OS 0.4.1
+# FUTO Keyboard for Sailfish OS 0.4.2
 
 ## New features
 
-* Numpad in the 123 page layout can be placed left or right
+- Added option for "Vibrate while swiping"
+- Hold Space now chooses between doing nothing, moving the cursor, or switching language
 
 ## Fixes
 
-* `123` and `{&=` pages has a better layout
-* Same accented letters whatever languages are enabled
-* `Symbols` are showing now above the top row when the number row is on
-* Dot key shows `,!?`
-* Space added after a swiped word
-* Smaller symbol picker tabs
-* Swipe only works at the start of a new word to prevent false swipe detection (due to a bug in Sailfish OS)
-* Haptic feedback is fixed
-* Paste button now shows when predictions are off as well
+- Tibetan letters are now visible, on the keyboard and in the rest of the system
+- Danish keyboard uses the Danish letter order instead of the Norwegian one
+- Norwegian keyboard is now a separate layout
+- Portuguese keyboards carry `ç` instead of the Spanish `ñ`
+- Dot key no longer draws a border around it
+- Much lower memory use for all languages (Romanian was around 350 MB, now under 100 MB)
