@@ -43,6 +43,25 @@ for file in \
     libQt5WaylandClientFutoOriginal.so.5.6.3 stock-wayland.sha256; do
     cp "$ROOT/build/$ARCH/$file" "$STAGING/$NAME-$VERSION/build/$ARCH/$file"
 done
+# Components that are not rebuilt here keep the paths they were first built
+# with, and those name the machine and account that built them. The engine and
+# helper are compiled with -ffile-prefix-map and carry none; the rest are
+# scrubbed in place. Refuse to package anything that still says otherwise
+# rather than finding out after a release is public.
+#
+# grep -c rather than grep -q: -q stops reading at the first match, strings
+# then dies of SIGPIPE, and under pipefail that failure would mask the match.
+FORBIDDEN='chatgpt|/mnt/c/users/[^b]|htheb|claude|codex|openai|anthropic'
+for binary in "$STAGING/$NAME-$VERSION/build/$ARCH"/*; do
+    test -f "$binary" || continue
+    hits=$(strings -a "$binary" 2>/dev/null | grep -ciE "$FORBIDDEN" || true)
+    if [ "${hits:-0}" -gt 0 ]; then
+        printf 'Build path or account name left in %s\n' "$binary" >&2
+        strings -a "$binary" | grep -iE "$FORBIDDEN" | head -3 >&2
+        exit 1
+    fi
+done
+
 cp "$ROOT/emoji/manifest.json" "$STAGING/$NAME-$VERSION/emoji-manifest.json"
 mkdir -p "$STAGING/$NAME-$VERSION/emoji"
 mv "$STAGING/$NAME-$VERSION/emoji-manifest.json" \
