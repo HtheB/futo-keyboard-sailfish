@@ -2630,6 +2630,18 @@ InputHandler {
 			        && !emojiTabsVisible && !emojiSearchVisible && !symbolTabsVisible
 			        && !controlsVisible && !voiceStatusVisible
 			        && !keyboardLayout.credentialMode
+			// With predictions off there is no strip, and the paste button lives
+			// in it, so text put on the clipboard has nowhere to be pasted from.
+			// Carry the strip for that button alone while something is waiting
+			// there, and let it go once the clipboard is empty again.
+			readonly property bool clipboardOnlyPasteVisible:
+			        !futoHandler.passwordField && Clipboard.hasText
+			        && !futoHandler.ordinaryPredictionStripEnabled
+			        && !futoHandler.urlHistoryStripEnabled
+			        && !cursorStatusVisible && !modifierStatusVisible
+			        && !emojiTabsVisible && !emojiSearchVisible && !symbolTabsVisible
+			        && !controlsVisible && !voiceStatusVisible
+			        && !keyboardLayout.credentialMode
 			readonly property bool passwordVaultVisible:
 			        keyboardSettings.passwordSavingEnabled
 			        && !cursorStatusVisible
@@ -2668,6 +2680,7 @@ InputHandler {
 			        || futoHandler.urlHistoryStripEnabled
 					|| passwordClipboardPasteVisible
 					|| passwordVaultVisible
+					|| clipboardOnlyPasteVisible
 			        || predictionContentAvailable)
             height: !futoHandler.hardwareKeyboardSuppressed && stripRequired
                     ? Theme.itemSizeSmall : 0
@@ -2746,6 +2759,7 @@ InputHandler {
 				handler: futoHandler
 				z: 20
 				visible: topStrip.passwordClipboardPasteVisible
+				         || topStrip.clipboardOnlyPasteVisible
 				onPasteRequested: {
 					futoHandler.paste(Clipboard.text)
 					keyboard.expandedPaste = false

@@ -1,43 +1,34 @@
-# FUTO Keyboard for Sailfish OS 0.4.0
+# FUTO Keyboard for Sailfish OS 0.4.1
 
-This release expands the keyboard's language and layout coverage, and collects
-the fixes made since the previous release.
+This release corrects the keyboard's symbols and its feedback, and adds a
+second numpad arrangement.
 
 ## New features
 
-- Expanded language and layout support with additional FUTO layouts, their
-  proper key order, and language-specific long-press characters.
-- Added predictions and swipe typing for additional languages where an offline
-  dictionary is available.
-- Added native Sailfish font support for scripts such as Amazigh, Sinhala,
-  Myanmar, and Khmer.
-- Improved the Arabic and Persian layouts with appropriate punctuation,
-  numerals, and alternative letters.
-- Added the new Saudi Riyal symbol and improved the rendering of Arabic Rial
-  and Jalla Jalaluhu symbols.
-- Added an optional "Add space after punctuation" setting (this excludes web
-  and email addresses).
+- The numpad on the 123 page can now be placed on either side. The existing
+  arrangement is called "Numpad arrangement - Right", and "Numpad arrangement
+  - Left" puts the digits under the left thumb.
 
 ## Fixes
 
-- Greatly reduced emoji-picker memory usage and improved scrolling
-  performance, especially in long categories such as flags.
-- Improved emoji search so unrelated results are no longer shown for searches
-  such as "happy".
-- Spacebar cursor control now works smoothly in both native Sailfish and
-  Android applications.
-- The optional number row now matches the letter-row height and no longer
-  overlaps it.
-- Swipe vibration now occurs only on the first touched letter.
-- Swiped words receive a space only after accepting the suggestion or
-  beginning the next swipe.
-- Swipe typing stays disabled until the required FUTO Swipe content has been
-  downloaded.
-- Pressing Space now accepts the visibly highlighted correction instead of an
-  unseen suggestion.
-- System-default keyboard sounds now respect both Sailfish Touch sounds and
-  Silent mode.
-- The current system clipboard entry can be pasted into password fields
-  without enabling clipboard history.
-- Corrected duplicated and misplaced secondary symbols across keyboard
-  layouts.
+- The 123 page now shows its own arrangement instead of borrowing the letter
+  keys' secondary symbols.
+- The {&= page now shows a fixed set of symbol keys. Holding {&= still opens
+  the full symbol picker.
+- Corrected the secondary symbols on the bottom letter row, which each showed
+  the symbol belonging to their neighbour.
+- The long-press alternates on the letter keys no longer change depending on
+  which languages are enabled.
+- With the number row shown, the top letter row offers %^~|[]<>{} instead of
+  repeating the digits already on screen.
+- Corrected the long-press alternates on the symbol keys, and highlighted one
+  in each so that holding a key types something without moving your finger.
+- The period key beside the space bar shows the marks it holds and offers the
+  comma among them. On the symbol pages it offers the bullet and the ellipsis.
+- A word typed straight after a swiped word no longer runs into it.
+- In the symbol picker, the modifier notice no longer covers the category
+  tabs, and the tabs sit closer together.
+- Swipe typing now only begins a word, and a touch which may not swipe
+  behaves exactly as it does with swipe typing switched off.
+- The keyboard vibrates once for a touch rather than for every key it
+  crosses, and no longer changes the phone's own vibration setting to do it.

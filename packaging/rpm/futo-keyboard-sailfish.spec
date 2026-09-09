@@ -4,7 +4,7 @@
 %global _missing_build_ids_terminate_build 0
 
 Name:           futo-keyboard-sailfish
-Version:        0.4.0
+Version:        0.4.1
 Release:        1
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
 License:        LicenseRef-FUTO-Source-First-1.1-kb AND GPL-3.0-only AND BSD-3-Clause AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND LGPL-2.1-or-later AND (LGPL-2.1-only OR LGPL-3.0-only)
@@ -185,6 +185,31 @@ fi
 %{_userunitdir}/maliit-server.service.d/10-futo-hardware-policy.conf
 
 %changelog
+
+* Wed Sep 09 2026 HtheB - 0.4.1-1
+- Place the numpad on either side of the 123 page, the established
+  arrangement now being named for the side it uses.
+- Show the 123 page in its own arrangement rather than borrowing the letter
+  keys' secondary symbols.
+- Give the {&= page a fixed set of keys; holding {&= still opens the full
+  symbol picker.
+- Correct the secondary symbols on the bottom letter row, each of which was
+  taken from its neighbour.
+- Keep the long-press alternates on the letter keys the same whichever
+  languages are enabled.
+- Offer %^~|[]<>{} on the top letter row while the number row is shown,
+  rather than repeating the digits already on screen.
+- Correct the long-press alternates on the symbol keys, and highlight one in
+  each so that holding a key types something without moving the finger.
+- Show the marks the period key holds, and offer the comma among them; the
+  symbol pages offer the bullet and the ellipsis there instead.
+- Separate a word typed straight after a swiped word from it.
+- Keep the modifier note clear of the symbol picker's tabs, and close up the
+  tabs themselves.
+- Begin a swipe only where a word begins, and leave a touch which may not
+  swipe behaving exactly as it does with swiping switched off.
+- Vibrate once for a touch rather than for every key it crosses, without
+  reaching into the phone's own vibration setting to do it.
 
 * Tue Sep 08 2026 HtheB - 0.4.0-1
 - Expand language and layout support with additional FUTO layouts, their
