@@ -80,6 +80,7 @@ SpacebarKey {
 		languageMode = true
 		gestureMoved = true
 		languagePanel.placeOverLayout()
+		languagePanel.build()
 		ownerLayout.languagePopupActive = true
 		if (keyboard.inputHandler && keyboard.inputHandler.playManualKeyFeedback)
 			keyboard.inputHandler.playManualKeyFeedback(spaceKey, "option")
@@ -87,20 +88,6 @@ SpacebarKey {
 
 	// Hovering a name chooses it. Dragging back below Space abandons the
 	// choice while the gesture stays alive, so the finger can return to it.
-	function languageIndexAt(pointerX, pointerY) {
-		var items = languageFlow.children
-		for (var i = 0; i < items.length; ++i) {
-			var item = items[i]
-			if (!item || item.optionIndex === undefined || !item.visible)
-				continue
-			var local = spaceKey.mapToItem(item, pointerX, pointerY)
-			if (local.x >= 0 && local.y >= 0
-					&& local.x < item.width && local.y < item.height)
-				return item.optionIndex
-		}
-		return -1
-	}
-
 	function updateLanguageSelection(pointerX, pointerY) {
 		if (!languageMode)
 			return
@@ -112,7 +99,7 @@ SpacebarKey {
 			return
 		// Only the name actually under the finger is chosen. Anywhere else
 		// leaves the last one standing, so crossing a gap changes nothing.
-		var next = languageIndexAt(pointerX, pointerY)
+		var next = languagePanel.indexAt(pointerX, pointerY)
 		if (next < 0 || next >= count)
 			return
 		if (next === languageIndex)
@@ -200,16 +187,17 @@ SpacebarKey {
         color: Theme.highlightColor
     }
 
-    // What holding this particular Space does. Inside the cap rather than in
-    // the corner the letter keys use: Space has no room above its own cap.
-    // Drawn at the weight the letter keys give their secondary symbols.
+    // What holding this particular Space does. The cap is inset from the key
+    // by paddingMedium, so the mark clears that before finding its corner.
     Icon {
         anchors {
+            top: parent.top
             right: parent.right
-            rightMargin: Theme.paddingLarge + spaceKey.rightPadding
-            verticalCenter: parent.verticalCenter
+            topMargin: Theme.paddingMedium + Math.round(Theme.paddingSmall / 2)
+            rightMargin: Theme.paddingMedium + Theme.paddingSmall
+                         + spaceKey.rightPadding
         }
-        width: Math.round(Theme.iconSizeExtraSmall * 0.72)
+        width: Theme.iconSizeExtraSmall
         height: width
         source: "image://theme/icon-m-region"
         color: spaceKey.palette.primaryColor
@@ -221,19 +209,23 @@ SpacebarKey {
     // artwork, and they follow the key palette like every other mark here.
     Item {
         anchors {
+            top: parent.top
             right: parent.right
-            rightMargin: Theme.paddingLarge + spaceKey.rightPadding
-            verticalCenter: parent.verticalCenter
+            topMargin: Theme.paddingMedium + Math.round(Theme.paddingSmall / 2)
+            rightMargin: Theme.paddingMedium + Theme.paddingSmall
+                         + spaceKey.rightPadding
         }
-        width: Math.round(Theme.iconSizeExtraSmall * 0.4)
-        height: Math.round(Theme.iconSizeExtraSmall * 0.72)
+        // Drawn at the size the comma key's microphone and the dot key's
+        // ",!?" are drawn at: a fraction of the key's own text, not an icon.
+        height: Math.max(Theme.dp(8), Math.round(Theme.fontSizeSmall * 0.6))
+        width: Math.round(height * 0.5)
         opacity: 0.72
         visible: spaceKey.hintsVisible && !spaceKey.languageSwitchArmed
                  && spaceKey.cursorControlOffered
 
         Rectangle {
             anchors.horizontalCenter: parent.horizontalCenter
-            width: Math.max(1, Math.round(parent.height / 12))
+            width: Math.max(1, Math.round(Theme.dp(1)))
             height: parent.height
             color: spaceKey.palette.primaryColor
         }
@@ -243,24 +235,75 @@ SpacebarKey {
                 anchors.horizontalCenter: parent.horizontalCenter
                 y: index === 0 ? 0 : parent.height - height
                 width: parent.width
-                height: Math.max(1, Math.round(parent.height / 12))
+                height: Math.max(1, Math.round(Theme.dp(1)))
                 color: spaceKey.palette.primaryColor
             }
         }
     }
 
-    // The chooser covers the letter rows above Space, close to the width of
-    // the keyboard, with the names flowing onto as many lines as they need.
+    // Built the way Sailfish builds its own language chooser: cells sized to
+    // their text, grouped into rows that are centred one under the other, on
+    // the keyboard's popup background. Flow cannot do this - the short row has
+    // to come first and every row has to be centred - which is why the stock
+    // popup lays its rows out by hand too.
     Rectangle {
         id: languagePanel
 
         z: 100
         visible: spaceKey.languageMode
-        height: languageFlow.height + 2 * Theme.paddingLarge
-        y: -height - Theme.paddingSmall
-        radius: Theme.paddingLarge
+        height: contentColumn.height + Theme.paddingLarge
+        y: -height - Theme.paddingLarge
+        radius: geometry.popperRadius
         color: keyboard.popperBackgroundColor
         opacity: spaceKey.languageAbandoned ? 0.5 : 1
+
+        Column {
+            id: contentColumn
+            width: parent.width
+            anchors.verticalCenter: parent.verticalCenter
+        }
+
+        Component {
+            id: rowComponent
+            Row {
+                x: parent ? Math.round((parent.width - width) / 2) : 0
+                height: Theme.itemSizeSmall
+            }
+        }
+
+        Component {
+            id: cellComponent
+            SilicaItem {
+                property int optionIndex
+                property alias text: cellLabel.text
+                readonly property bool active:
+                        spaceKey.languageIndex === optionIndex
+                        && !spaceKey.languageAbandoned
+
+                width: cellLabel.paintedWidth
+                       + geometry.languageSelectionCellMargin * 2
+                height: Theme.itemSizeSmall
+
+                Label {
+                    id: cellLabel
+                    anchors.centerIn: parent
+                    color: parent.active ? parent.palette.primaryColor
+                                         : parent.palette.secondaryColor
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeMedium
+                    font.bold: parent.active
+                }
+
+                Rectangle {
+                    color: parent.palette.primaryColor
+                    height: Math.round(Theme.dp(2))
+                    width: cellLabel.paintedWidth
+                    anchors.top: cellLabel.bottom
+                    anchors.horizontalCenter: cellLabel.horizontalCenter
+                    visible: parent.active
+                }
+            }
+        }
 
         // Space is narrower than the keyboard, so the panel is placed against
         // the layout rather than against this key. The keyboard does not move
@@ -272,55 +315,65 @@ SpacebarKey {
                 x = 0
                 return
             }
-            var margin = Theme.paddingMedium
-            width = Math.max(spaceKey.width, layoutItem.width - 2 * margin)
-            x = layoutItem.mapToItem(spaceKey, margin, 0).x
+            var available = layoutItem.width - Theme.paddingSmall * 2
+            width = Math.min(available, geometry.languageSelectionPopupMaxWidth)
+            x = layoutItem.mapToItem(spaceKey,
+                                     (layoutItem.width - width) / 2, 0).x
         }
 
-        Flow {
-            id: languageFlow
-            anchors {
-                left: parent.left
-                right: parent.right
-                top: parent.top
-                topMargin: Theme.paddingLarge
-                leftMargin: Theme.paddingLarge
-                rightMargin: Theme.paddingLarge
+        // Cells are measured from the last name backwards, so a row that
+        // cannot be filled ends up at the top rather than the bottom.
+        function build() {
+            contentColumn.children = []
+            var options = spaceKey.languageOptions
+            var contentWidth = width - geometry.languageSelectionPopupContentMargins
+            var cells = []
+            var itemsPerRow = []
+            var itemsInRow = 0
+            var rowWidth = 0
+            var i
+
+            for (i = options.length - 1; i >= 0; --i) {
+                var cell = cellComponent.createObject(
+                            null, { "optionIndex": i,
+                                    "text": options[i].name !== ""
+                                            ? options[i].name : options[i].code })
+                cells.push(cell)
+                if (rowWidth + cell.width > contentWidth && itemsInRow > 0) {
+                    itemsPerRow.push(itemsInRow)
+                    itemsInRow = 0
+                    rowWidth = 0
+                }
+                ++itemsInRow
+                rowWidth += cell.width
             }
-            spacing: Theme.paddingLarge
+            if (itemsInRow > 0)
+                itemsPerRow.push(itemsInRow)
 
-            Repeater {
-                model: spaceKey.languageMode ? spaceKey.languageOptions : []
+            // itemsPerRow counts backwards as well, so walking it in reverse
+            // puts the names back in their proper order.
+            var cellIndex = cells.length - 1
+            for (i = itemsPerRow.length - 1; i >= 0; --i) {
+                var row = rowComponent.createObject(contentColumn)
+                for (var n = 0; n < itemsPerRow[i]; ++n)
+                    cells[cellIndex--].parent = row
+            }
+        }
 
-                Item {
-                    property int optionIndex: index
-                    readonly property bool current: index === spaceKey.languageIndex
-                                                    && !spaceKey.languageAbandoned
-
-                    width: optionLabel.width + 2 * Theme.paddingMedium
-                    height: optionLabel.height + Theme.paddingMedium
-
-                    Label {
-                        id: optionLabel
-                        anchors.centerIn: parent
-                        font.pixelSize: Theme.fontSizeMedium
-                        color: parent.current ? Theme.highlightColor
-                                              : Theme.primaryColor
-                        opacity: parent.current ? 1 : 0.6
-                        text: modelData.name !== "" ? modelData.name : modelData.code
-                    }
-
-                    Rectangle {
-                        anchors.top: optionLabel.bottom
-                        anchors.topMargin: Math.round(Theme.paddingSmall / 2)
-                        anchors.horizontalCenter: optionLabel.horizontalCenter
-                        width: optionLabel.width
-                        height: Math.max(1, Math.round(Theme.paddingSmall / 4))
-                        color: Theme.highlightColor
-                        visible: parent.current
-                    }
+        function indexAt(pointerX, pointerY) {
+            for (var r = 0; r < contentColumn.children.length; ++r) {
+                var row = contentColumn.children[r]
+                for (var c = 0; c < row.children.length; ++c) {
+                    var cell = row.children[c]
+                    if (!cell || cell.optionIndex === undefined)
+                        continue
+                    var local = spaceKey.mapToItem(cell, pointerX, pointerY)
+                    if (local.x >= 0 && local.y >= 0
+                            && local.x < cell.width && local.y < cell.height)
+                        return cell.optionIndex
                 }
             }
+            return -1
         }
     }
 
