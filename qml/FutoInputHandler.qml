@@ -4935,6 +4935,14 @@ InputHandler {
 			// must go before it counts as a gesture.
 			swipeStartsWord = preedit === ""
 		} else if (nextPath.length === 1) {
+			// A swipe spells a whole word, so it may only begin one. Refusing
+			// here rather than when the finger lifts means the touch never
+			// becomes a gesture at all: no trail is drawn, the key previews stay,
+			// and the keys behave exactly as they do with swiping switched off.
+			if (!swipeStartsWord) {
+				resetSwipePath()
+				return
+			}
 			// Crossing a second distinct letter turns this touch into a real
 			// swipe. Only now may it implicitly accept the previous swiped word.
 			acceptPendingSwipeForNextGesture()
@@ -5105,15 +5113,9 @@ InputHandler {
 	}
 
 	function finishSwipeGesture() {
-		// A swipe spells a whole word, so it may only begin one. The panel here
-		// reports two thumbs typing as a single contact travelling between them,
-		// which reaches this point as a gesture indistinguishable from a real
-		// one; refusing to read gestures out of a word already under way takes
-		// away most of the openings for that, at the cost of swiping mid-word.
-		if (!swipeStartsWord)
-			return false
-		// Two-letter words such as "as" are valid gestures, so two keys is enough
-		// once a word is genuinely being started.
+		// Two-letter words such as "as" are valid gestures, so two keys is
+		// enough. A path only reaches two where a word begins, the touch being
+		// turned away at its second key otherwise.
 		if (swipePath.length < 2 || !swipeKeyAllowed(pressedKey))
 			return false
 		var serializedPath = swipePath.join(";")
