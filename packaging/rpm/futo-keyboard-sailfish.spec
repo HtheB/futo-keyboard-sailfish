@@ -187,31 +187,17 @@ fi
 %changelog
 
 * Wed Sep 09 2026 HtheB - 0.4.1-1
-- Place the numpad on either side of the 123 page, the established
-  arrangement now being named for the side it uses.
-- Show the 123 page in its own arrangement rather than borrowing the letter
-  keys' secondary symbols.
-- Give the {&= page a fixed set of keys; holding {&= still opens the full
-  symbol picker.
-- Correct the secondary symbols on the bottom letter row, each of which was
-  taken from its neighbour.
-- Keep the long-press alternates on the letter keys the same whichever
-  languages are enabled.
-- Offer %^~|[]<>{} on the top letter row while the number row is shown,
-  rather than repeating the digits already on screen.
-- Correct the long-press alternates on the symbol keys, and highlight one in
-  each so that holding a key types something without moving the finger.
-- Show the marks the period key holds, and offer the comma among them; the
-  symbol pages offer the bullet and the ellipsis there instead.
-- Separate a word typed straight after a swiped word from it.
-- Keep the modifier note clear of the symbol picker's tabs, and close up the
-  tabs themselves.
-- Begin a swipe only where a word begins, and leave a touch which may not
-  swipe behaving exactly as it does with swiping switched off.
-- Vibrate once for a touch rather than for every key it crosses, without
-  reaching into the phone's own vibration setting to do it.
-- Keep the suggestion strip for the Paste button while something is on the
-  clipboard, so a copied text can still be pasted with predictions off.
+- Place the numpad in the 123 page layout on the left or the right.
+- Give the 123 and {&= pages a better layout.
+- Show the same accented letters whatever languages are enabled.
+- Show symbols above the top row when the number row is on.
+- Show ,!? on the dot key.
+- Add the space after a swiped word.
+- Make the symbol picker tabs smaller.
+- Start a swipe only at the beginning of a word, to prevent false swipe
+  detection caused by a bug in Sailfish OS.
+- Fix the haptic feedback.
+- Show the paste button when predictions are off as well.
 
 * Tue Sep 08 2026 HtheB - 0.4.0-1
 - Expand language and layout support with additional FUTO layouts, their
