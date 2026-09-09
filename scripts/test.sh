@@ -19,6 +19,16 @@ echo '7a0bd8b0481d3995196cf5161a1a290fd05ec23f3b5dafb47c06cc8acc832b93  assets/f
 echo 'd334dd7823b53b41f9c14678971772ebce334b5f92c5bd7024454f75b3b47b17  assets/fonts/NotoSerifTibetan-Light.ttf' |
     (cd "$ROOT" && sha256sum -c -)
 grep -Fq 'NotoSerifTibetan-Light.ttf' "$ROOT/packaging/Makefile"
+# Romanian's upstream list is dominated by its lowest frequency tier, which the
+# engine would otherwise hold in memory for no benefit.
+grep -Fq 'DICTIONARY_DROP_LOWEST=( [ro]=1 )' "$ROOT/scripts/build.sh"
+grep -Fq "grep -v ',f=1,'" "$ROOT/scripts/build.sh"
+# A rebuilt pack must carry a new version in both places, or the archive named
+# by the manifest is not the archive the builder writes.
+grep -Fq '[dictionary-ro]=0.4.2-1' "$ROOT/scripts/build-content-packs.sh"
+grep -Fq '"dictionary-ro": "0.4.2-1"' "$ROOT/scripts/generate-content-manifest.js"
+grep -Fq 'func (manager *contentManager) installedVersion(' \
+    "$ROOT/helper/cmd/futo-keyboard-helper/content.go"
 grep -Fq 'layoutScript === "tibetan"' "$ROOT/layouts/FutoQwertyLayout.qml"
 grep -Fq '0x0F00 && codepoint <= 0x0FFF' "$ROOT/layouts/FutoCharacterKey.qml"
 grep -Fq '0xFDFC' "$ROOT/scripts/build-android-riyal-font.py"

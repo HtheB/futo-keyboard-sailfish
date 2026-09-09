@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUTPUT=${FUTO_CONTENT_OUTPUT:-"$ROOT/build/content-packs"}
 PACK_VERSION=0.4.0-1
+# Packs whose content changed after the release their base URL points at.
+# Keep this in step with packVersionOverrides in generate-content-manifest.js.
+declare -A PACK_VERSION_OVERRIDES=( [dictionary-ro]=0.4.2-1 )
 
 mkdir -p "$OUTPUT" "$ROOT/content"
 find "$OUTPUT" -maxdepth 1 -type f \
@@ -66,7 +69,8 @@ for dictionary in "${dictionary_files[@]}"; do
         exit 1
     }
     name=$(basename "$file" .fksidx | tr '[:upper:]_' '[:lower:]-')
-    archive_file "futo-content-dictionary-$name-$PACK_VERSION.tar.gz" \
+    version=${PACK_VERSION_OVERRIDES[dictionary-$name]:-$PACK_VERSION}
+    archive_file "futo-content-dictionary-$name-$version.tar.gz" \
         "build/dictionaries/$(basename "$file")" \
         "dictionaries/$(basename "$file")"
 done
