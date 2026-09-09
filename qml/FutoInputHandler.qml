@@ -5105,12 +5105,16 @@ InputHandler {
 	}
 
 	function finishSwipeGesture() {
-		// Two-letter words such as "as" are valid gestures, so a touch beginning
-		// a word needs only the two keys. Halfway through one, two keys is what
-		// a fast typist produces by overshooting into the neighbour, while a
-		// gesture meant there carries on across the keyboard.
-		var minimumKeys = swipeStartsWord ? 2 : 3
-		if (swipePath.length < minimumKeys || !swipeKeyAllowed(pressedKey))
+		// A swipe spells a whole word, so it may only begin one. The panel here
+		// reports two thumbs typing as a single contact travelling between them,
+		// which reaches this point as a gesture indistinguishable from a real
+		// one; refusing to read gestures out of a word already under way takes
+		// away most of the openings for that, at the cost of swiping mid-word.
+		if (!swipeStartsWord)
+			return false
+		// Two-letter words such as "as" are valid gestures, so two keys is enough
+		// once a word is genuinely being started.
+		if (swipePath.length < 2 || !swipeKeyAllowed(pressedKey))
 			return false
 		var serializedPath = swipePath.join(";")
 		if (keyboard.layout && keyboard.layout.serializedSwipeTrace) {
