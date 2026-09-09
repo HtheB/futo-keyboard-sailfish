@@ -210,6 +210,8 @@ fi
   swipe behaving exactly as it does with swiping switched off.
 - Vibrate once for a touch rather than for every key it crosses, without
   reaching into the phone's own vibration setting to do it.
+- Keep the suggestion strip for the Paste button while something is on the
+  clipboard, so a copied text can still be pasted with predictions off.
 
 * Tue Sep 08 2026 HtheB - 0.4.0-1
 - Expand language and layout support with additional FUTO layouts, their

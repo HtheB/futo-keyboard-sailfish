@@ -32,3 +32,5 @@ second numpad arrangement.
   behaves exactly as it does with swipe typing switched off.
 - The keyboard vibrates once for a touch rather than for every key it
   crosses, and no longer changes the phone's own vibration setting to do it.
+- With predictions turned off, the suggestion strip now appears for the Paste
+  button while something is on the clipboard, and goes once it is empty.
