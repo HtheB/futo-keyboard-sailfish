@@ -28,6 +28,40 @@ test -x "$ROOT/packaging/scripts/futo-keyboard-restore-stock-layout" ||
 grep -Fq 'com/jolla/layouts' "$ROOT/packaging/scripts/futo-keyboard-restore-stock-layout"
 grep -Fq 'func (service *service) UninstallKeyboard()' "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
 grep -Fq 'Uninstall FUTO Keyboard' "$ROOT/qml/FutoMaintenancePage.qml"
+# Removing the keyboard is confirmed on a page of its own, not by beating a
+# remorse timer, and pkcon must answer its own simulation prompt or the
+# removal reports itself as declined.
+grep -Fq 'FutoUninstallDialog.qml' "$ROOT/qml/FutoMaintenancePage.qml"
+grep -Fq 'FutoUninstallDialog.qml' "$ROOT/packaging/Makefile"
+test -s "$ROOT/qml/FutoUninstallDialog.qml"
+grep -Fq '"--plain", "-y",' "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+# A successful removal stops the helper while the call is still open, so
+# waiting for the reply would make every success look like a failure.
+grep -Fq 'go service.removeKeyboardPackage()' "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+grep -Fq 'uninstallFailedSignal' "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+# The removal reports on a page of its own, which cannot be left until it
+# has finished, and only a failure leaves a way back.
+grep -Fq 'function uninstallFailed(reason)' "$ROOT/qml/FutoUninstallProgressPage.qml"
+grep -Fq 'backNavigation: phase === "failed"' "$ROOT/qml/FutoUninstallProgressPage.qml"
+# Settings ignores Qt.quit() and its window has only deactivate().
+grep -Fq 'settingsWindow.deactivate()' "$ROOT/qml/FutoUninstallProgressPage.qml"
+# Settings keeps its own copy of the entry list, so the keyboard stays
+# listed until that application is started again. It cannot end itself,
+# so the helper outlives its own package and does it.
+grep -Fq 'func (service *service) CloseSettings()' "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+grep -Fq 'uninstallFinishedSignal' "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+grep -Fq 'function uninstallFinished(reason)' "$ROOT/qml/FutoUninstallProgressPage.qml"
+if grep -q 'systemctl-user stop futo-keyboard-helper.service' "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"; then
+    echo "the helper must outlive %preun to report the removal" >&2
+    exit 1
+fi
+# One navigation only: replacing the stack from an accepted handler runs a
+# second one against the dialog's own and leaves both pages on screen.
+grep -Fq 'acceptDestinationAction: PageStackAction.Replace' \n    "$ROOT/qml/FutoUninstallDialog.qml"
+grep -Fq 'FutoUninstallProgressPage.qml' "$ROOT/packaging/Makefile"
+grep -Fq 'icon-m-refresh' "$ROOT/qml/FutoMaintenancePage.qml"
+grep -Fq '49-futo-keyboard-uninstall.rules' "$ROOT/packaging/Makefile"
+node --check < "$ROOT/packaging/polkit/49-futo-keyboard-uninstall.rules"
 # The About page states the version in its own words. It drifted silently
 # through a release once; make a mismatch with the package a build failure.
 spec_version=$(grep '^Version:' "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec" |

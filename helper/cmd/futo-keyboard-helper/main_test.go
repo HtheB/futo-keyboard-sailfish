@@ -1117,8 +1117,8 @@ func TestKeyboardModeSettingKeepsOrientationsSeparate(t *testing.T) {
 
 func TestKeyboardModeSignalIsIntrospected(t *testing.T) {
 	iface := helperIntrospectionInterface(&service{})
-	if len(iface.Signals) != 3 {
-		t.Fatalf("signal count = %d, want 3", len(iface.Signals))
+	if len(iface.Signals) != 5 {
+		t.Fatalf("signal count = %d, want 5", len(iface.Signals))
 	}
 	signal := iface.Signals[0]
 	if signal.Name != keyboardModeChangedSignal {
@@ -1138,6 +1138,20 @@ func TestKeyboardModeSignalIsIntrospected(t *testing.T) {
 	if contentSignal.Name != contentChangedSignal || len(contentSignal.Args) != 2 ||
 		contentSignal.Args[0].Type != "s" || contentSignal.Args[1].Type != "s" {
 		t.Fatalf("content signal = %#v, want ContentChanged(s, s)", contentSignal)
+	}
+	// A removal that succeeds takes this service with it, so only a failed one
+	// is ever announced.
+	uninstallSignal := iface.Signals[3]
+	if uninstallSignal.Name != uninstallFailedSignal ||
+		len(uninstallSignal.Args) != 1 || uninstallSignal.Args[0].Type != "s" {
+		t.Fatalf("uninstall signal = %#v, want UninstallFailed(s)", uninstallSignal)
+	}
+	// This process outlives its own package so that it can say the removal
+	// worked; nothing else is left to say it.
+	finishedSignal := iface.Signals[4]
+	if finishedSignal.Name != uninstallFinishedSignal ||
+		len(finishedSignal.Args) != 1 || finishedSignal.Args[0].Type != "s" {
+		t.Fatalf("finished signal = %#v, want UninstallFinished(s)", finishedSignal)
 	}
 }
 

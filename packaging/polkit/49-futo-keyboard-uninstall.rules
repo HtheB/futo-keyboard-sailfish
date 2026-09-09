@@ -1,0 +1,46 @@
+/*
+ * Let the device owner remove this keyboard, and nothing else.
+ *
+ * Sailfish OS ships no interactive polkit agent, so an action that asks for
+ * authentication cannot ask anybody: it simply fails. Its own rule already
+ * grants org.freedesktop.packagekit.package-install to an active local user
+ * in wheel without a prompt, which is how applications are installed; removal
+ * is not covered, so removing a package from inside an application is refused
+ * outright.
+ *
+ * This grants the matching removal permission, narrowed to this one package.
+ * Every other package still needs whatever authentication it needed before.
+ *
+ * The subject has to be logged in at the device itself. Sailfish's install
+ * rule also asks for the wheel group, but the account a Sailfish phone
+ * actually runs as is not in it, so requiring the same here would mean the
+ * rule never applied to anyone. What is left is the owner, at the device, in
+ * front of the confirmation FUTO Keyboard shows before it asks - and the only
+ * thing they can do with it is remove this keyboard, which they can install
+ * again afterwards.
+ */
+polkit.addRule(function(action, subject) {
+    if (action.id !== "org.freedesktop.packagekit.package-remove") {
+        return polkit.Result.NOT_HANDLED;
+    }
+    if (!subject.active || !subject.local) {
+        return polkit.Result.NOT_HANDLED;
+    }
+
+    var packageIds = action.lookup("package_ids");
+    if (!packageIds) {
+        return polkit.Result.NOT_HANDLED;
+    }
+
+    // PackageKit joins several package ids with "&", and each is
+    // name;version;arch;data. Every one of them has to be this keyboard, so a
+    // request that removes anything alongside it is left to the default.
+    var requested = packageIds.split("&");
+    for (var i = 0; i < requested.length; ++i) {
+        if (requested[i].split(";")[0] !== "futo-keyboard-sailfish") {
+            return polkit.Result.NOT_HANDLED;
+        }
+    }
+
+    return polkit.Result.YES;
+});

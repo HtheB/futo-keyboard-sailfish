@@ -70,7 +70,9 @@ make -f packaging/Makefile install DESTDIR=%{buildroot} PREFIX=%{_prefix} \
 
 %preun
 if [ "$1" -eq 0 ]; then
-    /usr/bin/systemctl-user stop futo-keyboard-helper.service >/dev/null 2>&1 || :
+    # The helper is deliberately left running: it is the only thing that
+    # can say whether the removal worked and close the settings
+    # application afterwards, and it ends itself once it has.
     /usr/libexec/futo-keyboard-remove-textinput-bottom-hook || :
     /usr/libexec/futo-keyboard-remove-wayland-deadkey-hook || :
     # Sailfish keeps the chosen layouts as bare file names and never checks
@@ -186,6 +188,7 @@ fi
 %{_datadir}/maliit/plugins/com/jolla/layouts/layouts_futo.conf
 %{_datadir}/dbus-1/services/org.hb.FutoKeyboard1.service
 %{_datadir}/polkit-1/rules.d/49-futo-keyboard-secrets.rules
+%{_datadir}/polkit-1/rules.d/49-futo-keyboard-uninstall.rules
 %{_datadir}/polkit-1/actions/org.hb.futo.keyboard.policy
 %{_userunitdir}/futo-keyboard-helper.service
 %{_userunitdir}/maliit-server.service.d/10-futo-hardware-policy.conf

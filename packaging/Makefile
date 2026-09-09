@@ -92,6 +92,8 @@ SETTINGS_QML := \
 	FutoClipboardSettingsPage.qml \
 	FutoFeedbackPage.qml \
 	FutoMaintenancePage.qml \
+	FutoUninstallDialog.qml \
+	FutoUninstallProgressPage.qml \
 	FutoDeviceAuthentication.qml \
 	FutoDeviceLockInputPage.qml \
 	FutoSettingsTestPanel.qml \
@@ -152,6 +154,7 @@ check:
 	@test -s content/manifest.json || exit 1
 	@grep -q '"formatVersion": 1' content/manifest.json || exit 1
 	@test -s packaging/polkit/49-futo-keyboard-secrets.rules || exit 1
+	@test -s packaging/polkit/49-futo-keyboard-uninstall.rules || exit 1
 	@test -s packaging/polkit/org.hb.futo.keyboard.policy || exit 1
 	@test -s "$(POLICY_LIBRARY)" || exit 1
 	@test -s "$(COMPOSE_PLUGIN)" || { echo "Missing $(ARCH) Qt Compose plugin" >&2; exit 1; }
@@ -337,6 +340,8 @@ install: check
 		"$(DESTDIR)$(PREFIX)/lib/systemd/user/maliit-server.service.d/10-futo-hardware-policy.conf"
 	install -Dm0644 packaging/polkit/49-futo-keyboard-secrets.rules \
 		"$(DESTDIR)$(PREFIX)/share/polkit-1/rules.d/49-futo-keyboard-secrets.rules"
+	install -Dm0644 packaging/polkit/49-futo-keyboard-uninstall.rules \
+		"$(DESTDIR)$(PREFIX)/share/polkit-1/rules.d/49-futo-keyboard-uninstall.rules"
 	install -Dm0644 packaging/polkit/org.hb.futo.keyboard.policy \
 		"$(DESTDIR)$(PREFIX)/share/polkit-1/actions/org.hb.futo.keyboard.policy"
 	install -Dm0644 LICENSES/FUTO-SOURCE-FIRST-LICENSE.md \

@@ -1,7 +1,6 @@
 /* Maintenance actions for FUTO Keyboard settings. */
 import QtQuick 2.0
 import Sailfish.Silica 1.0
-import Nemo.DBus 2.0
 
 Page {
     id: page
@@ -10,28 +9,6 @@ Page {
     property QtObject settingsPage
     property string statusText: ""
 
-
-    DBusInterface {
-        id: helper
-        bus: DBus.SessionBus
-        service: "org.hb.FutoKeyboard1"
-        path: "/org/hb/FutoKeyboard1"
-        iface: "org.hb.FutoKeyboard1"
-    }
-
-    // The removal takes this page away with it, so there is nothing to show on
-    // success. A message means it did not happen, and the keyboard is still
-    // here to show it.
-    function uninstallKeyboard() {
-        page.statusText = qsTr("Removing FUTO Keyboard")
-        helper.typedCall("UninstallKeyboard", [], function(message) {
-            page.statusText = String(message || "") === ""
-                    ? qsTr("FUTO Keyboard removed")
-                    : String(message)
-        }, function() {
-            page.statusText = qsTr("Could not remove FUTO Keyboard")
-        })
-    }
 
     FutoSettingsTestPanel {
         id: testPanel
@@ -66,12 +43,24 @@ Page {
                     page.statusText = qsTr("Defaults restored")
                 })
 
+                Icon {
+                    id: resetIcon
+                    anchors.left: parent.left
+                    anchors.leftMargin: Theme.horizontalPageMargin
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Theme.iconSizeMedium
+                    height: width
+                    source: "image://theme/icon-m-refresh"
+                    color: parent.highlighted ? Theme.highlightColor
+                                              : Theme.primaryColor
+                }
+
                 Column {
                     id: resetLabels
-                    anchors.left: parent.left
+                    anchors.left: resetIcon.right
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    anchors.leftMargin: Theme.horizontalPageMargin
+                    anchors.leftMargin: Theme.paddingLarge
                     anchors.rightMargin: Theme.horizontalPageMargin
 
                     Label {
@@ -99,16 +88,29 @@ Page {
                 height: Math.max(Theme.itemSizeLarge,
                                  uninstallLabels.height + 2 * Theme.paddingMedium)
 
-                onClicked: Remorse.popupAction(page, qsTr("Removing"), function() {
-                    page.uninstallKeyboard()
-                })
+                // The dialog replaces itself with the progress page when it
+                // is accepted, so there is nothing to arrange here.
+                onClicked: pageStack.push(
+                               Qt.resolvedUrl("FutoUninstallDialog.qml"))
+
+                Icon {
+                    id: uninstallIcon
+                    anchors.left: parent.left
+                    anchors.leftMargin: Theme.horizontalPageMargin
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Theme.iconSizeMedium
+                    height: width
+                    source: "image://theme/icon-m-reset"
+                    color: parent.highlighted ? Theme.highlightColor
+                                              : Theme.primaryColor
+                }
 
                 Column {
                     id: uninstallLabels
-                    anchors.left: parent.left
+                    anchors.left: uninstallIcon.right
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    anchors.leftMargin: Theme.horizontalPageMargin
+                    anchors.leftMargin: Theme.paddingLarge
                     anchors.rightMargin: Theme.horizontalPageMargin
 
                     Label {
@@ -136,6 +138,10 @@ Page {
                 width: parent.width - 2 * x
                 horizontalAlignment: Text.AlignHCenter
                 color: Theme.highlightColor
+                // Failures arrive as whole sentences from the package tools,
+                // which run off the screen unless they are allowed to wrap.
+                wrapMode: Text.Wrap
+                font.pixelSize: Theme.fontSizeSmall
                 text: page.statusText
                 visible: text !== ""
             }

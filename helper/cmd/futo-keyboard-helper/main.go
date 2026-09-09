@@ -41,6 +41,8 @@ const (
 	keyboardModeChangedSignal = "KeyboardModeChanged"
 	keySoundModeChangedSignal = "KeySoundModeChanged"
 	contentChangedSignal      = "ContentChanged"
+	uninstallFailedSignal     = "UninstallFailed"
+	uninstallFinishedSignal   = "UninstallFinished"
 	objectPath                = dbus.ObjectPath("/org/hb/FutoKeyboard1")
 	enginePath                = "/usr/libexec/futo-keyboard-engine"
 	swipeEnginePath           = "/usr/libexec/futo-keyboard-swipe"
@@ -3156,6 +3158,8 @@ const (
 	// system's authorisation prompt itself.
 	packageKitClientPath = "/usr/bin/pkcon"
 	keyboardPackageName  = "futo-keyboard-sailfish"
+	// The settings application, as it appears in its own command line.
+	settingsProcessPattern = "jolla-settings"
 )
 
 func (service *service) authenticateVaultPIDForAction(callerPID uint32, actionID string) error {
@@ -5792,33 +5796,101 @@ func showAndroidKeyboardWithRetries() {
 // IME.  Some apps immediately hide the first request, so the helper repeats it
 // briefly.  The set-user-ID bridge accepts no arguments and can only request
 // that the keyboard be shown.
-// UninstallKeyboard hands the removal to PackageKit rather than doing it here.
-// PackageKit asks the person to authorise it through the system's own prompt,
-// so nothing in this process runs with privileges of its own and declining the
-// prompt simply leaves the package installed.
-//
-// The removal takes the keyboard away underneath the caller, so this reports
-// what happened rather than assuming: an empty string means the package is
-// gone, anything else is a message worth showing.
-func (service *service) UninstallKeyboard() (string, *dbus.Error) {
+// UninstallKeyboard hands the removal to PackageKit rather than doing it here,
+// and answers before it finishes. A successful removal stops this service
+// while the call is still open, so waiting for the result would lose the reply
+// and make every success look like a failure. Only a removal that did not
+// happen has anyone left to tell, and it says so with UninstallFailed.
+func (service *service) UninstallKeyboard() *dbus.Error {
+	go service.removeKeyboardPackage()
+	return nil
+}
+
+// installedPackageID reports the package in PackageKit's own form,
+// name;version-release;architecture;installed, taken from the rpm database so
+// it names the build that is really there.
+func installedPackageID(ctx context.Context) (string, error) {
+	output, err := exec.CommandContext(ctx, "/bin/rpm", "-q", "--queryformat",
+		"%{NAME};%{VERSION}-%{RELEASE};%{ARCH};installed",
+		keyboardPackageName).Output()
+	if err != nil {
+		return "", err
+	}
+	id := strings.TrimSpace(string(output))
+	if strings.HasPrefix(id, keyboardPackageName+";") {
+		return id, nil
+	}
+	return "", fmt.Errorf("unexpected rpm output %q", id)
+}
+
+func (service *service) removeKeyboardPackage() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
-	command := exec.CommandContext(ctx, packageKitClientPath, "--plain",
-		"remove", keyboardPackageName)
+	// PackageKit will not resolve this package by name: the repository it came
+	// from lists other versions, and a name matching several candidates is
+	// refused as not installed. Ask rpm what is actually on the device and
+	// name that exact build instead.
+	target := keyboardPackageName
+	if id, idErr := installedPackageID(ctx); idErr == nil && id != "" {
+		target = id
+	} else if idErr != nil {
+		log.Printf("could not identify the installed package: %v", idErr)
+	}
+	// -y answers pkcon's own dependency-simulation prompt, which otherwise
+	// auto-declines with no terminal attached and reports the removal as
+	// refused. Authorisation is separate, and stays with polkit.
+	command := exec.CommandContext(ctx, packageKitClientPath, "--plain", "-y",
+		"remove", target)
 	output, err := command.CombinedOutput()
 	if err == nil {
-		return "", nil
+		// This process outlives its own package: the files are gone, but it
+		// is still the only thing that can report the outcome and close the
+		// settings application afterwards.
+		service.emitUninstall(uninstallFinishedSignal, "")
+		return
 	}
 	message := strings.TrimSpace(string(output))
-	if message == "" {
-		message = err.Error()
-	}
-	// Only the last line carries the reason; the rest is progress reporting.
 	if lines := strings.Split(message, "\n"); len(lines) > 0 {
 		message = strings.TrimSpace(lines[len(lines)-1])
 	}
+	if message == "" {
+		message = err.Error()
+	}
 	log.Printf("could not remove %s: %v (%s)", keyboardPackageName, err, message)
-	return message, nil
+	service.emitUninstall(uninstallFailedSignal, message)
+}
+
+func (service *service) emitUninstall(signal, message string) {
+	if service.bus == nil {
+		return
+	}
+	if err := service.bus.Emit(objectPath, interfaceName+"."+signal,
+		message); err != nil {
+		log.Printf("could not report the removal: %v", err)
+	}
+}
+
+// CloseSettings ends the settings application, and then this process with it.
+//
+// Removing the package does not take the settings application's own copy of
+// its entry away: it reads the list once and keeps it, so the keyboard is
+// still offered under Text Input until the application is started again.
+// Nothing inside that application can end it - its window offers no close,
+// and it ignores Qt.quit() - so the request comes back out here.
+func (service *service) CloseSettings() *dbus.Error {
+	if err := exec.Command("/usr/bin/pkill", "-f",
+		settingsProcessPattern).Run(); err != nil {
+		log.Printf("could not close the settings application: %v", err)
+	}
+	go func() {
+		// Give the reply time to reach a caller that is still alive.
+		time.Sleep(time.Second)
+		service.engine.close()
+		service.swipeEngine.close()
+		service.androidCursor.close()
+		os.Exit(0)
+	}()
+	return nil
 }
 
 func (service *service) ShowAndroidKeyboard() *dbus.Error {
@@ -6465,6 +6537,18 @@ func helperIntrospectionInterface(application interface{}) introspect.Interface 
 				Args: []introspect.Arg{
 					{Name: "id", Type: "s"},
 					{Name: "state", Type: "s"},
+				},
+			},
+			{
+				Name: uninstallFailedSignal,
+				Args: []introspect.Arg{
+					{Name: "message", Type: "s"},
+				},
+			},
+			{
+				Name: uninstallFinishedSignal,
+				Args: []introspect.Arg{
+					{Name: "message", Type: "s"},
 				},
 			},
 		},
