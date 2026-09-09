@@ -31,14 +31,59 @@
 
 namespace {
 
+// A word's three spellings live in two buffers shared by the whole dictionary
+// rather than in three allocations of their own. A large word list is mostly
+// short words, so per-word allocator overhead used to cost more than the text:
+// Romanian's 645,841 words took 255 bytes each where their spellings occupy
+// about 80. Offsets rather than pointers keep entries valid while a buffer
+// still grows during loading.
 struct Entry {
-    std::string display;
-    std::vector<uint32_t> normalized;
+    uint32_t displayOffset;
+    uint32_t normalizedOffset;
     // Lower-case spelling with diacritics preserved. Dictionary lookup folds
     // accents, but swipe geometry must distinguish U from Ü, A from Ä, etc.
-    std::vector<uint32_t> gesture;
-    int probability;
+    // Words without diacritics share one run with the normalized spelling.
+    uint32_t gestureOffset;
+    int32_t probability;
+    uint16_t displaySize;
+    uint8_t normalizedSize;
+    uint8_t gestureSize;
 };
+
+// A read-only run of code points: either a caller's vector or a slice of the
+// dictionary's shared spelling buffer, so both can be compared and measured
+// without either being copied.
+class CodeView {
+public:
+    CodeView() = default;
+    CodeView(const uint32_t *first, std::size_t count)
+        : mFirst(first), mCount(count) {}
+    CodeView(const std::vector<uint32_t> &values)
+        : mFirst(values.data()), mCount(values.size()) {}
+
+    const uint32_t *begin() const { return mFirst; }
+    const uint32_t *end() const { return mFirst + mCount; }
+    const uint32_t *data() const { return mFirst; }
+    std::size_t size() const { return mCount; }
+    bool empty() const { return mCount == 0; }
+    uint32_t operator[](std::size_t index) const { return mFirst[index]; }
+
+private:
+    const uint32_t *mFirst = nullptr;
+    std::size_t mCount = 0;
+};
+
+bool operator==(CodeView left, CodeView right) {
+    return left.size() == right.size()
+            && std::equal(left.begin(), left.end(), right.begin());
+}
+
+bool operator!=(CodeView left, CodeView right) { return !(left == right); }
+
+bool operator<(CodeView left, CodeView right) {
+    return std::lexicographical_compare(left.begin(), left.end(),
+                                        right.begin(), right.end());
+}
 
 struct RankedEntry {
     const Entry *entry;
@@ -131,7 +176,7 @@ std::string formatDisplay(const std::string &word, bool capitalizeFirst) {
     return codepoints_to_utf8(output);
 }
 
-bool startsWith(const std::vector<uint32_t> &word, const std::vector<uint32_t> &prefix) {
+bool startsWith(CodeView word, CodeView prefix) {
     return word.size() >= prefix.size()
             && std::equal(prefix.begin(), prefix.end(), word.begin());
 }
@@ -147,8 +192,7 @@ const std::unordered_map<std::u32string, std::string> &englishContractions() {
     return contractions;
 }
 
-int boundedDistance(const std::vector<uint32_t> &left,
-        const std::vector<uint32_t> &right, int maximum) {
+int boundedDistance(CodeView left, CodeView right, int maximum) {
     const int leftSize = static_cast<int>(left.size());
     const int rightSize = static_cast<int>(right.size());
     if (std::abs(leftSize - rightSize) > maximum) {
@@ -182,8 +226,7 @@ int boundedDistance(const std::vector<uint32_t> &left,
     return previous[rightSize];
 }
 
-bool isAdjacentTransposition(const std::vector<uint32_t> &left,
-        const std::vector<uint32_t> &right) {
+bool isAdjacentTransposition(CodeView left, CodeView right) {
     if (left.size() != right.size() || left.size() < 2) {
         return false;
     }
@@ -412,7 +455,8 @@ public:
 
         for (const Entry &entry : mEntries) {
             const int probability = std::max(0, entry.probability);
-            if (entry.normalized == normalizedQuery) {
+            const CodeView entryNormalized = normalizedOf(entry);
+            if (entryNormalized == CodeView(normalizedQuery)) {
                 analysis.known = true;
                 analysis.knownScore = std::max(analysis.knownScore, probability);
                 ranked.push_back({&entry, 4000000000LL + probability});
@@ -420,20 +464,20 @@ public:
             }
 
             std::int64_t suggestionScore = std::numeric_limits<std::int64_t>::min();
-            if (startsWith(entry.normalized, normalizedQuery)) {
+            if (startsWith(entryNormalized, normalizedQuery)) {
                 const std::int64_t lengthPenalty = static_cast<std::int64_t>(
-                        entry.normalized.size() - normalizedQuery.size()) * 1000;
+                        entryNormalized.size() - normalizedQuery.size()) * 1000;
                 suggestionScore = 3000000000LL
                         + static_cast<std::int64_t>(probability) * 1000000LL
                         - lengthPenalty;
             } else if (normalizedQuery.size() >= 3) {
                 const int maximumDistance = normalizedQuery.size() >= 7 ? 2 : 1;
-                const std::size_t comparisonLength = std::min(entry.normalized.size(),
+                const std::size_t comparisonLength = std::min(entryNormalized.size(),
                         normalizedQuery.size() + static_cast<std::size_t>(maximumDistance));
                 if (comparisonLength + static_cast<std::size_t>(maximumDistance)
                         >= normalizedQuery.size()) {
-                    const std::vector<uint32_t> candidatePrefix(entry.normalized.begin(),
-                            entry.normalized.begin() + comparisonLength);
+                    const CodeView candidatePrefix(entryNormalized.data(),
+                            comparisonLength);
                     const int distance = boundedDistance(
                             normalizedQuery, candidatePrefix, maximumDistance);
                     if (distance <= maximumDistance) {
@@ -443,7 +487,7 @@ public:
                         suggestionScore = correctionBase
                                 - static_cast<std::int64_t>(distance) * 200000000LL
                                 + static_cast<std::int64_t>(probability) * 1000000LL
-                                - static_cast<std::int64_t>(entry.normalized.size()) * 1000LL;
+                                - static_cast<std::int64_t>(entryNormalized.size()) * 1000LL;
                     }
                 }
             }
@@ -452,13 +496,13 @@ public:
             }
 
             if (collectCorrections
-                    && std::abs(static_cast<int>(entry.normalized.size())
+                    && std::abs(static_cast<int>(entryNormalized.size())
                             - static_cast<int>(normalizedQuery.size())) <= 1
-                    && boundedDistance(normalizedQuery, entry.normalized, 1) == 1) {
+                    && boundedDistance(normalizedQuery, entryNormalized, 1) == 1) {
                 const int correctionScore = probability
-                        + (isAdjacentTransposition(normalizedQuery, entry.normalized) ? 20 : 0);
+                        + (isAdjacentTransposition(normalizedQuery, entryNormalized) ? 20 : 0);
                 analysis.corrections.push_back({
-                        formatDisplay(entry.display, capitalize), correctionScore});
+                        formatDisplay(displayOf(entry), capitalize), correctionScore});
             }
         }
 
@@ -467,12 +511,12 @@ public:
             if (left.score != right.score) {
                 return left.score > right.score;
             }
-            return left.entry->normalized.size() < right.entry->normalized.size();
+            return left.entry->normalizedSize < right.entry->normalizedSize;
         });
 
         analysis.suggestions.reserve(limit);
         for (const RankedEntry &candidate : ranked) {
-            const std::string word = formatDisplay(candidate.entry->display, capitalize);
+            const std::string word = formatDisplay(displayOf(*candidate.entry), capitalize);
             const auto duplicate = std::find_if(analysis.suggestions.begin(),
                     analysis.suggestions.end(), [&](const ScoredWord &existing) {
                         return existing.word == word;
@@ -550,13 +594,14 @@ public:
         std::vector<ScoredWord> ranked;
         ranked.reserve(256);
         for (const Entry &entry : mEntries) {
-            if (entry.gesture.size() < 2 || entry.gesture.size() > 32) {
+            if (entry.gestureSize < 2 || entry.gestureSize > 32) {
                 continue;
             }
+            const CodeView entryGesture = gestureOf(entry);
             std::vector<SwipePoint> candidate;
-            candidate.reserve(entry.gesture.size());
+            candidate.reserve(entryGesture.size());
             bool complete = true;
-            for (uint32_t codePoint : entry.gesture) {
+            for (uint32_t codePoint : entryGesture) {
                 auto center = keyCenters.find(codePoint);
                 if (center == keyCenters.end()) {
                     const uint32_t base = static_cast<uint32_t>(
@@ -604,8 +649,8 @@ public:
                     - static_cast<std::int64_t>(visitCost * 18000000000.0)
                     - static_cast<std::int64_t>(lengthCost * 650000000.0)
                     + static_cast<std::int64_t>(std::max(0, entry.probability)) * 500000LL
-                    - static_cast<std::int64_t>(entry.gesture.size()) * 1000LL;
-            ranked.push_back({formatDisplay(entry.display, capitalize), score});
+                    - static_cast<std::int64_t>(entry.gestureSize) * 1000LL;
+            ranked.push_back({formatDisplay(displayOf(entry), capitalize), score});
         }
 
         std::sort(ranked.begin(), ranked.end(), [](const ScoredWord &left,
@@ -644,16 +689,17 @@ public:
                     if (left->probability != right->probability) {
                         return left->probability > right->probability;
                     }
-                    return left->normalized.size() < right->normalized.size();
+                    return left->normalizedSize < right->normalizedSize;
                 });
         std::vector<std::string> result;
         result.reserve(limit);
         for (const Entry *entry : ranked) {
-            if (entry->display.empty()
-                    || std::find(result.begin(), result.end(), entry->display) != result.end()) {
+            const std::string display = displayOf(*entry);
+            if (display.empty()
+                    || std::find(result.begin(), result.end(), display) != result.end()) {
                 continue;
             }
-            result.push_back(entry->display);
+            result.push_back(display);
             if (static_cast<int>(result.size()) >= limit) {
                 break;
             }
@@ -709,6 +755,18 @@ public:
 
     std::size_t size() const { return mEntries.size(); }
 
+    CodeView normalizedOf(const Entry &entry) const {
+        return CodeView(mCodes.data() + entry.normalizedOffset, entry.normalizedSize);
+    }
+
+    CodeView gestureOf(const Entry &entry) const {
+        return CodeView(mCodes.data() + entry.gestureOffset, entry.gestureSize);
+    }
+
+    std::string displayOf(const Entry &entry) const {
+        return mText.substr(entry.displayOffset, entry.displaySize);
+    }
+
     void writeCompiled(const std::string &path) const {
         std::ofstream output(path, std::ios::binary | std::ios::trunc);
         if (!output) {
@@ -719,21 +777,21 @@ public:
         const uint32_t count = static_cast<uint32_t>(mEntries.size());
         output.write(reinterpret_cast<const char *>(&count), sizeof(count));
         for (const Entry &entry : mEntries) {
-            if (entry.display.size() > std::numeric_limits<uint16_t>::max()
-                    || entry.normalized.size() > MAX_WORD_LENGTH) {
+            if (entry.normalizedSize > MAX_WORD_LENGTH) {
                 continue;
             }
-            const uint16_t displaySize = static_cast<uint16_t>(entry.display.size());
-            const uint8_t normalizedSize = static_cast<uint8_t>(entry.normalized.size());
+            const uint16_t displaySize = entry.displaySize;
+            const uint8_t normalizedSize = entry.normalizedSize;
             const uint8_t reserved = 0;
             const int32_t probability = entry.probability;
             output.write(reinterpret_cast<const char *>(&displaySize), sizeof(displaySize));
             output.write(reinterpret_cast<const char *>(&normalizedSize), sizeof(normalizedSize));
             output.write(reinterpret_cast<const char *>(&reserved), sizeof(reserved));
             output.write(reinterpret_cast<const char *>(&probability), sizeof(probability));
-            output.write(entry.display.data(), entry.display.size());
-            output.write(reinterpret_cast<const char *>(entry.normalized.data()),
-                         entry.normalized.size() * sizeof(uint32_t));
+            output.write(mText.data() + entry.displayOffset, displaySize);
+            output.write(reinterpret_cast<const char *>(
+                             mCodes.data() + entry.normalizedOffset),
+                         static_cast<std::streamsize>(normalizedSize) * sizeof(uint32_t));
         }
         if (!output) {
             throw std::runtime_error("cannot write compiled dictionary: " + path);
@@ -749,14 +807,38 @@ private:
     };
 
     void buildExactIndex() {
+        mExactEntries.reserve(mEntries.size());
         for (const Entry &entry : mEntries) {
-            const std::u32string key(entry.normalized.begin(), entry.normalized.end());
-            const auto existing = mExactEntries.find(key);
-            if (existing == mExactEntries.end()
-                    || existing->second->probability < entry.probability) {
-                mExactEntries[key] = &entry;
-            }
+            mExactEntries.push_back(&entry);
         }
+        // Order by spelling, and the likeliest first within one spelling, so
+        // dropping every later duplicate leaves the same entry the previous
+        // highest-probability-wins map kept.
+        std::sort(mExactEntries.begin(), mExactEntries.end(),
+                [this](const Entry *left, const Entry *right) {
+            const CodeView leftKey = normalizedOf(*left);
+            const CodeView rightKey = normalizedOf(*right);
+            if (leftKey != rightKey) {
+                return leftKey < rightKey;
+            }
+            return left->probability > right->probability;
+        });
+        mExactEntries.erase(std::unique(mExactEntries.begin(), mExactEntries.end(),
+                [this](const Entry *left, const Entry *right) {
+                    return normalizedOf(*left) == normalizedOf(*right);
+                }), mExactEntries.end());
+        mExactEntries.shrink_to_fit();
+    }
+
+    const Entry *findExact(CodeView key) const {
+        const auto found = std::lower_bound(mExactEntries.begin(), mExactEntries.end(),
+                key, [this](const Entry *candidate, CodeView wanted) {
+                    return normalizedOf(*candidate) < wanted;
+                });
+        if (found == mExactEntries.end() || normalizedOf(**found) != key) {
+            return nullptr;
+        }
+        return *found;
     }
 
     std::string segmentPhrase(const std::vector<uint32_t> &query,
@@ -776,14 +858,13 @@ private:
                     continue;
                 }
                 for (std::size_t end = start + 1; end <= query.size(); ++end) {
-                    const std::u32string key(query.begin() + start, query.begin() + end);
+                    const CodeView key(query.data() + start, end - start);
                     std::string display;
                     int probability = -1;
-                    const auto exact = mExactEntries.find(key);
-                    if (exact != mExactEntries.end()) {
-                        probability = std::max(0, exact->second->probability);
+                    if (const Entry *exact = findExact(key)) {
+                        probability = std::max(0, exact->probability);
                         if (probability >= 120 && (key.size() > 1 || probability >= 200)) {
-                            display = exact->second->display;
+                            display = displayOf(*exact);
                             if (display == "OK") {
                                 display = "ok";
                             }
@@ -791,7 +872,9 @@ private:
                     }
                     bool transformed = false;
                     if (allowEnglishContractions) {
-                        const auto contraction = englishContractions().find(key);
+                        const std::u32string contractionKey(key.begin(), key.end());
+                        const auto contraction =
+                                englishContractions().find(contractionKey);
                         if (contraction != englishContractions().end()) {
                             display = contraction->second;
                             probability = 255;
@@ -887,8 +970,92 @@ private:
             if (display.empty() || display.size() > MAX_WORD_LENGTH) {
                 continue;
             }
-            mEntries.push_back({word, normalize(display), gestureSpelling(display), probability});
+            appendEntry(word, normalize(display), gestureSpelling(display), probability);
         }
+        mText.shrink_to_fit();
+        mCodes.shrink_to_fit();
+        mEntries.shrink_to_fit();
+    }
+
+    // Adds one word to the shared buffers. A word spelled without diacritics
+    // has the same normalized and gesture form, and the two then name one run
+    // instead of two.
+    void appendEntry(const std::string &display,
+            const std::vector<uint32_t> &normalized,
+            const std::vector<uint32_t> &gesture, int probability) {
+        if (display.size() > std::numeric_limits<uint16_t>::max()
+                || normalized.size() > MAX_WORD_LENGTH
+                || gesture.size() > MAX_WORD_LENGTH) {
+            return;
+        }
+        // Offsets are 32 bits. No shipped word list comes near this, but a
+        // hand-made one must be refused rather than silently wrap.
+        const std::size_t limit = std::numeric_limits<uint32_t>::max();
+        if (mText.size() + display.size() > limit
+                || mCodes.size() + normalized.size() + gesture.size() > limit) {
+            throw std::runtime_error("dictionary is too large to index");
+        }
+        Entry entry = {};
+        entry.displayOffset = static_cast<uint32_t>(mText.size());
+        entry.displaySize = static_cast<uint16_t>(display.size());
+        mText.append(display);
+
+        entry.normalizedOffset = static_cast<uint32_t>(mCodes.size());
+        entry.normalizedSize = static_cast<uint8_t>(normalized.size());
+        mCodes.insert(mCodes.end(), normalized.begin(), normalized.end());
+
+        if (gesture == normalized) {
+            entry.gestureOffset = entry.normalizedOffset;
+        } else {
+            entry.gestureOffset = static_cast<uint32_t>(mCodes.size());
+            mCodes.insert(mCodes.end(), gesture.begin(), gesture.end());
+        }
+        entry.gestureSize = static_cast<uint8_t>(gesture.size());
+
+        entry.probability = probability;
+        mEntries.push_back(entry);
+    }
+
+    // The on-disk record: display bytes, code point count, a spare byte and
+    // the probability, then the display text and the normalized spelling.
+    static const std::size_t COMPILED_HEADER_BYTES = 8;
+
+    struct CompiledHeader {
+        uint16_t displaySize;
+        uint8_t normalizedSize;
+        int32_t probability;
+    };
+
+    static void readExactly(std::ifstream &input, void *destination,
+            std::size_t size, const std::string &path) {
+        input.read(reinterpret_cast<char *>(destination),
+                   static_cast<std::streamsize>(size));
+        if (!input) {
+            throw std::runtime_error("truncated compiled dictionary: " + path);
+        }
+    }
+
+    // One read per record rather than one per field: at two thirds of a
+    // million words the difference is seconds.
+    static CompiledHeader readCompiledHeader(std::ifstream &input,
+            const std::string &path) {
+        char raw[COMPILED_HEADER_BYTES];
+        readExactly(input, raw, sizeof(raw), path);
+        CompiledHeader header = {};
+        std::memcpy(&header.displaySize, raw, sizeof(header.displaySize));
+        std::memcpy(&header.normalizedSize, raw + 2, sizeof(header.normalizedSize));
+        std::memcpy(&header.probability, raw + 4, sizeof(header.probability));
+        if (header.displaySize == 0 || header.displaySize > 1024
+                || header.normalizedSize == 0
+                || header.normalizedSize > MAX_WORD_LENGTH) {
+            throw std::runtime_error("invalid compiled dictionary entry: " + path);
+        }
+        return header;
+    }
+
+    static std::size_t payloadBytes(const CompiledHeader &header) {
+        return static_cast<std::size_t>(header.displaySize)
+                + static_cast<std::size_t>(header.normalizedSize) * sizeof(uint32_t);
     }
 
     void loadCompiled(std::ifstream &input, const std::string &path) {
@@ -897,52 +1064,70 @@ private:
         if (fileSize <= 8 || fileSize > (1024LL * 1024LL * 1024LL)) {
             throw std::runtime_error("invalid compiled dictionary size: " + path);
         }
-        std::vector<char> data(static_cast<std::size_t>(fileSize - 8));
         input.seekg(8, std::ios::beg);
-        input.read(data.data(), data.size());
-        if (!input) {
-            throw std::runtime_error("cannot read compiled dictionary: " + path);
-        }
-        std::size_t offset = 0;
-        auto copyBytes = [&](void *destination, std::size_t size) {
-            if (size > data.size() - offset) {
-                throw std::runtime_error("truncated compiled dictionary: " + path);
-            }
-            std::memcpy(destination, data.data() + offset, size);
-            offset += size;
-        };
-
         uint32_t count = 0;
-        copyBytes(&count, sizeof(count));
+        readExactly(input, &count, sizeof(count), path);
         if (count == 0 || count > 2000000) {
             throw std::runtime_error("invalid compiled dictionary header: " + path);
         }
-        mEntries.reserve(count);
+        const std::streamoff firstEntry = input.tellg();
+
+        // Measure the buffers before filling them. Reading the file whole
+        // instead would hold a second copy of a large dictionary beside the
+        // one being built, and letting the buffers grow as words arrive would
+        // do the same at every reallocation.
+        std::size_t textBytes = 0;
+        std::size_t codePoints = 0;
         for (uint32_t i = 0; i < count; ++i) {
-            uint16_t displaySize = 0;
-            uint8_t normalizedSize = 0;
-            uint8_t reserved = 0;
-            int32_t probability = 0;
-            copyBytes(&displaySize, sizeof(displaySize));
-            copyBytes(&normalizedSize, sizeof(normalizedSize));
-            copyBytes(&reserved, sizeof(reserved));
-            copyBytes(&probability, sizeof(probability));
-            if (displaySize == 0 || displaySize > 1024
-                    || normalizedSize == 0 || normalizedSize > MAX_WORD_LENGTH) {
-                throw std::runtime_error("invalid compiled dictionary entry: " + path);
+            const CompiledHeader header = readCompiledHeader(input, path);
+            textBytes += header.displaySize;
+            // Worst case: every gesture spelling differs from its normalized
+            // one and needs a run of its own.
+            codePoints += static_cast<std::size_t>(header.normalizedSize) * 2;
+            // ignore() rather than seekg(): seeking throws away the read
+            // buffer, and doing that once per word makes the pass crawl.
+            input.ignore(static_cast<std::streamsize>(payloadBytes(header)));
+            if (!input) {
+                throw std::runtime_error("truncated compiled dictionary: " + path);
             }
-            std::string display(displaySize, '\0');
-            std::vector<uint32_t> normalized(normalizedSize);
-            copyBytes(&display[0], displaySize);
-            copyBytes(normalized.data(), normalized.size() * sizeof(uint32_t));
-            std::vector<uint32_t> gesture = gestureSpelling(display, normalized);
-            mEntries.push_back({std::move(display), std::move(normalized),
-                                std::move(gesture), probability});
+        }
+
+        mEntries.reserve(count);
+        mText.reserve(textBytes);
+        mCodes.reserve(codePoints);
+        input.clear();
+        input.seekg(firstEntry, std::ios::beg);
+        std::string display;
+        std::vector<uint32_t> normalized;
+        std::vector<char> record;
+        for (uint32_t i = 0; i < count; ++i) {
+            const CompiledHeader header = readCompiledHeader(input, path);
+            record.resize(payloadBytes(header));
+            readExactly(input, record.data(), record.size(), path);
+            display.assign(record.data(), header.displaySize);
+            normalized.resize(header.normalizedSize);
+            std::memcpy(normalized.data(), record.data() + header.displaySize,
+                        normalized.size() * sizeof(uint32_t));
+            appendEntry(display, normalized,
+                        gestureSpelling(display, normalized), header.probability);
+        }
+        // The code point buffer was sized for the worst case, so hand back
+        // what the shared gesture spellings did not need.
+        if (mCodes.capacity() > mCodes.size() + mCodes.size() / 8) {
+            std::vector<uint32_t>(mCodes).swap(mCodes);
         }
     }
 
     std::vector<Entry> mEntries;
-    std::unordered_map<std::u32string, const Entry *> mExactEntries;
+    // Every display spelling, end to end; every normalized and gesture
+    // spelling, end to end. Entries name their own runs by offset.
+    std::string mText;
+    std::vector<uint32_t> mCodes;
+    // One entry per distinct normalized spelling, the likeliest of its
+    // duplicates, ordered by that spelling. A hash map here would hold a
+    // second copy of every word as its key; searching the order costs a
+    // handful of comparisons and no memory beyond the pointers.
+    std::vector<const Entry *> mExactEntries;
 };
 
 void printJsonWords(const std::vector<std::string> &words) {

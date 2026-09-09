@@ -29,6 +29,26 @@ grep -Fq '[dictionary-ro]=0.4.2-1' "$ROOT/scripts/build-content-packs.sh"
 grep -Fq '"dictionary-ro": "0.4.2-1"' "$ROOT/scripts/generate-content-manifest.js"
 grep -Fq 'func (manager *contentManager) installedVersion(' \
     "$ROOT/helper/cmd/futo-keyboard-helper/content.go"
+# A loaded dictionary costs its text plus one fixed record per word. Three
+# allocations per word used to cost more than the spellings themselves.
+grep -Fq 'uint32_t displayOffset;' "$ROOT/engine/futo_engine.cpp"
+grep -Fq 'void appendEntry(' "$ROOT/engine/futo_engine.cpp"
+if grep -q 'std::unordered_map<std::u32string, const Entry \*>' \
+        "$ROOT/engine/futo_engine.cpp"; then
+    echo "the exact-match index must not hold a second copy of every word" >&2
+    exit 1
+fi
+# The compiled format is unchanged, so every published dictionary pack stays
+# valid. Recompiling one must reproduce the file already shipped.
+compiled_before=$(sha256sum "$ROOT/build/dictionaries/nl.fksidx" | cut -d' ' -f1)
+"$ENGINE" --compile "$ROOT/build/dictionaries/nl.fksidx" \
+    "$ROOT/build/dictionaries/nl.roundtrip.tmp" >/dev/null
+compiled_after=$(sha256sum "$ROOT/build/dictionaries/nl.roundtrip.tmp" | cut -d' ' -f1)
+rm -f "$ROOT/build/dictionaries/nl.roundtrip.tmp"
+if [ "$compiled_before" != "$compiled_after" ]; then
+    echo "recompiling a dictionary changed it; published packs would not match" >&2
+    exit 1
+fi
 grep -Fq 'layoutScript === "tibetan"' "$ROOT/layouts/FutoQwertyLayout.qml"
 grep -Fq '0x0F00 && codepoint <= 0x0FFF' "$ROOT/layouts/FutoCharacterKey.qml"
 grep -Fq '0xFDFC' "$ROOT/scripts/build-android-riyal-font.py"
