@@ -62,7 +62,11 @@ QT_CONFIG_ROOT=${FUTO_QT_CONFIG_ROOT:-$DEPS_ROOT/$ARCH/qt-config}
 SECRETS_SOURCE=${FUTO_SECRETS_SOURCE:-$DEPS_ROOT/sources/sailfish-secrets-0.2.44}
 TARGET_LIB_ROOT=${FUTO_TARGET_LIB_ROOT:-${FUTO_PHONE_LIB_ROOT:-$DEPS_ROOT/$ARCH/lib}}
 TARGET_SYSROOT=${FUTO_TARGET_SYSROOT:-}
-TARGET_COMPILE_FLAGS=()
+# Assert macros bake __FILE__ into the binaries, which would otherwise
+# carry the absolute path this happened to be built from, naming
+# directories that are nobody's business. Map it to a relative one.
+PATH_PREFIX_FLAGS=("-ffile-prefix-map=$ROOT=." "-fmacro-prefix-map=$ROOT=.")
+TARGET_COMPILE_FLAGS=("${PATH_PREFIX_FLAGS[@]}")
 TARGET_CMAKE_FLAGS=()
 TOOLCHAIN_SHIM=${FUTO_TOOLCHAIN_SHIM:-}
 TARGET_CPU_FLAGS=""
@@ -70,15 +74,15 @@ if [[ "$ARCH" == i486 ]]; then
     TARGET_CPU_FLAGS="-msse2 -mfpmath=sse"
 fi
 if [[ -n "$TARGET_SYSROOT" ]]; then
-    TARGET_COMPILE_FLAGS=(--sysroot="$TARGET_SYSROOT")
+    TARGET_COMPILE_FLAGS=("${PATH_PREFIX_FLAGS[@]}" --sysroot="$TARGET_SYSROOT")
     # The FUTO Swipe worker consumes the separately cross-compiled
     # ExecuTorch archives and must use the same Sailfish target root and
     # target binutils as that dependency build.
     SWIPE_TOOL_SHIM="$SWIPE_ET_BUILD/toolchain-bin"
     TARGET_CMAKE_FLAGS=(
         -DCMAKE_SYSROOT="$TARGET_SYSROOT"
-        -DCMAKE_C_FLAGS="-B$SWIPE_TOOL_SHIM $TARGET_CPU_FLAGS"
-        -DCMAKE_CXX_FLAGS="-B$SWIPE_TOOL_SHIM $TARGET_CPU_FLAGS"
+        -DCMAKE_C_FLAGS="-B$SWIPE_TOOL_SHIM $TARGET_CPU_FLAGS ${PATH_PREFIX_FLAGS[*]}"
+        -DCMAKE_CXX_FLAGS="-B$SWIPE_TOOL_SHIM $TARGET_CPU_FLAGS ${PATH_PREFIX_FLAGS[*]}"
         -DCMAKE_ASM_FLAGS="-B$SWIPE_TOOL_SHIM"
     )
 fi
