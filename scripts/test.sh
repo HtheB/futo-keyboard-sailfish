@@ -450,7 +450,9 @@ grep -Fq 'function refreshSwipeContentStatus()' \
 # keyboard silences the platform's own effect for the rest of the touch
 # instead, which is why the settings application no longer sees the
 # vibration option flickering while a word is swiped.
-grep -Fq 'keyboard.silenceFeedback = true' \
+grep -Fq 'buttonPressEffect.effect = pressEffectNone' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'function restorePressEffect()' \
     "$ROOT/qml/FutoInputHandler.qml"
 if grep -q 'touchscreenVibrationLevel *=' \
         "$ROOT/qml/FutoInputHandler.qml"; then

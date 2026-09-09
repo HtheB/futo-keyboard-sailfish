@@ -4592,14 +4592,37 @@ InputHandler {
             scheduleNextWords(replacement)
     }
 
+	// The platform plays its press effect for every key a finger crosses, out
+	// of a shared ThemeEffect, before the input handler is consulted, and it
+	// rewrites silenceFeedback on each movement so that flag cannot be held.
+	// Pointing the effect at one the device does not define leaves play() with
+	// nothing to fire; PressWeak comes back the moment the finger lifts. The
+	// object belongs to this process, so no setting of the owner's is touched.
+	readonly property int pressEffectNone: 65535   // ThemeEffect.UserEffect
+	property int pressEffectRestore: -1
+
+	function silencePressEffect() {
+		if (pressEffectRestore >= 0 || typeof buttonPressEffect === "undefined"
+				|| !buttonPressEffect)
+			return
+		pressEffectRestore = buttonPressEffect.effect
+		buttonPressEffect.effect = pressEffectNone
+	}
+
+	function restorePressEffect() {
+		if (pressEffectRestore < 0)
+			return
+		var effect = pressEffectRestore
+		pressEffectRestore = -1
+		if (typeof buttonPressEffect !== "undefined" && buttonPressEffect)
+			buttonPressEffect.effect = effect
+	}
+
 	function handleKeyPress() {
-		// A touch is worth one pulse, whether it stays on its key or travels
-		// across half the keyboard. KeyboardBase clears this at every new touch
-		// and plays its press effect before handing the key over, so the first
-		// key of a touch has already had its pulse by the time we get here and
-		// silencing now leaves the remainder of that touch quiet.
-		if (keyboard && keyboard.silenceFeedback !== undefined)
-			keyboard.silenceFeedback = true
+		// The first key of a touch has already had its pulse by the time this
+		// runs, so silencing here leaves the rest of that touch quiet however
+		// far it travels, popup cells included.
+		silencePressEffect()
 		if (spacebarGestureActive) {
 			resetSwipePath()
 			return true
@@ -4866,6 +4889,7 @@ InputHandler {
 			resetSwipePath()
 			return true
 		}
+		restorePressEffect()
 		if (clicked) {
 			// The finger left the screen, so this gesture is over whatever it
 			// managed to spell. Holding the path open here is what let a second
@@ -5013,6 +5037,7 @@ InputHandler {
 	}
 
 	function resetSwipePath() {
+		restorePressEffect()
 		swipeReleaseTimer.stop()
 		swipePath = []
 		swipeLastKey = ""
