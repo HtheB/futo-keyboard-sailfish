@@ -47,6 +47,7 @@ InputHandler {
 	property var swipePath: []
 	property string swipeLastKey: ""
 	property bool swipeStartsWord: false
+	property bool swipeKeyWasClicked: false
 	property int swipeSessionSerial: 0
 	property int swipeOutstanding: 0
 	property bool swipeReplacementActive: false
@@ -4641,6 +4642,10 @@ InputHandler {
     }
 
     function handleKeyClick() {
+		// KeyboardBase clicks a key only when the finger leaves the screen on
+		// it. Crossing into the next key releases without clicking, so this
+		// tells a finished touch apart from one still travelling.
+		swipeKeyWasClicked = true
 		if (spacebarGestureActive) {
 			resetSwipePath()
 			return true
@@ -4850,10 +4855,23 @@ InputHandler {
     }
 
 	function handleKeyRelease() {
+		var clicked = swipeKeyWasClicked
+		swipeKeyWasClicked = false
 		if (spacebarGestureActive) {
 			resetSwipePath()
 			return true
 		}
+		if (clicked) {
+			// The finger left the screen, so this gesture is over whatever it
+			// managed to spell. Holding the path open here is what let a second
+			// finger landing moments later continue it: two taps close together
+			// then arrived as one swipe across the keys between them.
+			resetSwipePath()
+			return false
+		}
+		// A release without a click is the finger crossing into the next key,
+		// which the gesture must survive. The timer covers the moment between
+		// that release and the press which follows it.
 		if (swipePath.length > 0)
 			swipeReleaseTimer.restart()
 		return false
