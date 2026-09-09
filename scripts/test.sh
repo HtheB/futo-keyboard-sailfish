@@ -559,6 +559,11 @@ grep -Fq 'function refreshSwipeContentStatus()' \
 grep -Fq 'swipeStartsWord = swipeMayStartWord()' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'function swipeMayStartWord()' "$ROOT/qml/FutoInputHandler.qml"
+# A swiped word holds its space until the next key; refusing a gesture then
+# would reject the very one that inserts it.
+grep -Fq 'if (swipeAutoSpacePending || swipeReplacementActive)' "$ROOT/qml/FutoInputHandler.qml"
+# A word ending in punctuation runs straight into the swiped one.
+grep -Fq 'commit(typed + (isLetterCharacter(lastTyped) ? " " : ""))' "$ROOT/qml/FutoInputHandler.qml"
 # One pulse per touch, and never by reaching into the system setting: the
 # keyboard silences the platform's own effect for the rest of the touch
 # instead, which is why the settings application no longer sees the

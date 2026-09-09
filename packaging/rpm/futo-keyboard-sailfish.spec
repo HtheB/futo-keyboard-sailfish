@@ -197,6 +197,8 @@ fi
 
 * Wed Sep 09 2026 HtheB - 0.4.2-2
 - Add an option which vibrates on every letter a swipe passes over.
+- Add Uninstall FUTO Keyboard to Maintenance, which removes the keyboard
+  and returns to the Sailfish one.
 - Choose what holding Space does: nothing, move the cursor, or switch
   language by holding and moving onto the language wanted.
 - Show the Tibetan letters, on the keyboard and in the rest of the system.
@@ -204,6 +206,7 @@ fi
 - Give Norwegian a layout of its own.
 - Give the Portuguese layouts their own key instead of the Spanish one.
 - Draw the dot key without a border around it.
+- Start a swipe after punctuation as well as after a space.
 - Use far less memory for every language.
 
 * Wed Sep 09 2026 HtheB - 0.4.1-1

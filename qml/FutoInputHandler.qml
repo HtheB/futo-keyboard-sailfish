@@ -4960,6 +4960,12 @@ InputHandler {
 	// under way, while anything else - a space, a full stop, a bracket, the
 	// start of the field - ends the previous one and begins the next.
 	function swipeMayStartWord() {
+		// A swiped word holds its separator back until the next key decides
+		// what belongs there, so the text still ends in a letter while the
+		// caret is already at the start of the next word. Refusing here would
+		// reject the very gesture that inserts that separator.
+		if (swipeAutoSpacePending || swipeReplacementActive)
+			return true
 		var composing = String(preedit)
 		if (composing !== "")
 			return !isLetterCharacter(composing.charAt(composing.length - 1))
@@ -5180,7 +5186,11 @@ InputHandler {
 		if (preedit !== "") {
 			var typed = preedit
 			learn(typed)
-			commit(typed + " ")
+			// A word still being typed is finished off before the swiped one
+			// begins, and a space goes between them. Not when it ends in
+			// punctuation, though: "long-" runs straight into "lasting".
+			var lastTyped = typed.charAt(typed.length - 1)
+			commit(typed + (isLetterCharacter(lastTyped) ? " " : ""))
 		}
 		var session = swipeSessionSerial
 		var context = contextBeforeCursor()
