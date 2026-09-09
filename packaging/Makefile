@@ -258,6 +258,8 @@ install: check
 		"$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-install-textinput-bottom-hook"
 	install -Dm0755 packaging/scripts/remove-textinput-bottom-hook.sh \
 		"$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-remove-textinput-bottom-hook"
+	install -Dm0755 packaging/scripts/futo-keyboard-restore-stock-layout \
+		"$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-restore-stock-layout"
 	install -Dm0644 packaging/patches/textinput-bottom-settings.patch \
 		"$(PACKAGE_ROOT)/integration/textinput-bottom-settings.patch"
 	install -Dm0644 "$(COMPOSE_ROOT)/en_US.UTF-8/Compose" \

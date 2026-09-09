@@ -4955,6 +4955,20 @@ InputHandler {
 		return caption.charCodeAt(0) + ":" + x.toFixed(5) + ":" + y.toFixed(5)
 	}
 
+	// A swipe spells a whole word, so it may only begin one. What decides that
+	// is the character the caret sits after: a letter means a word is already
+	// under way, while anything else - a space, a full stop, a bracket, the
+	// start of the field - ends the previous one and begins the next.
+	function swipeMayStartWord() {
+		var composing = String(preedit)
+		if (composing !== "")
+			return !isLetterCharacter(composing.charAt(composing.length - 1))
+		var before = contextBeforeCursor()
+		if (before === "")
+			return true
+		return !isLetterCharacter(before.charAt(before.length - 1))
+	}
+
 	function captureSwipeKey(key) {
 		swipeReleaseTimer.stop()
 		if (!swipeKeyAllowed(key)) {
@@ -4980,7 +4994,7 @@ InputHandler {
 			// Recorded at the touch down, because the word being typed grows
 			// under the finger while it travels. It decides how far this touch
 			// must go before it counts as a gesture.
-			swipeStartsWord = preedit === ""
+			swipeStartsWord = swipeMayStartWord()
 		} else if (nextPath.length === 1) {
 			// A swipe spells a whole word, so it may only begin one. Refusing
 			// here rather than when the finger lifts means the touch never

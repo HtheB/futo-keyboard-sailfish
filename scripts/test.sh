@@ -19,6 +19,15 @@ echo '7a0bd8b0481d3995196cf5161a1a290fd05ec23f3b5dafb47c06cc8acc832b93  assets/f
 echo 'd334dd7823b53b41f9c14678971772ebce334b5f92c5bd7024454f75b3b47b17  assets/fonts/NotoSerifTibetan-Light.ttf' |
     (cd "$ROOT" && sha256sum -c -)
 grep -Fq 'NotoSerifTibetan-Light.ttf' "$ROOT/packaging/Makefile"
+# Removing the package must not leave the layout setting pointing at a file
+# that is gone: that gives a keyboard area with no keys and no way out.
+grep -Fq 'futo-keyboard-restore-stock-layout' "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"
+grep -Fq 'futo-keyboard-restore-stock-layout' "$ROOT/packaging/Makefile"
+test -x "$ROOT/packaging/scripts/futo-keyboard-restore-stock-layout" ||
+    sh -n "$ROOT/packaging/scripts/futo-keyboard-restore-stock-layout"
+grep -Fq 'com/jolla/layouts' "$ROOT/packaging/scripts/futo-keyboard-restore-stock-layout"
+grep -Fq 'func (service *service) UninstallKeyboard()' "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+grep -Fq 'Uninstall FUTO Keyboard' "$ROOT/qml/FutoMaintenancePage.qml"
 # The About page states the version in its own words. It drifted silently
 # through a release once; make a mismatch with the package a build failure.
 spec_version=$(grep '^Version:' "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec" |
@@ -511,6 +520,11 @@ grep -Fq 'property bool swipeTypingEnabled: false' \
     "$ROOT/qml/FutoGesturesPage.qml"
 grep -Fq 'function refreshSwipeContentStatus()' \
     "$ROOT/qml/FutoInputHandler.qml"
+# A swipe may begin wherever a word may begin, which is after anything
+# that is not a letter, not only after a space.
+grep -Fq 'swipeStartsWord = swipeMayStartWord()' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'function swipeMayStartWord()' "$ROOT/qml/FutoInputHandler.qml"
 # One pulse per touch, and never by reaching into the system setting: the
 # keyboard silences the platform's own effect for the rest of the touch
 # instead, which is why the settings application no longer sees the

@@ -1,0 +1,81 @@
+#!/bin/sh
+# Take this keyboard out of the enabled layouts before the package goes away.
+#
+# Sailfish stores the choice as a plain list of file names and never checks
+# that those files still exist, so removing the package while futo.qml is
+# selected leaves the setting pointing at a layout that is gone: the keyboard
+# area opens as an empty rectangle with no keys at all, and there is no way to
+# type your way out of it. Nothing puts a stock layout back on its own - an
+# emptied list simply stays empty - so the package has to do it while it is
+# still installed.
+#
+# Runs from %preun, as root, so it has to reach into the session of whoever is
+# logged in. It never fails the removal: every step falls through to leaving
+# the setting alone, which is no worse than not having run at all.
+set -u
+
+FUTO_LAYOUT=futo.qml
+LAYOUT_DIR=/usr/share/maliit/plugins/com/jolla/layouts
+ENABLED_KEY=/sailfish/text_input/enabled_layouts
+ACTIVE_KEY=/sailfish/text_input/active_layout
+
+session_user=$(loginctl list-sessions 2>/dev/null |
+    grep seat0 | tr -s ' ' | cut -d ' ' -f 4 | head -1)
+[ -n "$session_user" ] || exit 0
+user_id=$(id -u "$session_user" 2>/dev/null) || exit 0
+dbus_address="unix:path=/run/user/$user_id/dbus/user_bus_socket"
+
+as_user() {
+    su -s /bin/sh "$session_user" -c \
+        "DBUS_SESSION_BUS_ADDRESS='$dbus_address' $1" 2>/dev/null
+}
+
+# dconf hands back a GVariant list; reduce it to bare names, one per line.
+list_enabled() {
+    as_user "dconf read $ENABLED_KEY" |
+        tr -d "[]'\"" | tr ',' '\n' | sed 's/^ *//; s/ *$//' | grep -v '^$'
+}
+
+# Rebuild the GVariant form from the names on stdin. Double quotes, not the
+# single ones dconf prints: the result is handed to su -c inside single
+# quotes, and GVariant accepts either.
+quote_list() {
+    awk 'BEGIN { first = 1; printf "[" }
+         { if (!first) printf ", "; printf "%c%s%c", 34, $0, 34; first = 0 }
+         END { printf "]" }'
+}
+
+enabled=$(list_enabled)
+
+# Nothing of ours was selected, so the choice is not ours to change.
+printf '%s\n' "$enabled" | grep -q "^$FUTO_LAYOUT\$" || exit 0
+
+remaining=$(printf '%s\n' "$enabled" | grep -v "^$FUTO_LAYOUT\$")
+
+if [ -z "$remaining" ]; then
+    # This was the only keyboard. Prefer the layout for the language the
+    # device is set to, then English, then whatever single-language layout
+    # the system still has, so the list is never left empty.
+    locale_layout=$(as_user 'dconf read /desktop/sailfish/i18n/language' |
+        tr -d "'\"" | cut -d_ -f1)
+    for candidate in "$locale_layout.qml" en.qml \
+            $(ls "$LAYOUT_DIR" 2>/dev/null | grep '^[a-z][a-z]\.qml$'); do
+        if [ -f "$LAYOUT_DIR/$candidate" ]; then
+            remaining=$candidate
+            break
+        fi
+    done
+fi
+
+[ -n "$remaining" ] || exit 0
+
+enabled_value=$(printf '%s\n' $remaining | quote_list)
+as_user "dconf write $ENABLED_KEY '$enabled_value'"
+
+active=$(as_user "dconf read $ACTIVE_KEY" | tr -d "'\"")
+if [ -z "$active" ] || [ "$active" = "$FUTO_LAYOUT" ]; then
+    first=$(printf '%s\n' $remaining | head -1)
+    as_user "dconf write $ACTIVE_KEY '\"$first\"'"
+fi
+
+exit 0

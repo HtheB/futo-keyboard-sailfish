@@ -73,6 +73,11 @@ if [ "$1" -eq 0 ]; then
     /usr/bin/systemctl-user stop futo-keyboard-helper.service >/dev/null 2>&1 || :
     /usr/libexec/futo-keyboard-remove-textinput-bottom-hook || :
     /usr/libexec/futo-keyboard-remove-wayland-deadkey-hook || :
+    # Sailfish keeps the chosen layouts as bare file names and never checks
+    # that they still exist, so leaving futo.qml selected past this point
+    # gives an empty keyboard with no way to type out of it. This runs from
+    # %preun rather than %postun because by then the script is gone too.
+    /usr/libexec/futo-keyboard-restore-stock-layout || :
 fi
 
 %postun
@@ -115,6 +120,7 @@ fi
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-remove-wayland-deadkey-hook
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-install-textinput-bottom-hook
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-remove-textinput-bottom-hook
+%attr(0755,root,root) %{_libexecdir}/futo-keyboard-restore-stock-layout
 %attr(0755,root,root) %{_libdir}/libfuto-maliit-policy.so.1
 %attr(0755,root,root) %{_libdir}/qt5/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so
 %attr(0755,root,root) %{_libdir}/qt5/plugins/platforminputcontexts/libafutomaliitcomposewrapper.so

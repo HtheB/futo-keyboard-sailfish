@@ -3151,6 +3151,13 @@ func (service *service) authenticateVaultPID(callerPID uint32) error {
 	return service.authenticateVaultPIDForAction(callerPID, vaultAuthAction)
 }
 
+const (
+	// PackageKit's command line client. It runs as this user and raises the
+	// system's authorisation prompt itself.
+	packageKitClientPath = "/usr/bin/pkcon"
+	keyboardPackageName  = "futo-keyboard-sailfish"
+)
+
 func (service *service) authenticateVaultPIDForAction(callerPID uint32, actionID string) error {
 	if callerPID == 0 {
 		return errors.New("could not identify the keyboard for device authentication")
@@ -5785,6 +5792,35 @@ func showAndroidKeyboardWithRetries() {
 // IME.  Some apps immediately hide the first request, so the helper repeats it
 // briefly.  The set-user-ID bridge accepts no arguments and can only request
 // that the keyboard be shown.
+// UninstallKeyboard hands the removal to PackageKit rather than doing it here.
+// PackageKit asks the person to authorise it through the system's own prompt,
+// so nothing in this process runs with privileges of its own and declining the
+// prompt simply leaves the package installed.
+//
+// The removal takes the keyboard away underneath the caller, so this reports
+// what happened rather than assuming: an empty string means the package is
+// gone, anything else is a message worth showing.
+func (service *service) UninstallKeyboard() (string, *dbus.Error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	command := exec.CommandContext(ctx, packageKitClientPath, "--plain",
+		"remove", keyboardPackageName)
+	output, err := command.CombinedOutput()
+	if err == nil {
+		return "", nil
+	}
+	message := strings.TrimSpace(string(output))
+	if message == "" {
+		message = err.Error()
+	}
+	// Only the last line carries the reason; the rest is progress reporting.
+	if lines := strings.Split(message, "\n"); len(lines) > 0 {
+		message = strings.TrimSpace(lines[len(lines)-1])
+	}
+	log.Printf("could not remove %s: %v (%s)", keyboardPackageName, err, message)
+	return message, nil
+}
+
 func (service *service) ShowAndroidKeyboard() *dbus.Error {
 	if err := exec.Command("/usr/bin/dconf", "write", forcedAppSupportDconfPath,
 		"true").Run(); err != nil {
