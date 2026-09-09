@@ -446,8 +446,17 @@ grep -Fq 'property bool swipeTypingEnabled: false' \
     "$ROOT/qml/FutoGesturesPage.qml"
 grep -Fq 'function refreshSwipeContentStatus()' \
     "$ROOT/qml/FutoInputHandler.qml"
-grep -Fq 'function beginSwipeFeedbackSuppression()' \
+# One pulse per touch, and never by reaching into the system setting: the
+# keyboard silences the platform's own effect for the rest of the touch
+# instead, which is why the settings application no longer sees the
+# vibration option flickering while a word is swiped.
+grep -Fq 'keyboard.silenceFeedback = true' \
     "$ROOT/qml/FutoInputHandler.qml"
+if grep -q 'touchscreenVibrationLevel *=' \
+        "$ROOT/qml/FutoInputHandler.qml"; then
+    echo "the input handler must not write the system vibration level" >&2
+    exit 1
+fi
 grep -Fq 'function visiblePrimaryCorrection()' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq '"primary": primary !== ""' \

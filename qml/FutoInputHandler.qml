@@ -54,7 +54,6 @@ InputHandler {
 	property bool swipeAutoSpacePending: false
 	property bool swipePendingForcedInput: false
 	property bool swipeLeadingSpaceForGesture: false
-	property int swipeFeedbackRestoreLevel: -1
 	property bool swipeContentStatusReady: false
 	property bool swipeContentInstalled: false
 	property string swipePreviousWord: ""
@@ -1788,7 +1787,6 @@ InputHandler {
 		refreshSwipeContentStatus()
     }
 
-	Component.onDestruction: endSwipeFeedbackSuppression()
 
 	function refreshSwipeContentStatus() {
 		if (helper.status !== DBusInterface.Available)
@@ -4595,6 +4593,13 @@ InputHandler {
     }
 
 	function handleKeyPress() {
+		// A touch is worth one pulse, whether it stays on its key or travels
+		// across half the keyboard. KeyboardBase clears this at every new touch
+		// and plays its press effect before handing the key over, so the first
+		// key of a touch has already had its pulse by the time we get here and
+		// silencing now leaves the remainder of that touch quiet.
+		if (keyboard && keyboard.silenceFeedback !== undefined)
+			keyboard.silenceFeedback = true
 		if (spacebarGestureActive) {
 			resetSwipePath()
 			return true
@@ -5012,25 +5017,6 @@ InputHandler {
 		swipePath = []
 		swipeLastKey = ""
 		swipeStartsWord = false
-		endSwipeFeedbackSuppression()
-	}
-
-	function beginSwipeFeedbackSuppression() {
-		if (swipeFeedbackRestoreLevel >= 0 || swipePath.length !== 1)
-			return
-		var level = Number(systemFeedback.touchscreenVibrationLevel)
-		swipeFeedbackRestoreLevel = isFinite(level) ? Math.max(0, level) : 0
-		if (swipeFeedbackRestoreLevel !== 0)
-			systemFeedback.touchscreenVibrationLevel = 0
-	}
-
-	function endSwipeFeedbackSuppression() {
-		if (swipeFeedbackRestoreLevel < 0)
-			return
-		var level = swipeFeedbackRestoreLevel
-		swipeFeedbackRestoreLevel = -1
-		if (level !== 0)
-			systemFeedback.touchscreenVibrationLevel = level
 	}
 
 	function cancelSwipeSession() {
