@@ -7,6 +7,8 @@ import ".."
 KeyboardRow {
     id: spacebarRow
     splitIndex: 4
+    z: targetLayout && targetLayout.languagePopupActive !== undefined
+       && targetLayout.languagePopupActive ? 10 : 0
     property Item targetLayout
     property int symbolNumberLayout
     // Portrait thumb typing keeps the bottom row continuous. Landscape thumb
@@ -29,6 +31,7 @@ KeyboardRow {
     FutoSpacebarKey {
         active: targetLayout && targetLayout.thumbLandscapeMode
         languageLabel: ""
+        hintEligible: false
     }
 	FutoPeriodKey {}
 	// Keep the Enter glyph at its normal size while narrowing only its touch

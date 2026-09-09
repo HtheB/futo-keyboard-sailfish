@@ -9,6 +9,16 @@ const projectRoot = path.resolve(__dirname, "..");
 const outputDirectory = path.resolve(process.argv[2] || path.join(projectRoot, "build/content-packs"));
 const manifestPath = path.resolve(process.argv[3] || path.join(projectRoot, "content/manifest.json"));
 const packVersion = "0.4.0-1";
+// Packs whose content changed after the release their base URL points at.
+// Only these carry a new version and filename; every other archive already
+// published stays exactly where it is and is never re-downloaded.
+const packVersionOverrides = {
+    "dictionary-ro": "0.4.2-1"
+};
+
+function versionFor(id) {
+    return packVersionOverrides[id] || packVersion;
+}
 const defaultBaseUrl = "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/";
 
 const languages = [
@@ -63,7 +73,7 @@ function item(id, kind, name, archive, installedSource, installedPath, extra) {
         id,
         kind,
         name,
-        version: packVersion,
+        version: versionFor(id),
         archive,
         ...archiveInfo(archive),
         installedBytes: recursiveSize(installedSource),
@@ -109,7 +119,7 @@ for (const [code, name, filename, slug] of languages) {
         `dictionary-${slug}`,
         "dictionary",
         name,
-        `futo-content-dictionary-${slug}-${packVersion}.tar.gz`,
+        `futo-content-dictionary-${slug}-${versionFor(`dictionary-${slug}`)}.tar.gz`,
         path.join(projectRoot, "build/dictionaries", filename),
         `dictionaries/${filename}`,
         { languageCode: code }

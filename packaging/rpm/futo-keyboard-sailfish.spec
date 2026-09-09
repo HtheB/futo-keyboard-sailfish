@@ -4,7 +4,7 @@
 %global _missing_build_ids_terminate_build 0
 
 Name:           futo-keyboard-sailfish
-Version:        0.4.1
+Version:        0.4.2
 Release:        1
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
 License:        LicenseRef-FUTO-Source-First-1.1-kb AND GPL-3.0-only AND BSD-3-Clause AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND LGPL-2.1-or-later AND (LGPL-2.1-only OR LGPL-3.0-only)
@@ -185,6 +185,17 @@ fi
 %{_userunitdir}/maliit-server.service.d/10-futo-hardware-policy.conf
 
 %changelog
+
+* Wed Sep 09 2026 HtheB - 0.4.2-1
+- Add an option which vibrates on every letter a swipe passes over.
+- Choose what holding Space does: nothing, move the cursor, or switch
+  language by holding and moving onto the language wanted.
+- Show the Tibetan letters, on the keyboard and in the rest of the system.
+- Give Danish its own letter order instead of the Norwegian one.
+- Give Norwegian a layout of its own.
+- Give the Portuguese layouts their own key instead of the Spanish one.
+- Draw the dot key without a border around it.
+- Use far less memory for every language.
 
 * Wed Sep 09 2026 HtheB - 0.4.1-1
 - Place the numpad in the 123 page layout on the left or the right.

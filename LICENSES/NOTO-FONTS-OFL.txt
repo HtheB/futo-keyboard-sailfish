@@ -6,6 +6,7 @@ Bundled families:
 - Noto Sans Sinhala (https://github.com/notofonts/sinhala)
 - Noto Sans Myanmar (https://github.com/notofonts/myanmar)
 - Noto Sans Khmer (https://github.com/notofonts/khmer)
+- Noto Serif Tibetan (https://github.com/notofonts/tibetan)
 - Noto Naskh Arabic (https://github.com/notofonts/arabic)
 
 `FUTO Android Riyal` is Android AppSupport's OFL-licensed compact Noto Naskh

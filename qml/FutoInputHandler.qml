@@ -1541,6 +1541,7 @@ InputHandler {
         property int keySoundMode: -1
         property real keySoundVolume: 0.5
 		property bool swipeTypingEnabled: false
+		property bool swipeVibrationEnabled: false
         // Set only by the Top Menu compatibility action. Android applications
         // which suppress their IME remain in a hidden composition state, so
         // this session must use hardware-style key events instead.
@@ -4635,8 +4636,11 @@ InputHandler {
 	function handleKeyPress() {
 		// The first key of a touch has already had its pulse by the time this
 		// runs, so silencing here leaves the rest of that touch quiet however
-		// far it travels, popup cells included.
-		silencePressEffect()
+		// far it travels, popup cells included.  Leaving it alone is what the
+		// optional setting asks for: every key a finger crosses pulses again,
+		// which is the feel people who liked the old behaviour are after.
+		if (!keyboardSettings.swipeVibrationEnabled)
+			silencePressEffect()
 		if (spacebarGestureActive) {
 			resetSwipePath()
 			return true

@@ -131,6 +131,7 @@ FONT_FILES := \
 	assets/fonts/NotoSansSinhala-Light.ttf \
 	assets/fonts/NotoSansMyanmar-Light.ttf \
 	assets/fonts/NotoSansKhmer-Light.ttf \
+	assets/fonts/NotoSerifTibetan-Light.ttf \
 	assets/fonts/NotoNaskhArabic-Regular.ttf \
 	assets/fonts/FutoAndroidRiyal-Regular.ttf
 SYSTEM_AMIRI_RIYAL_FONT := assets/fonts/AmiriSailfishCompactRial-Regular.ttf

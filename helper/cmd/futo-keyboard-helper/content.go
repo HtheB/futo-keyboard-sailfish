@@ -259,12 +259,33 @@ func pathAvailable(value string) bool {
 	return err == nil && (info.IsDir() || info.Mode().IsRegular())
 }
 
+// installedVersion reports the version recorded when this item was last
+// installed. An install that predates the marker returns an empty string.
+func (manager *contentManager) installedVersion(id string) string {
+	data, err := os.ReadFile(manager.markerPath(id))
+	if err != nil {
+		return ""
+	}
+	var marker installedContentMarker
+	if json.Unmarshal(data, &marker) != nil {
+		return ""
+	}
+	return marker.Version
+}
+
 func (manager *contentManager) installed(item contentItem) bool {
 	for _, relative := range item.Paths {
 		destination, err := manager.destination(relative)
 		if err != nil || !pathAvailable(destination) {
 			return false
 		}
+	}
+	// A pack whose content was rebuilt carries a new version, so the copy on
+	// disk is stale and the manifest offers it again. Installs made before the
+	// marker existed record no version and are left alone.
+	if recorded := manager.installedVersion(item.ID); recorded != "" &&
+		recorded != item.Version {
+		return false
 	}
 	return true
 }

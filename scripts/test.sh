@@ -14,6 +14,43 @@ echo 'cd2550c0f4c05eb341bf97958211aaa39382bca96577ba3a67d4a3b4912c43c0  assets/f
     (cd "$ROOT" && sha256sum -c -)
 echo '7a0bd8b0481d3995196cf5161a1a290fd05ec23f3b5dafb47c06cc8acc832b93  assets/fonts/AmiriSailfishCompactRial-Regular.ttf' |
     (cd "$ROOT" && sha256sum -c -)
+# Sailfish carries no Tibetan glyphs, so the Tibetan layout draws nothing
+# without this face, exactly as Myanmar and Khmer did before theirs.
+echo 'd334dd7823b53b41f9c14678971772ebce334b5f92c5bd7024454f75b3b47b17  assets/fonts/NotoSerifTibetan-Light.ttf' |
+    (cd "$ROOT" && sha256sum -c -)
+grep -Fq 'NotoSerifTibetan-Light.ttf' "$ROOT/packaging/Makefile"
+# Romanian's upstream list is dominated by its lowest frequency tier, which the
+# engine would otherwise hold in memory for no benefit.
+grep -Fq 'DICTIONARY_DROP_LOWEST=( [ro]=1 )' "$ROOT/scripts/build.sh"
+grep -Fq "grep -v ',f=1,'" "$ROOT/scripts/build.sh"
+# A rebuilt pack must carry a new version in both places, or the archive named
+# by the manifest is not the archive the builder writes.
+grep -Fq '[dictionary-ro]=0.4.2-1' "$ROOT/scripts/build-content-packs.sh"
+grep -Fq '"dictionary-ro": "0.4.2-1"' "$ROOT/scripts/generate-content-manifest.js"
+grep -Fq 'func (manager *contentManager) installedVersion(' \
+    "$ROOT/helper/cmd/futo-keyboard-helper/content.go"
+# A loaded dictionary costs its text plus one fixed record per word. Three
+# allocations per word used to cost more than the spellings themselves.
+grep -Fq 'uint32_t displayOffset;' "$ROOT/engine/futo_engine.cpp"
+grep -Fq 'void appendEntry(' "$ROOT/engine/futo_engine.cpp"
+if grep -q 'std::unordered_map<std::u32string, const Entry \*>' \
+        "$ROOT/engine/futo_engine.cpp"; then
+    echo "the exact-match index must not hold a second copy of every word" >&2
+    exit 1
+fi
+# The compiled format is unchanged, so every published dictionary pack stays
+# valid. Recompiling one must reproduce the file already shipped.
+compiled_before=$(sha256sum "$ROOT/build/dictionaries/nl.fksidx" | cut -d' ' -f1)
+"$ENGINE" --compile "$ROOT/build/dictionaries/nl.fksidx" \
+    "$ROOT/build/dictionaries/nl.roundtrip.tmp" >/dev/null
+compiled_after=$(sha256sum "$ROOT/build/dictionaries/nl.roundtrip.tmp" | cut -d' ' -f1)
+rm -f "$ROOT/build/dictionaries/nl.roundtrip.tmp"
+if [ "$compiled_before" != "$compiled_after" ]; then
+    echo "recompiling a dictionary changed it; published packs would not match" >&2
+    exit 1
+fi
+grep -Fq 'layoutScript === "tibetan"' "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq '0x0F00 && codepoint <= 0x0FFF' "$ROOT/layouts/FutoCharacterKey.qml"
 grep -Fq '0xFDFC' "$ROOT/scripts/build-android-riyal-font.py"
 grep -Fq 'RIAL_CODEPOINT = 0xFDFC' "$ROOT/scripts/build-amiri-riyal-font.py"
 grep -Fq '65-futo-keyboard-symbols.conf' "$ROOT/packaging/Makefile"
@@ -219,7 +256,25 @@ grep -Fq 'function moveCursor2D(horizontalSteps, verticalSteps)' \
 grep -Fq 'Qt.Key_Up : Qt.Key_Down' "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'keyboard.inputHandler.beginCursorMoveMode()' \
     "$ROOT/layouts/FutoSpacebarKey.qml"
-grep -Fq 'if (!pointerDown || cursorMode || keyboardDismissed)' \
+grep -Fq 'if (!pointerDown || cursorMode || languageMode || keyboardDismissed)' \
+    "$ROOT/layouts/FutoSpacebarKey.qml"
+# Holding Space either chooses a language or moves the cursor, never both,
+# and the key says which by the mark it draws in its corner.
+grep -Fq 'function languageSwitchEntries()' "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'function applyLanguageSwitchIndex(index)' "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'readonly property bool onLetterPage: !attributes.inSymView' \
+    "$ROOT/layouts/FutoSpacebarKey.qml"
+grep -Fq 'spaceKey.finishLanguageMode(!spaceKey.languageAbandoned)' \
+    "$ROOT/layouts/FutoSpacebarKey.qml"
+grep -Fq 'label: qsTr("Hold Space")' "$ROOT/qml/FutoGesturesPage.qml"
+grep -Fq 'MenuItem { text: qsTr("Switch language") }' "$ROOT/qml/FutoGesturesPage.qml"
+grep -Fq 'property int spacebarHoldAction: -1' "$ROOT/qml/FutoSettingsPage.qml"
+# The 123 and {&= pages keep the cursor pad whatever the setting says.
+grep -Fq 'readonly property bool cursorControlOffered: !onLetterPage || holdAction === 1' \
+    "$ROOT/layouts/FutoSpacebarKey.qml"
+# A stored value below zero predates the setting and still means what
+# the old on/off switch meant.
+grep -Fq 'gestureSettings.spacebarCursorControlEnabled ? 1 : 0' \
     "$ROOT/layouts/FutoSpacebarKey.qml"
 grep -Fq 'spaceKey.pointerDown = false' \
     "$ROOT/layouts/FutoSpacebarKey.qml"
@@ -459,6 +514,19 @@ if grep -q 'touchscreenVibrationLevel *=' \
     echo "the input handler must not write the system vibration level" >&2
     exit 1
 fi
+# Whoever prefers a pulse on every letter a swipe crosses can keep the
+# platform effect live; the switch that does it lives beside the other
+# vibration setting.
+grep -Fq 'if (!keyboardSettings.swipeVibrationEnabled)' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'property bool swipeVibrationEnabled: false' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'Vibrate while swiping' "$ROOT/qml/FutoFeedbackPage.qml"
+# The period key sits in the row with Comma, Space and Enter, none of which
+# draw a separated-key card.
+grep -Fq 'separatedKeyCardEligible: false' "$ROOT/layouts/FutoPeriodKey.qml"
+grep -Fq '&& futoKey.separatedKeyCardEligible' \
+    "$ROOT/layouts/FutoCharacterKey.qml"
 grep -Fq 'function visiblePrimaryCorrection()' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq '"primary": primary !== ""' \

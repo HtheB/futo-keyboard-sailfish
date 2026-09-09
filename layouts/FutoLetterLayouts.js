@@ -43,7 +43,10 @@ var legacyLayouts = [
         ["a", "s", "d", "f", "g", "h", "j", "k", "l", "ö", "ä"],
         ["z", "x", "c", "v", "b", "n", "m"]
     ] },
-    { name: "Nordic (Danish/Norwegian)", script: "latin", rows: [
+    // Danish and Norwegian are not the same arrangement: Danish ends the home
+    // row with "æ ø" and Norwegian with "ø æ".  This entry is the Norwegian
+    // one; Danish uses the upstream "nordic" layout below.
+    { name: "Nordic (Norwegian)", script: "latin", rows: [
         ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "å"],
         ["a", "s", "d", "f", "g", "h", "j", "k", "l", "ø", "æ"],
         ["z", "x", "c", "v", "b", "n", "m"]
@@ -254,14 +257,32 @@ var count = layouts.length
 // layout editor and Settings continue to show the full descriptive names.
 var menuNames = [
     "QWERTY", "QWERTZ", "AZERTY", "TR-Q", "DE-QWERTZ", "ES-QWERTY",
-    "SE/FI", "DA/NO", "RO-QWERTY", "COLEMAK", "COLEMAK-DH", "DVORAK",
+    "SE/FI", "NO", "RO-QWERTY", "COLEMAK", "COLEMAK-DH", "DVORAK",
     "WORKMAN", "ARABIC", "GREEK", "CYRILLIC", "TR-F", "SL-QWERTZ",
     "HR/SR-QW", "SR-CYRL", "PERSIAN"
 ]
 
+// Upstream titles its layouts by shape, which reads oddly once one of them is
+// a country's own default.  These few are the ones this port hands to a
+// language directly, so name them the way the person picking them thinks of
+// them.  Every other generated layout keeps its upstream title.
+var generatedDisplayNames = {
+    "nordic": "Nordic (Danish)",
+    "nordic__nb": "Nordic (Norwegian)",
+    "spanish": "Portuguese QWERTY"
+}
+
+var generatedMenuNames = {
+    "nordic": "DA",
+    "nordic__nb": "NO",
+    "spanish": "PT-QWERTY"
+}
+
 for (var generatedMenuIndex = 0;
         generatedMenuIndex < Generated.layouts.length; ++generatedMenuIndex) {
-    menuNames.push(String(Generated.layouts[generatedMenuIndex].name).toUpperCase())
+    var generatedMenuLayout = Generated.layouts[generatedMenuIndex]
+    menuNames.push(generatedMenuNames[generatedMenuLayout.id]
+                   || String(generatedMenuLayout.name).toUpperCase())
 }
 
 var generatedIndexById = {}
@@ -278,7 +299,9 @@ for (var generatedLayoutIndex = 0;
 var languageDefaults = {
     "AR": 13,
     "CS": 1,
-    "DA": 7,
+    // "DA" is deliberately absent: Danish takes the upstream "nordic" layout
+    // from the loop below, which ends the home row "æ ø" as a Danish keyboard
+    // does.  Index 7 is the Norwegian "ø æ" order and stays with Norwegian.
     "DE": 4,
     "EL": 14,
     "EN": 0,
@@ -295,8 +318,9 @@ var languageDefaults = {
     "NB": 7,
     "NL": 0,
     "PL": 0,
-    "PT_BR": 5,
-    "PT_PT": 5,
+    // Both Portuguese entries are likewise absent: index 5 is Spanish, whose
+    // extra home-row key is "ñ".  Upstream gives Portuguese the same shape
+    // with "ç", which is the key a Portuguese keyboard actually carries.
     "RO": 8,
     "RU": 15,
     "SL": 17,
@@ -328,7 +352,8 @@ function clampedIndex(value) {
 }
 
 function name(value) {
-    return layouts[clampedIndex(value)].name
+    var layout = layouts[clampedIndex(value)]
+    return generatedDisplayNames[layout.id] || layout.name
 }
 
 function menuName(value) {

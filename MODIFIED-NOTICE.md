@@ -117,4 +117,5 @@ The 0.4.0 development line also imports FUTO's directly typed language-layout
 catalogue while keeping the established SwiftKey-style QWERTY as a separate
 choice. Explicit display names cover locales missing from Sailfish's Qt 5.6
 locale database. Unmodified OFL-licensed Noto fonts provide the Tifinagh,
-Sinhala, Myanmar, Khmer and extended Latin glyphs absent from the base device.
+Sinhala, Myanmar, Khmer, Tibetan and extended Latin glyphs absent from the
+base device.

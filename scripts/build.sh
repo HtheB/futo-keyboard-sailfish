@@ -129,6 +129,10 @@ LANGUAGES=(
     el ru sr sr_Latn hu ar fa
 )
 
+# Languages whose upstream word list is dominated by its lowest frequency
+# tier. Only these have that tier removed; every other list is compiled whole.
+declare -A DICTIONARY_DROP_LOWEST=( [ro]=1 )
+
 if [[ ${FUTO_SKIP_DICTIONARY_BUILD:-0} != 1 ]]; then
     rm -rf "$HOST_BUILD/dictionaries"
     mkdir -p "$HOST_BUILD/dictionaries"
@@ -150,6 +154,17 @@ if [[ ${FUTO_SKIP_DICTIONARY_BUILD:-0} != 1 ]]; then
             gzip -dc "$ROOT/dictionaries/${language}_wordlist.combined.gz" > "$source_file"
         else
             gzip -dc "$ROOT/upstream/dictionaries/${language}_wordlist.combined.gz" > "$source_file"
+        fi
+        if [[ -n "${DICTIONARY_DROP_LOWEST[$language]:-}" ]]; then
+            # The engine holds every word of a loaded dictionary in memory, so
+            # the word count decides how much RAM a language costs. Romanian's
+            # upstream list carries 1,125,204 words against 157,423 for English
+            # and 205,888 for German, and 479,363 of them sit in the lowest
+            # frequency bucket - a tier German has none of and Russian 44 of.
+            # Those words are never reached by a suggestion; keeping them cost
+            # roughly 300 MB against 50 MB for English.
+            grep -v ',f=1,' "$source_file" > "$source_file.trimmed"
+            mv "$source_file.trimmed" "$source_file"
         fi
         "$HOST_BUILD/futo-dictionary-compiler" --compile "$source_file" \
             "$HOST_BUILD/dictionaries/${language}.fksidx"

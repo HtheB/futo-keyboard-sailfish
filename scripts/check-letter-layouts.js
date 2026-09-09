@@ -70,6 +70,10 @@ for (let layout = 0; layout < context.count; ++layout) {
     assert(context.menuName(layout), "Layout " + layout + " has no compact menu name");
 }
 assert(context.menuName(6) === "SE/FI", "Nordic menu name must stay compact");
+assert(context.menuName(7) === "NO",
+       "Index 7 is the Norwegian arrangement, not a shared Danish one");
+assert(context.name(7) === "Nordic (Norwegian)",
+       "Index 7 must name itself as Norwegian");
 assert(context.menuName(15) === "CYRILLIC", "East Slavic menu name must stay compact");
 assert(context.letter(11, 0, 0) === "'", "Dvorak punctuation mapping changed");
 assert(context.letter(17, 0, 5) === "z" && context.letter(17, 0, 10) === "š",
@@ -117,15 +121,39 @@ assert(context.letter(20, 0, 0) === "ض"
        "Persian national letters are incorrect");
 
 const expectedDefaults = {
-    AR: 13, CS: 1, DA: 7, DE: 4, EL: 14, EN: 0, EN_GB: 0, ES: 5, FA: 20,
+    AR: 13, CS: 1, DE: 4, EL: 14, EN: 0, EN_GB: 0, ES: 5, FA: 20,
     FI: 6, FR: 2, HR: 18, IT: 0, LT: 0, LV: 0, NB: 7, NL: 0,
-    PL: 0, PT_BR: 5, PT_PT: 5, RO: 8, RU: 15, SL: 17,
+    PL: 0, RO: 8, RU: 15, SL: 17,
     SR: 19, SR_LATN: 18, SV: 6, TR: 3
 };
 for (const [language, layout] of Object.entries(expectedDefaults)) {
     assert(context.defaultForLanguage(language) === layout,
            language + " default layout changed unexpectedly");
 }
+// Danish, Norwegian and Portuguese each need their own home row rather than
+// the neighbouring country's.
+const nationalHomeRows = {
+    DA: ["æ", "ø"],
+    NB: ["ø", "æ"],
+    PT_PT: ["ç"],
+    PT_BR: ["ç"],
+    ES: ["ñ"]
+};
+for (const [language, tail] of Object.entries(nationalHomeRows)) {
+    const layout = context.defaultForLanguage(language);
+    const length = context.rowLength(layout, 1);
+    const actual = [];
+    for (let i = length - tail.length; i < length; ++i)
+        actual.push(context.letter(layout, 1, i));
+    assert(actual.join("") === tail.join(""),
+           language + " home row ends with " + actual.join("")
+           + " instead of " + tail.join(""));
+}
+assert(context.defaultForLanguage("DA") !== context.defaultForLanguage("NB"),
+       "Danish and Norwegian must not share one layout");
+assert(context.defaultForLanguage("PT_PT") !== context.defaultForLanguage("ES"),
+       "Portuguese must not share the Spanish layout");
+
 assert(context.legacyDefaultForLanguage("DE") === 0,
        "Legacy Latin default must remain QWERTY for migration");
 

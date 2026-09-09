@@ -51,7 +51,8 @@ Native script fonts:
   Derived SHA-256:
   `7a0bd8b0481d3995196cf5161a1a290fd05ec23f3b5dafb47c06cc8acc832b93`.
 - Noto Sans Tifinagh, Noto Sans Sinhala, Noto Sans Myanmar, Noto Sans Khmer,
-  and Noto Naskh Arabic are unmodified upstream font binaries from the
+  Noto Serif Tibetan and Noto Naskh Arabic are unmodified upstream font
+  binaries from the
   corresponding Noto Project repositories listed in
   `LICENSES/NOTO-FONTS-OFL.txt`.
 - License: SIL Open Font License 1.1.
@@ -60,6 +61,7 @@ Native script fonts:
   - Noto Sans Sinhala Light: `c645fa43ca3c384cbee102d3f398ba69d00c014378f62068c29d889b65a94f4b`
   - Noto Sans Myanmar Light: `6a70b1fcd6756173e51567554e4164687f76a3da88f93a5ac48e56c005152f72`
   - Noto Sans Khmer Light: `fd21655895fcf5b16ba499671c0e06e8450faf093d8c65c9f9ced970aabe1e70`
+  - Noto Serif Tibetan Light 2.103: `d334dd7823b53b41f9c14678971772ebce334b5f92c5bd7024454f75b3b47b17`
   - Noto Naskh Arabic 2.021: `c9a039ce48a477243c1eb7d561b13de115cfd651d8a83fa42e2f4d63c2e11b00`
   - Android AppSupport compact Noto Naskh Arabic UI 1.08 source:
     `61e022fdf23df726b4fdf2e5022c166c97ec4b3846c5dbb76fc0922798a2083a`

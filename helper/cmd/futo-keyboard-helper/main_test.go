@@ -1431,3 +1431,56 @@ func TestAndroidCursorKeyDirections(t *testing.T) {
 		t.Fatal("native Sailfish process was classified as Android")
 	}
 }
+
+// A rebuilt content pack carries a new version. The copy already on disk is
+// then stale, and the manifest must offer it again rather than reporting the
+// language as up to date. Installs made before markers existed record no
+// version and stay installed.
+func TestInstalledPackWithOlderVersionIsOfferedAgain(t *testing.T) {
+	root := t.TempDir()
+	manager := &contentManager{root: root}
+	item := contentItem{
+		ID:      "dictionary-ro",
+		Version: "0.4.2-1",
+		Paths:   []string{"dictionaries/ro.fksidx"},
+	}
+
+	dictionaries := filepath.Join(root, "dictionaries")
+	if err := os.MkdirAll(dictionaries, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dictionaries, "ro.fksidx"),
+		[]byte("index"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if !manager.installed(item) {
+		t.Fatal("a pack with no marker must count as installed")
+	}
+
+	writeMarker := func(version string) {
+		markers := filepath.Join(root, ".installed")
+		if err := os.MkdirAll(markers, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		data, err := json.Marshal(installedContentMarker{
+			ID: item.ID, Version: version, SHA256: "unused",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(manager.markerPath(item.ID), data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	writeMarker("0.4.0-1")
+	if manager.installed(item) {
+		t.Fatal("a pack installed at an older version must be offered again")
+	}
+
+	writeMarker("0.4.2-1")
+	if !manager.installed(item) {
+		t.Fatal("a pack installed at the manifest version must stay installed")
+	}
+}

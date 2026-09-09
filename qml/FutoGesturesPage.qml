@@ -5,6 +5,17 @@ import Nemo.DBus 2.0
 
 Page {
     id: page
+
+    property bool spacebarHoldReady: false
+
+    // The choice used to be an on/off switch for the cursor pad. A stored
+    // value below zero is one of those, and still means what it meant.
+    function spacebarHoldAction() {
+        var configured = Number(settings.spacebarHoldAction)
+        if (!isFinite(configured) || configured < 0)
+            return settings.spacebarCursorControlEnabled ? 1 : 0
+        return Math.max(0, Math.min(2, Math.round(configured)))
+    }
     allowedOrientations: Orientation.All
     property bool swipeContentReady: false
     property bool swipeModelInstalled: false
@@ -82,6 +93,7 @@ Page {
         id: settings
         path: "/sailfish/text_input/futo_keyboard"
         property bool spacebarCursorControlEnabled: true
+        property int spacebarHoldAction: -1
         property bool swipeDeleteEnabled: true
 		property bool swipeTypingEnabled: false
     }
@@ -145,14 +157,25 @@ Page {
                 }
             }
 
-            TextSwitch {
+            ComboBox {
+                id: spacebarHoldCombo
                 width: parent.width
-                automaticCheck: false
-                checked: settings.spacebarCursorControlEnabled
-                text: qsTr("Hold Space to move the cursor")
-                description: qsTr("Hold and drag in any direction. Swipe downward quickly on Space to close the keyboard.")
-                onClicked: settings.spacebarCursorControlEnabled = !checked
+                label: qsTr("Hold Space")
+                currentIndex: page.spacebarHoldAction()
+                onCurrentIndexChanged: {
+                    if (!page.spacebarHoldReady)
+                        return
+                    settings.spacebarHoldAction = currentIndex
+                    settings.spacebarCursorControlEnabled = currentIndex === 1
+                }
+                menu: ContextMenu {
+                    MenuItem { text: qsTr("Do nothing") }
+                    MenuItem { text: qsTr("Move the cursor") }
+                    MenuItem { text: qsTr("Switch language") }
+                }
+                Component.onCompleted: page.spacebarHoldReady = true
             }
+
 
             TextSwitch {
                 width: parent.width

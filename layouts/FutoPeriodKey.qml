@@ -23,6 +23,8 @@ FutoCharacterKey {
     // Already among the alternates, so it is highlighted rather than inserted.
     secondarySymbol: "."
     secondaryHintEligible: false
+    // Comma, Space and Enter carry no separated-key card, so neither does this.
+    separatedKeyCardEligible: false
     popupAlways: true
     implicitWidth: punctuationKeyWidth
     fixedWidth: !splitActive
