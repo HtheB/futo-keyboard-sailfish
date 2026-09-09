@@ -18,6 +18,10 @@ CharacterKey {
     property string androidRiyalFontFamily: "FUTO Android Riyal"
     property string secondarySymbol: symView
     property bool secondaryHintEligible: true
+    // Separated keys draw a card behind every letter.  Bottom-row punctuation
+    // sits beside Space, Comma and Enter, which draw none, so a key placed
+    // there can turn its own card off and match its neighbours.
+    property bool separatedKeyCardEligible: true
     property bool popupArmed: false
     property string popupHighlightedText: ""
     property string popupHighlightedOutput: ""
@@ -334,6 +338,7 @@ CharacterKey {
                 || (codepoint >= 0xAA60 && codepoint <= 0xAA7F)
                 || (codepoint >= 0x1780 && codepoint <= 0x17FF)
                 || (codepoint >= 0x19E0 && codepoint <= 0x19FF)
+                || (codepoint >= 0x0F00 && codepoint <= 0x0FFF)
     }
 
     function shouldUsePreferredFont(value) {
@@ -603,6 +608,7 @@ CharacterKey {
         border.width: 1
         border.color: Theme.rgba(parent.palette.primaryColor, 0.12)
         visible: visualSettings.separatedKeysEnabled
+                 && futoKey.separatedKeyCardEligible
     }
 
     Label {

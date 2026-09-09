@@ -37,6 +37,10 @@ FutoKeyboardLayout {
         source: "file:///usr/share/fonts/futo-keyboard-sailfish/NotoSansKhmer-Light.ttf"
     }
     FontLoader {
+        id: notoTibetanFont
+        source: "file:///usr/share/fonts/futo-keyboard-sailfish/NotoSerifTibetan-Light.ttf"
+    }
+    FontLoader {
         id: notoNaskhArabicFont
         source: "file:///usr/share/fonts/futo-keyboard-sailfish/NotoNaskhArabic-Regular.ttf"
     }
@@ -58,7 +62,7 @@ FutoKeyboardLayout {
         property string layoutAssignments: "{}"
         property int layoutAssignmentVersion: 0
         property string manualLayoutAssignments: "{}"
-        property int layoutDefaultsVersion: 2
+        property int layoutDefaultsVersion: 3
         property string enabledLanguages: "EN,NL,TR"
         property bool automaticLanguageDetection: true
 		property bool mergeSameLayoutLanguages: true
@@ -143,6 +147,8 @@ FutoKeyboardLayout {
             return fontLoaderName(notoMyanmarFont, "Noto Sans Myanmar")
         if (layoutScript === "khmer")
             return fontLoaderName(notoKhmerFont, "Noto Sans Khmer")
+        if (layoutScript === "tibetan")
+            return fontLoaderName(notoTibetanFont, "Noto Serif Tibetan Light")
         if (LetterLayouts.name(index) === "AZERTY (Amazigh-Latin)")
             return "DejaVu Sans"
         return ""
@@ -358,6 +364,7 @@ FutoKeyboardLayout {
         var languages = enabledPredictionLanguages()
         var legacyMigration = layoutSettings.layoutAssignmentVersion < 1
         var defaultsMigration = layoutSettings.layoutDefaultsVersion < 2
+        var nationalMigration = layoutSettings.layoutDefaultsVersion < 3
         var changed = legacyMigration
         var manualChanged = false
 
@@ -392,6 +399,27 @@ FutoKeyboardLayout {
             }
         }
 
+        if (nationalMigration) {
+            // Danish sat on the Norwegian "ø æ" home row and both Portuguese
+            // locales on the Spanish "ñ" one.  Nobody chose a neighbouring
+            // country's keyboard on purpose, so these two old default values
+            // move even where the earlier migration marked them as manual.
+            if (Number(assignments["DA"]) === 7) {
+                assignments["DA"] = LetterLayouts.defaultForLanguage("DA")
+                changed = true
+            }
+            var portuguese = ["PT_BR", "PT_PT"]
+            for (var portugueseIndex = 0; portugueseIndex < portuguese.length;
+                    ++portugueseIndex) {
+                var portugueseCode = portuguese[portugueseIndex]
+                if (Number(assignments[portugueseCode]) === 5) {
+                    assignments[portugueseCode]
+                            = LetterLayouts.defaultForLanguage(portugueseCode)
+                    changed = true
+                }
+            }
+        }
+
         // Generated assignments for disabled languages should not shadow a
         // newly improved national default.  Explicit editor choices remain.
         for (var storedCode in assignments) {
@@ -417,8 +445,8 @@ FutoKeyboardLayout {
             layoutSettings.layoutAssignments = JSON.stringify(assignments)
             layoutSettings.layoutAssignmentVersion = 1
         }
-        if (defaultsMigration)
-            layoutSettings.layoutDefaultsVersion = 2
+        if (defaultsMigration || nationalMigration)
+            layoutSettings.layoutDefaultsVersion = 3
         ensureActiveLetterLayout()
     }
 

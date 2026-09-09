@@ -14,6 +14,13 @@ echo 'cd2550c0f4c05eb341bf97958211aaa39382bca96577ba3a67d4a3b4912c43c0  assets/f
     (cd "$ROOT" && sha256sum -c -)
 echo '7a0bd8b0481d3995196cf5161a1a290fd05ec23f3b5dafb47c06cc8acc832b93  assets/fonts/AmiriSailfishCompactRial-Regular.ttf' |
     (cd "$ROOT" && sha256sum -c -)
+# Sailfish carries no Tibetan glyphs, so the Tibetan layout draws nothing
+# without this face, exactly as Myanmar and Khmer did before theirs.
+echo 'd334dd7823b53b41f9c14678971772ebce334b5f92c5bd7024454f75b3b47b17  assets/fonts/NotoSerifTibetan-Light.ttf' |
+    (cd "$ROOT" && sha256sum -c -)
+grep -Fq 'NotoSerifTibetan-Light.ttf' "$ROOT/packaging/Makefile"
+grep -Fq 'layoutScript === "tibetan"' "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq '0x0F00 && codepoint <= 0x0FFF' "$ROOT/layouts/FutoCharacterKey.qml"
 grep -Fq '0xFDFC' "$ROOT/scripts/build-android-riyal-font.py"
 grep -Fq 'RIAL_CODEPOINT = 0xFDFC' "$ROOT/scripts/build-amiri-riyal-font.py"
 grep -Fq '65-futo-keyboard-symbols.conf' "$ROOT/packaging/Makefile"
@@ -459,6 +466,19 @@ if grep -q 'touchscreenVibrationLevel *=' \
     echo "the input handler must not write the system vibration level" >&2
     exit 1
 fi
+# Whoever prefers a pulse on every letter a swipe crosses can keep the
+# platform effect live; the switch that does it lives beside the other
+# vibration setting.
+grep -Fq 'if (!keyboardSettings.swipeVibrationEnabled)' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'property bool swipeVibrationEnabled: false' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'Vibrate while swiping' "$ROOT/qml/FutoFeedbackPage.qml"
+# The period key sits in the row with Comma, Space and Enter, none of which
+# draw a separated-key card.
+grep -Fq 'separatedKeyCardEligible: false' "$ROOT/layouts/FutoPeriodKey.qml"
+grep -Fq '&& futoKey.separatedKeyCardEligible' \
+    "$ROOT/layouts/FutoCharacterKey.qml"
 grep -Fq 'function visiblePrimaryCorrection()' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq '"primary": primary !== ""' \

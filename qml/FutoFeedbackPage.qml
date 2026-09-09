@@ -20,6 +20,7 @@ Page {
         property bool keySoundMigrationDone: false
         property int keySoundMode: -1
         property real keySoundVolume: 0.5
+        property bool swipeVibrationEnabled: false
     }
 
     ProfileControl { id: systemFeedback }
@@ -161,6 +162,17 @@ Page {
                     if (!checked)
                         vibrationPreview.play()
                 }
+            }
+
+            TextSwitch {
+                width: parent.width
+                automaticCheck: false
+                enabled: systemFeedback.touchscreenVibrationLevel !== 0
+                checked: settings.swipeVibrationEnabled
+                text: qsTr("Vibrate while swiping")
+                description: qsTr("Pulses on every letter the finger passes over "
+                                  + "instead of only the first one.")
+                onClicked: settings.swipeVibrationEnabled = !settings.swipeVibrationEnabled
             }
 
             ComboBox {
