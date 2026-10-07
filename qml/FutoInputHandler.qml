@@ -145,12 +145,20 @@ InputHandler {
     readonly property bool inputSessionActive: active || MInputMethodQuick.active
     readonly property bool editorSessionActive: inputSessionActive
             || !!MInputMethodQuick.extensions.focusState
+    // Keep password protection for the complete lifetime of one focused
+    // editor. Some applications implement their eye button by temporarily
+    // removing the platform's hidden/sensitive flags; that must change only
+    // rendering, never prediction or learning behavior.
+    property bool passwordFocusProtected: false
+    readonly property bool platformPasswordField: MInputMethodQuick.hiddenText
+            || !!MInputMethodQuick.extensions.sensitiveInput
+    readonly property bool passwordField: platformPasswordField
+            || passwordFocusProtected
     // A field that only turns suggestions off is not private: many ordinary
     // Android fields do it, and some only while they are still loading.
-    readonly property bool automaticIncognitoMode: MInputMethodQuick.hiddenText
+    readonly property bool automaticIncognitoMode: passwordField
             || !!MInputMethodQuick.extensions.privateMode
             || !!MInputMethodQuick.extensions.incognitoMode
-            || !!MInputMethodQuick.extensions.sensitiveInput
             || (keyboardSettings.incognitoOnPrivacySwitch && privacySwitchActive)
     readonly property bool incognitoMode: keyboardSettings.incognitoMode
             || automaticIncognitoMode
@@ -166,8 +174,6 @@ InputHandler {
             MInputMethodQuick.contentType === Maliit.UrlContentType
             || urlMetadataAvailable()
     readonly property bool urlField: explicitUrlField || urlShapedEditorText()
-    readonly property bool passwordField: MInputMethodQuick.hiddenText
-            || !!MInputMethodQuick.extensions.sensitiveInput
 	readonly property bool rightToLeftPreedit: keyboard && keyboard.layout
 	        && ((keyboard.layout.usesArabicDigits !== undefined
 	             && keyboard.layout.usesArabicDigits)
@@ -1706,7 +1712,12 @@ InputHandler {
         id: emptyUrlRecoveryTimer
         interval: 400
         repeat: true
-        running: keyboardSettings.urlHistoryEnabled
+        // This recovery poll exists only for a visible Android address bar.
+        // InputHandler.active can remain true after the keyboard is dismissed,
+        // so use Maliit's authoritative visibility state to keep the idle
+        // maliit-server completely asleep.
+        running: MInputMethodQuick.active && keyboardSettings.urlHistoryEnabled
+                 && futoHandler.urlField
                  && !futoHandler.passwordField && !futoHandler.incognitoMode
         onTriggered: {
             if (futoHandler.urlField && futoHandler.currentUrlCandidate() === ""
@@ -3283,7 +3294,8 @@ InputHandler {
                         color: Theme.highlightColor
 
                         SequentialAnimation on opacity {
-                            running: emojiSearchBar.visible
+                            running: MInputMethodQuick.active
+                                     && emojiSearchBar.visible
                             loops: Animation.Infinite
                             NumberAnimation { to: 0.15; duration: 480 }
                             NumberAnimation { to: 1.0; duration: 480 }
@@ -3437,7 +3449,8 @@ InputHandler {
 
                                 SequentialAnimation {
                                     id: layoutLanguageMarquee
-                                    running: layoutLanguageTicker.visible
+                                    running: MInputMethodQuick.active
+                                             && layoutLanguageTicker.visible
                                              && layoutLanguageTicker.overflowing
                                     loops: Animation.Infinite
 
@@ -3739,7 +3752,8 @@ InputHandler {
                                         }
 
                                         SequentialAnimation {
-                                            running: configuredLanguageTicker.visible
+                                            running: MInputMethodQuick.active
+                                                     && configuredLanguageTicker.visible
                                                      && configuredLanguageTicker.scrollDistance > 0
                                             loops: Animation.Infinite
                                             PauseAnimation { duration: 850 }
@@ -3797,7 +3811,8 @@ InputHandler {
 
                                     SequentialAnimation {
                                         id: configuredLayoutNameMarquee
-                                        running: configuredLayoutNameTicker.visible
+                                        running: MInputMethodQuick.active
+                                                 && configuredLayoutNameTicker.visible
                                                  && configuredLayoutNameTicker.scrollDistance > 0
                                         loops: Animation.Infinite
                                         PauseAnimation { duration: 850 }
@@ -4040,6 +4055,21 @@ InputHandler {
 		refreshApplicationSuggestions()
 	}
 
+	onPlatformPasswordFieldChanged: {
+		if (platformPasswordField)
+			passwordFocusProtected = true
+	}
+
+	Timer {
+		id: passwordFocusProtectionTimer
+		interval: 80
+		repeat: false
+		onTriggered: {
+			if (futoHandler.platformPasswordField)
+				futoHandler.passwordFocusProtected = true
+		}
+	}
+
 	onPasswordFieldChanged: {
 		if (credentialAutofillStage > 0) {
 			credentialAutofillStepTimer.restart()
@@ -4100,6 +4130,11 @@ InputHandler {
         onFocusTargetChanged: {
 			futoHandler.cancelSwipeSession()
 			futoHandler.clearCommittedSpace()
+			// A changed focus target starts a new editor lifetime. Reset the old
+			// latch immediately, then sample the new editor after Maliit has
+			// finished publishing its hidden/sensitive metadata.
+			futoHandler.passwordFocusProtected = false
+			passwordFocusProtectionTimer.restart()
 			if (!activeEditor)
 				futoHandler.endForcedAppSupportSession()
 			// A new editor must not inherit the fallback text buffer from the
@@ -4636,7 +4671,7 @@ InputHandler {
     function learnWithPrevious(previous, word) {
         if (!word || !activePredictionsAvailable
                 || !keyboardSettings.personalLearningEnabled
-                || futoHandler.incognitoMode || urlField)
+                || futoHandler.incognitoMode || passwordField || urlField)
             return
         helper.typedCall("AcceptContext", [
             { "type": "s", "value": enabledLanguages() },
@@ -5439,7 +5474,8 @@ InputHandler {
 		// does not itself mean that this word should be capitalized.  isShifted
 		// combines a real one-shot/caps-lock shift with the current autocaps
 		// decision, and therefore matches what the user sees on the keys.
-		var capitalize = keyboard.shiftState === ShiftState.LockedShift
+		var capsLock = keyboard.shiftState === ShiftState.LockedShift
+		var capitalize = capsLock
 				|| keyboard.shiftState === ShiftState.LatchedShift
 				|| (keyboardSettings.autoCapitalizationEnabled && keyboard.isShifted)
 		swipeOutstanding++
@@ -5464,6 +5500,17 @@ InputHandler {
 			var suggestions = futoHandler.nonEmptySuggestions(result.suggestions || [])
 			if (suggestions.length < 1)
 				return
+			// The decoder's capitalize flag deliberately means "capitalize the
+			// first letter" so one-shot Shift keeps its normal behaviour. Caps
+			// Lock is different: every candidate, including the word committed to
+			// Android AppSupport, must remain fully upper-case.
+			if (capsLock) {
+				for (var suggestionIndex = 0;
+						suggestionIndex < suggestions.length; suggestionIndex++) {
+					suggestions[suggestionIndex] = String(
+							suggestions[suggestionIndex]).toUpperCase()
+				}
+			}
 			var word = suggestions[0]
 			if (keyboardSettings.forcedAppSupportKeyEvents) {
 				helper.typedCall("InjectAndroidSwipe", [

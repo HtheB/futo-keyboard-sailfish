@@ -46,6 +46,8 @@ const (
 	objectPath                = dbus.ObjectPath("/org/hb/FutoKeyboard1")
 	enginePath                = "/usr/libexec/futo-keyboard-engine"
 	swipeEnginePath           = "/usr/libexec/futo-keyboard-swipe"
+	predictionEnginePath      = "/usr/libexec/futo-keyboard-prediction"
+	predictionIdleTimeout     = 60 * time.Second
 	voicePath                 = "/usr/libexec/futo-keyboard-voice"
 	bundledDictionaryDir      = "/usr/share/futo-keyboard-sailfish/dictionaries"
 	bundledVoiceModelPath     = "/usr/share/futo-keyboard-sailfish/voice/tiny_acft_q8_0.bin"
@@ -324,6 +326,16 @@ type swipeAnalysis struct {
 	Language    string   `json:"language"`
 }
 
+type predictionModelSuggestion struct {
+	Word        string  `json:"word"`
+	Probability float64 `json:"probability"`
+}
+
+type predictionModelResponse struct {
+	Mode        string                      `json:"mode"`
+	Suggestions []predictionModelSuggestion `json:"suggestions"`
+}
+
 type engineProcess struct {
 	mu      sync.Mutex
 	command *exec.Cmd
@@ -339,6 +351,149 @@ type swipeProcess struct {
 	command *exec.Cmd
 	stdin   io.WriteCloser
 	stdout  *bufio.Reader
+}
+
+// predictionProcess owns FUTO's KeyboardLM worker.  It is intentionally kept
+// outside Maliit: loading or unloading the optional model must not put the
+// system keyboard process at risk.
+type predictionProcess struct {
+	mu             sync.Mutex
+	command        *exec.Cmd
+	stdin          io.WriteCloser
+	stdout         *bufio.Reader
+	idleTimer      *time.Timer
+	idleGeneration uint64
+}
+
+func (engine *predictionProcess) startLocked() error {
+	if engine.command != nil && engine.command.Process != nil {
+		return nil
+	}
+	modelPath := resolvedPredictionModelPath()
+	if modelPath == "" {
+		return errors.New("typed prediction model is not installed")
+	}
+	workerPath := predictionEnginePath
+	if override := strings.TrimSpace(os.Getenv("FUTO_PREDICTION_ENGINE")); override != "" {
+		workerPath = override
+	}
+	command := exec.Command(workerPath, "--model", modelPath)
+	stdin, err := command.StdinPipe()
+	if err != nil {
+		return err
+	}
+	stdoutPipe, err := command.StdoutPipe()
+	if err != nil {
+		_ = stdin.Close()
+		return err
+	}
+	command.Stderr = os.Stderr
+	if err := command.Start(); err != nil {
+		_ = stdin.Close()
+		return err
+	}
+	engine.command = command
+	engine.stdin = stdin
+	engine.stdout = bufio.NewReaderSize(stdoutPipe, 32*1024)
+	go func(process *exec.Cmd) {
+		if err := process.Wait(); err != nil {
+			log.Printf("typed prediction worker stopped: %v", err)
+		}
+	}(command)
+	return nil
+}
+
+func (engine *predictionProcess) resetProcessLocked() {
+	if engine.stdin != nil {
+		_ = engine.stdin.Close()
+	}
+	if engine.command != nil && engine.command.Process != nil {
+		_ = engine.command.Process.Kill()
+	}
+	engine.command = nil
+	engine.stdin = nil
+	engine.stdout = nil
+}
+
+func (engine *predictionProcess) resetLocked() {
+	engine.idleGeneration++
+	if engine.idleTimer != nil {
+		engine.idleTimer.Stop()
+		engine.idleTimer = nil
+	}
+	engine.resetProcessLocked()
+}
+
+func (engine *predictionProcess) armIdleTimerLocked() {
+	engine.idleGeneration++
+	generation := engine.idleGeneration
+	if engine.idleTimer != nil {
+		engine.idleTimer.Stop()
+	}
+	engine.idleTimer = time.AfterFunc(predictionIdleTimeout, func() {
+		engine.mu.Lock()
+		defer engine.mu.Unlock()
+		if engine.idleGeneration != generation {
+			return
+		}
+		engine.idleTimer = nil
+		engine.idleGeneration++
+		engine.resetProcessLocked()
+	})
+}
+
+func flattenWorkerField(value string) string {
+	return strings.NewReplacer("\t", " ", "\r", " ", "\n", " ").Replace(value)
+}
+
+func (engine *predictionProcess) predict(context, partial string,
+	threshold float64) (predictionModelResponse, error) {
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	context = flattenWorkerField(context)
+	partial = flattenWorkerField(partial)
+	for attempt := 0; attempt < 2; attempt++ {
+		if err := engine.startLocked(); err != nil {
+			return predictionModelResponse{}, err
+		}
+		request := fmt.Sprintf("PREDICT\t%s\t%s\t%.3f\n", context, partial, threshold)
+		if _, err := io.WriteString(engine.stdin, request); err != nil {
+			engine.resetLocked()
+			continue
+		}
+		response, err := engine.stdout.ReadString('\n')
+		if err != nil {
+			engine.resetLocked()
+			continue
+		}
+		response = strings.TrimSuffix(strings.TrimSuffix(response, "\n"), "\r")
+		if strings.HasPrefix(response, "ERROR\t") {
+			return predictionModelResponse{}, errors.New(strings.TrimPrefix(response, "ERROR\t"))
+		}
+		if !strings.HasPrefix(response, "OK\t") {
+			return predictionModelResponse{}, errors.New("invalid response from typed prediction worker")
+		}
+		var result predictionModelResponse
+		if err := json.Unmarshal([]byte(strings.TrimPrefix(response, "OK\t")), &result); err != nil {
+			return predictionModelResponse{}, fmt.Errorf("decode typed prediction response: %w", err)
+		}
+		// KeyboardLM needs roughly 100 MB on current Sailfish hardware. Keep it
+		// warm while a sentence is being typed, then return that memory once the
+		// model has been idle for a while.
+		engine.armIdleTimerLocked()
+		return result, nil
+	}
+	return predictionModelResponse{}, errors.New("typed prediction worker is unavailable")
+}
+
+func (engine *predictionProcess) close() {
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	engine.resetLocked()
+}
+
+func (engine *predictionProcess) reload() {
+	engine.close()
 }
 
 // androidCursorProcess keeps a single, restricted lxc-attach channel open.
@@ -1403,6 +1558,37 @@ func (store *historyStore) bigramBonus(previous, word string) int64 {
 		count = 20
 	}
 	return int64(count) * 30000000
+}
+
+func (store *historyStore) phraseBonus(previous, phrase string) int64 {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	words := contextWords(phrase)
+	previous = normalizedHistoryWord(previous)
+	var result int64
+	for _, word := range words {
+		word = normalizedHistoryWord(word)
+		if previous != "" && word != "" {
+			count := store.data.Bigrams[previous][word]
+			if count > 20 {
+				count = 20
+			}
+			result += int64(count) * 30000000
+		}
+		previous = word
+	}
+	return result
+}
+
+func shouldUseModelCorrection(candidate, word string, multiwordPhraseAvailable bool) bool {
+	if multiwordPhraseAvailable || candidate == word {
+		return false
+	}
+	// KeyboardLM can capitalize the whole unbroken token (for example
+	// "ihave" -> "Ihave"). That is not a lexical correction and must not
+	// displace the decoder's inferred-space candidate. The standalone English
+	// pronoun is the one intentional case-only correction.
+	return !strings.EqualFold(candidate, word) || candidate == "I"
 }
 
 func swipeCorrectionKey(language, source string) string {
@@ -2801,6 +2987,7 @@ type service struct {
 	bus                      *dbus.Conn
 	engine                   engineProcess
 	swipeEngine              swipeProcess
+	predictionEngine         predictionProcess
 	androidCursor            androidCursorProcess
 	codec                    *secureFileCodec
 	learned                  *learnedStore
@@ -4213,13 +4400,73 @@ func englishContractionCorrection(language, typed, phrase string) string {
 	return phrase
 }
 
-func chooseContextCorrection(known, learned bool, contraction string,
+func englishPredictionLanguage(language string) bool {
+	return language == "EN" || language == "EN_GB" || language == "EN_IN"
+}
+
+func predictionModelThreshold(level int32) float64 {
+	switch level {
+	case 2:
+		return 3.0
+	case 1:
+		// FUTO Keyboard's KeyboardLM ships with 4.0 as its default
+		// auto-correction confidence threshold. Keep our balanced setting
+		// identical to upstream rather than making the model over-eager.
+		return 4.0
+	default:
+		return 5.0
+	}
+}
+
+func compactPredictionContext(context string) string {
+	context = flattenWorkerField(context)
+	lastSentence := -1
+	for index, character := range context {
+		if character == '.' || character == '?' || character == '!' {
+			lastSentence = index
+		}
+	}
+	if lastSentence >= 0 && lastSentence+1 < len(context) {
+		context = context[lastSentence+1:]
+	}
+	words := strings.Fields(context)
+	if len(words) > 16 {
+		words = words[len(words)-16:]
+	}
+	context = strings.Join(words, " ")
+	runes := []rune(context)
+	if len(runes) > 70 {
+		runes = runes[len(runes)-70:]
+		context = strings.TrimLeft(string(runes), " ")
+	}
+	return context
+}
+
+func predictionModelWords(response predictionModelResponse) []predictionModelSuggestion {
+	result := make([]predictionModelSuggestion, 0, len(response.Suggestions))
+	seen := make(map[string]bool)
+	for _, candidate := range response.Suggestions {
+		candidate.Word = strings.TrimSpace(candidate.Word)
+		key := strings.ToLower(candidate.Word)
+		if !validWord(candidate.Word) || seen[key] {
+			continue
+		}
+		seen[key] = true
+		result = append(result, candidate)
+	}
+	return result
+}
+
+func chooseContextCorrection(known, learned bool, contraction, phrase string,
 	candidates []correctionWord, word string, level int) string {
 	if known || learned {
 		return ""
 	}
 	if contraction != "" {
 		return contraction
+	}
+	if phrase != "" {
+		return phrase
 	}
 	return chooseCorrection(candidates, word, level)
 }
@@ -4244,6 +4491,10 @@ func (service *service) analyzeContext(languagesCSV, word, context string,
 	ranked := make([]scoredWord, 0, int(limit)*len(languages))
 	corrections := make([]correctionWord, 0, 8*len(languages))
 	contractionCorrection := ""
+	phraseCorrection := ""
+	phraseCorrectionScore := int64(math.MinInt64)
+	modelCorrection := ""
+	multiwordPhraseAvailable := false
 	detectedLanguage := languages[0]
 	bestLanguageScore := int64(-1)
 
@@ -4288,14 +4539,67 @@ func (service *service) analyzeContext(languagesCSV, word, context string,
 			}
 			corrections = append(corrections, candidate)
 		}
-		for _, phrase := range analysis.Phrases {
+		for phraseIndex, phrase := range analysis.Phrases {
 			phrase = matchTypedCase(phrase, word)
 			if phrase != "" && !strings.EqualFold(phrase, word) &&
 				!service.history.isSuppressed(phrase) {
+				isMultiword := len(contextWords(phrase)) > 1
+				multiwordPhraseAvailable = multiwordPhraseAvailable || isMultiword
+				phraseScore := int64(3900000000)
+				if isMultiword {
+					// SwiftKey-style inferred spaces compete in the same ranked
+					// candidate list as ordinary corrections.  Put the engine's
+					// best joint phrase just above a model-only single-word guess,
+					// then personalize its order with accepted word transitions.
+					phraseScore = 7100000000 - int64(phraseIndex)*10000000
+				}
+				totalPhraseScore := phraseScore + contextBonus + runeBonus +
+					service.history.phraseBonus(previous, phrase)
 				ranked = append(ranked, scoredWord{Word: phrase,
-					Score: 3900000000 + contextBonus + runeBonus, Language: language})
+					Score: totalPhraseScore, Language: language})
+				if isMultiword && totalPhraseScore > phraseCorrectionScore {
+					phraseCorrection = phrase
+					phraseCorrectionScore = totalPhraseScore
+				}
 				if contractionCorrection == "" {
 					contractionCorrection = englishContractionCorrection(language, word, phrase)
+				}
+			}
+		}
+	}
+	if englishPredictionLanguage(detectedLanguage) && resolvedPredictionModelPath() != "" {
+		modelResult, modelErr := service.predictionEngine.predict(
+			compactPredictionContext(context), word,
+			predictionModelThreshold(correctionLevel))
+		if modelErr != nil {
+			log.Printf("typed prediction model unavailable: %v", modelErr)
+		} else {
+			modelWords := predictionModelWords(modelResult)
+			for index, candidate := range modelWords {
+				candidate.Word = matchTypedCase(candidate.Word, word)
+				if service.history.isSuppressed(candidate.Word) {
+					continue
+				}
+				probability := math.Max(-1.0, math.Min(1.0, candidate.Probability))
+				ranked = append(ranked, scoredWord{
+					Word:     candidate.Word,
+					Score:    6000000000 + int64(probability*1000000000) - int64(index),
+					Language: detectedLanguage,
+				})
+			}
+			if modelResult.Mode == "autocorrect" && len(modelWords) > 0 {
+				candidate := matchTypedCase(modelWords[0].Word, word)
+				// Case is meaningful here: FUTO's model deliberately corrects
+				// lower-case "i" to the English pronoun "I". EqualFold would
+				// discard that grammatical correction. An old case-folded
+				// suppression entry must not disable this grammar rule either.
+				suppressed := service.history.isSuppressed(candidate)
+				if word == "i" && candidate == "I" {
+					suppressed = false
+				}
+				if shouldUseModelCorrection(candidate, word,
+					multiwordPhraseAvailable) && !suppressed {
+					modelCorrection = candidate
 				}
 			}
 		}
@@ -4351,7 +4655,11 @@ func (service *service) analyzeContext(languagesCSV, word, context string,
 	result.Language = detectedLanguage
 	result.Correction = chooseContextCorrection(allKnown,
 		service.learned.containsLanguages(languages, word), contractionCorrection,
+		phraseCorrection,
 		corrections, word, int(correctionLevel))
+	if modelCorrection != "" {
+		result.Correction = modelCorrection
+	}
 	return result, nil
 }
 
@@ -4505,10 +4813,30 @@ func (service *service) NextWords(languagesCSV, context string, limit int32,
 		seen[key] = true
 		result = append(result, word)
 	}
+	preferred := service.history.dominantLanguage(previous, languages)
+	modelLanguage := preferred
+	if modelLanguage == "" && len(languages) == 1 {
+		modelLanguage = languages[0]
+	}
+	if englishPredictionLanguage(modelLanguage) && resolvedPredictionModelPath() != "" {
+		modelResult, modelErr := service.predictionEngine.predict(
+			compactPredictionContext(context), "", 1.0)
+		if modelErr != nil {
+			log.Printf("typed next-word model unavailable: %v", modelErr)
+		} else {
+			for _, candidate := range predictionModelWords(modelResult) {
+				appendWord(candidate.Word)
+			}
+		}
+	}
+	// The context model is the general-language baseline. Personal history
+	// fills the remaining positions instead of displacing every model result;
+	// otherwise one accidental learned pair can permanently hide the natural
+	// continuation (for example, "I am" showing an unrelated learned word
+	// before "not" or "a").
 	for _, word := range service.history.next(previous, int(limit)) {
 		appendWord(word)
 	}
-	preferred := service.history.dominantLanguage(previous, languages)
 	ordered := make([]string, 0, len(languages))
 	if preferred != "" {
 		ordered = append(ordered, preferred)
@@ -6816,6 +7144,9 @@ func main() {
 			if item.Kind == "swipe" {
 				application.swipeEngine.reload()
 			}
+			if item.Kind == "prediction" {
+				application.predictionEngine.reload()
+			}
 			if item.Kind == "voice" && state == "removed" {
 				_, _ = application.CancelVoiceInput()
 			}
@@ -6841,6 +7172,7 @@ func main() {
 	}
 	defer application.engine.close()
 	defer application.swipeEngine.close()
+	defer application.predictionEngine.close()
 	defer application.androidCursor.close()
 	defer application.CancelVoiceInput()
 

@@ -213,6 +213,19 @@ func resolvedSwipeRefinementPath(model, file string) string {
 		filepath.Join("/usr/share/futo-keyboard-sailfish/swipe/models", model, file))
 }
 
+func resolvedPredictionModelPath() string {
+	if override := strings.TrimSpace(os.Getenv("FUTO_PREDICTION_MODEL")); override != "" {
+		return firstAvailableContentFile(override)
+	}
+	root := optionalContentRoot()
+	userPath := ""
+	if root != "" {
+		userPath = filepath.Join(root, "prediction", "ml4_q6_k.gguf")
+	}
+	return firstAvailableContentFile(userPath,
+		"/usr/share/futo-keyboard-sailfish/prediction/ml4_q6_k.gguf")
+}
+
 func loadContentManifest(manifestPath string) (contentManifest, error) {
 	var manifest contentManifest
 	data, err := os.ReadFile(manifestPath)

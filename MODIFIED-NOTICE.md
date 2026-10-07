@@ -38,6 +38,13 @@ models available as optional verified downloads. The selected model is loaded
 by the isolated voice worker; English models explicitly constrain recognition
 to English, while multilingual models follow the active keyboard languages.
 
+The current development line also offers FUTO's official English KeyboardLM
+model as an optional verified download. Its separate worker brings
+context-aware typed correction and next-word ranking to English without adding
+the model to the main RPM or loading it inside Maliit. Languages for which FUTO
+does not publish a KeyboardLM model continue to use the Sailfish edition's
+dictionary and learned-context engine.
+
 Release 21 corrects automatic capitalization between consecutive swipe words
 and adds a live highlighted path above the letter keys during a swipe.
 

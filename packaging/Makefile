@@ -6,6 +6,7 @@ LIBDIR ?= $(PREFIX)/lib64
 
 ENGINE_BINARY ?= $(BUILD_DIR)/futo-keyboard-engine
 SWIPE_BINARY ?= $(BUILD_DIR)/futo-keyboard-swipe
+PREDICTION_BINARY ?= $(BUILD_DIR)/futo-keyboard-prediction
 HELPER_BINARY ?= $(BUILD_DIR)/futo-keyboard-helper
 SECRETS_BINARY ?= $(BUILD_DIR)/futo-keyboard-secrets
 KEYRING_BINARY ?= $(BUILD_DIR)/futo-keyboard-keyring
@@ -144,6 +145,7 @@ SYSTEM_AMIRI_RIYAL_FONT := assets/fonts/AmiriSailfishCompactRial-Regular.ttf
 check:
 	@test -s "$(ENGINE_BINARY)" || { echo "Missing $(ARCH) engine" >&2; exit 1; }
 	@test -s "$(SWIPE_BINARY)" || { echo "Missing $(ARCH) FUTO Swipe worker" >&2; exit 1; }
+	@test -s "$(PREDICTION_BINARY)" || { echo "Missing $(ARCH) FUTO prediction worker" >&2; exit 1; }
 	@test -s "$(HELPER_BINARY)" || { echo "Missing $(ARCH) helper" >&2; exit 1; }
 	@test -s "$(SECRETS_BINARY)" || { echo "Missing $(ARCH) Secrets bridge" >&2; exit 1; }
 	@test -s "$(KEYRING_BINARY)" || { echo "Missing $(ARCH) device key store" >&2; exit 1; }
@@ -218,6 +220,8 @@ check:
 	@test -s LICENSES/ARABIC-DICTIONARY-ATTRIBUTION.md || exit 1
 	@test -s LICENSES/FUTO-SWIPE-GPL-3.0.txt || exit 1
 	@test -s LICENSES/FUTO-SWIPE-MODEL-WEIGHTS-LICENSE.md || exit 1
+	@test -s LICENSES/FUTO-PREDICTION-NOTICE.md || exit 1
+	@test -s LICENSES/PROTOBUF-LITE-BSD-LICENSE.txt || exit 1
 	@test -s LICENSES/LIBX11-COMPOSE-LICENSE.txt || exit 1
 	@test -s LICENSES/QT-COMPOSE-NOTICE.md || exit 1
 	@test -s LICENSES/FUTO-VOICE-SOURCE-FIRST-LICENSE.md || exit 1
@@ -234,6 +238,7 @@ check:
 install: check
 	install -Dm0755 "$(ENGINE_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-engine"
 	install -Dm0755 "$(SWIPE_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-swipe"
+	install -Dm0755 "$(PREDICTION_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-prediction"
 	install -Dm0755 "$(HELPER_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-helper"
 	install -Dm0755 "$(SECRETS_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-secrets"
 	install -Dm0755 "$(KEYRING_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-keyring"
@@ -376,6 +381,10 @@ install: check
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/FUTO-SWIPE-GPL-3.0.txt"
 	install -Dm0644 LICENSES/FUTO-SWIPE-MODEL-WEIGHTS-LICENSE.md \
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/FUTO-SWIPE-MODEL-WEIGHTS-LICENSE.md"
+	install -Dm0644 LICENSES/FUTO-PREDICTION-NOTICE.md \
+		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/FUTO-PREDICTION-NOTICE.md"
+	install -Dm0644 LICENSES/PROTOBUF-LITE-BSD-LICENSE.txt \
+		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/PROTOBUF-LITE-BSD-LICENSE.txt"
 	install -Dm0644 LICENSES/LIBX11-COMPOSE-LICENSE.txt \
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/LIBX11-COMPOSE-LICENSE.txt"
 	install -Dm0644 LICENSES/QT-COMPOSE-NOTICE.md \

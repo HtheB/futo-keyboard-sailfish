@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 ENGINE="$ROOT/build/futo-dictionary-compiler"
 
-node --check < "$ROOT/packaging/polkit/49-futo-keyboard-secrets.rules"
+node --check - < "$ROOT/packaging/polkit/49-futo-keyboard-secrets.rules"
 node "$ROOT/scripts/check-symbol-data.js"
 echo '8decb0be8598af58ce4f3d38862da6387b99acee44626963f2363b8ec54f4f79  assets/fonts/FutoAndroidRiyal-Regular.ttf' |
     (cd "$ROOT" && sha256sum -c -)
@@ -80,7 +80,7 @@ grep -Fq 'The display may briefly go dark before' \
 grep -Fq 'FutoUninstallProgressPage.qml' "$ROOT/packaging/Makefile"
 grep -Fq 'icon-m-refresh' "$ROOT/qml/FutoMaintenancePage.qml"
 grep -Fq '49-futo-keyboard-uninstall.rules' "$ROOT/packaging/Makefile"
-node --check < "$ROOT/packaging/polkit/49-futo-keyboard-uninstall.rules"
+node --check - < "$ROOT/packaging/polkit/49-futo-keyboard-uninstall.rules"
 # Removing the same-family Amiri replacement must reload Qt's cached font
 # database, but upgrades must not interrupt the UI.
 grep -Fq 'systemctl-user restart lipstick.service' \
@@ -393,6 +393,16 @@ grep -Fq 'touchSource.maximumTouchPoints = swiping ? 1' \
     "$ROOT/layouts/FutoKeyboardLayout.qml"
 grep -Fq 'keyboard.cancelTouchPoint(ids[i])' \
     "$ROOT/layouts/FutoKeyboardLayout.qml"
+# No keyboard runtime poll or repeat loop may keep maliit-server awake after
+# its surface is hidden. InputHandler.active is not authoritative on Sailfish;
+# MInputMethodQuick.active is.
+grep -Fq 'running: MInputMethodQuick.active && keyboardSettings.urlHistoryEnabled' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'running: MInputMethodQuick.active' \
+    "$ROOT/layouts/FutoKeyboardLayout.qml"
+grep -Fq 'if (!MInputMethodQuick.active || !backspaceKey.holdActive' \
+    "$ROOT/layouts/FutoBackspaceKey.qml"
+grep -Fq 'repeatTimer.stop()' "$ROOT/layouts/FutoDesktopKey.qml"
 grep -Fq 'normalMaximumTouchPoints < 0' \
     "$ROOT/layouts/FutoKeyboardLayout.qml"
 grep -Fq 'property bool gesturePreviewSuppressed' \
@@ -808,6 +818,21 @@ grep -Fq 'readonly property bool passwordClipboardPasteVisible:' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'futoHandler.passwordField && Clipboard.hasText' \
     "$ROOT/qml/FutoInputHandler.qml"
+
+# Revealing a password may remove an application's live hidden/sensitive flag,
+# but the focused editor must remain private until focus changes.
+grep -Fq 'property bool passwordFocusProtected: false' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'readonly property bool passwordField: platformPasswordField' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'id: passwordFocusProtectionTimer' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'futoHandler.passwordFocusProtected = false' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'if (futoHandler.platformPasswordField)' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'futoHandler.incognitoMode || passwordField || urlField' \
+    "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'id: passwordClipboardPasteButton' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'futoHandler.paste(Clipboard.text)' \
@@ -901,16 +926,47 @@ if [[ "$actual" != "$expected" ]]; then
 fi
 
 phrase_output=$(printf '%s\n' \
+	$'ANALYZE\tEN\t8\tihave' \
     $'ANALYZE\tEN\t8\thowareyou' \
     $'ANALYZE\tEN\t8\tim' \
     $'ANALYZE\tEN\t8\timok' \
+	$'ANALYZE\tEN\t8\talot' \
+	$'ANALYZE\tEN\t8\thowareyu' \
+	$'ANALYZE\tEN\t8\tthsiis' \
+	$'ANALYZE\tEN\t8\tihvae' \
+	$'ANALYZE\tEN\t8\tinthe' \
+	$'ANALYZE\tEN\t8\ttoday' \
     $'ANALYZE\tEN_IN\t8\tive' \
     | "$ENGINE" --dictionary "EN=$ROOT/build/dictionaries/en_US.fksidx" \
         --dictionary "EN_IN=$ROOT/build/dictionaries/en_GB.fksidx" 2>/dev/null)
-grep -Fq '"phrases":["how are you"]' <<<"$phrase_output"
-grep -Fq "\"phrases\":[\"I'm\"]" <<<"$phrase_output"
-grep -Fq "\"phrases\":[\"I'm ok\"]" <<<"$phrase_output"
-grep -Fq "\"phrases\":[\"I've\"]" <<<"$phrase_output"
+mapfile -t phrase_lines <<<"$phrase_output"
+grep -Fq '"phrases":["I have"]' <<<"${phrase_lines[0]}"
+grep -Fq '"phrases":["how are you"]' <<<"${phrase_lines[1]}"
+grep -Fq "\"phrases\":[\"I'm\"]" <<<"${phrase_lines[2]}"
+grep -Fq "\"phrases\":[\"I'm ok\"]" <<<"${phrase_lines[3]}"
+grep -Fq '"phrases":["a lot"]' <<<"${phrase_lines[4]}"
+grep -Fq '"phrases":["how are you"]' <<<"${phrase_lines[5]}"
+grep -Fq '"phrases":["this is"' <<<"${phrase_lines[6]}"
+grep -Fq '"phrases":["I have"]' <<<"${phrase_lines[7]}"
+grep -Fq '"phrases":["in the"]' <<<"${phrase_lines[8]}"
+grep -Fq '"known":true' <<<"${phrase_lines[9]}"
+grep -Fq '"phrases":[]' <<<"${phrase_lines[9]}"
+grep -Fq "\"phrases\":[\"I've\"]" <<<"${phrase_lines[10]}"
+
+multilingual_phrase_output=$(printf '%s\n' \
+    $'ANALYZE\tNL\t8\tikheb' \
+    $'ANALYZE\tNL\t8\thoeishet' \
+    $'ANALYZE\tRU\t8\tкакдела' \
+    $'ANALYZE\tAR\t8\tكيفحالك' \
+    | "$ENGINE" \
+        --dictionary "NL=$ROOT/build/dictionaries/nl.fksidx" \
+        --dictionary "RU=$ROOT/build/dictionaries/ru.fksidx" \
+        --dictionary "AR=$ROOT/build/dictionaries/ar.fksidx" 2>/dev/null)
+mapfile -t multilingual_phrase_lines <<<"$multilingual_phrase_output"
+grep -Fq '"phrases":["ik heb"]' <<<"${multilingual_phrase_lines[0]}"
+grep -Fq '"phrases":["hoe is het"]' <<<"${multilingual_phrase_lines[1]}"
+grep -Fq '"phrases":["как дела"]' <<<"${multilingual_phrase_lines[2]}"
+grep -Fq '"phrases":["كيف حالك"]' <<<"${multilingual_phrase_lines[3]}"
 
 swipe_geometry='113:0.05:0.10;119:0.15:0.10;101:0.25:0.10;114:0.35:0.10;116:0.45:0.10;121:0.55:0.10;117:0.65:0.10;105:0.75:0.10;111:0.85:0.10;112:0.95:0.10;97:0.05:0.50;115:0.15:0.50;100:0.25:0.50;102:0.35:0.50;103:0.45:0.50;104:0.55:0.50;106:0.65:0.50;107:0.75:0.50;108:0.85:0.50;122:0.15:0.90;120:0.25:0.90;99:0.35:0.90;118:0.45:0.90;98:0.55:0.90;110:0.65:0.90;109:0.75:0.90'
 swipe_output=$(printf 'SWIPE\tEN\t5\t0\t%s\t%s\nSWIPE\tEN\t5\t0\t%s\t%s\nSWIPE\tEN\t5\t0\t%s\t%s\n' \
@@ -999,6 +1055,33 @@ fi
 # cached upstream artifacts from silently becoming a downloadable content pack.
 ! grep -Eqi 'dictionary-(he|iw)|iw\.fksidx|Hebrew' "$ROOT/content/manifest.json"
 ! grep -Eq '(^|[[:space:]])(he|iw)([[:space:]]|$)' "$ROOT/layouts/FutoLanguageData.js"
+
+# FUTO's official English KeyboardLM stays optional and outside Maliit. The
+# catalog must verify the exact upstream model while the RPM contains only its
+# isolated worker.
+grep -Fq '"id": "prediction-english-futo"' "$ROOT/content/manifest.json"
+grep -Fq '"kind": "prediction"' "$ROOT/content/manifest.json"
+grep -Fq '6545c1c9ef2d76e9bfb87ad4fcf2061889513af84fcf30d907412be7fcdedb7b' \
+    "$ROOT/content/manifest.json"
+grep -Fq 'd87d9dbdf3966bbe18413be375dab2f6c7bbdfdd/raw/ml4_q6_k.gguf' \
+    "$ROOT/content/manifest.json"
+grep -Fq 'Prediction models' "$ROOT/qml/FutoContentPage.qml"
+grep -Fq 'FUTO_PREDICTION_ENGINE' \
+    "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+grep -Fq 'futo-keyboard-prediction' "$ROOT/packaging/Makefile"
+grep -Fq '%{_libexecdir}/futo-keyboard-prediction' \
+    "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"
+grep -Fq 'eaf0389f962b0dba07778d0feab6511e6e98c581' \
+    "$ROOT/scripts/bootstrap-futo-prediction.sh"
+grep -Fq 'FUTO-PREDICTION-NOTICE.md' "$ROOT/packaging/Makefile"
+test -s "$ROOT/prediction/futo_prediction.cpp"
+test -s "$ROOT/prediction/generate-core.py"
+test -s "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"
+sh -n "$ROOT/scripts/bootstrap-futo-prediction.sh"
+if git -C "$ROOT" ls-files | grep -Eq 'ml4_q6_k\.gguf$'; then
+    echo "optional typed prediction model must not be bundled in source" >&2
+    exit 1
+fi
 
 (
     cd "$ROOT/helper"

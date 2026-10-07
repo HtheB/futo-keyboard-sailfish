@@ -81,15 +81,16 @@ function item(id, kind, name, archive, installedSource, installedPath, extra) {
     }, extra || {});
 }
 
-function directFileItem(id, name, filename, installedPath, sha256, bytes, version) {
+function directFileItem(id, kind, name, filename, installedPath, sha256, bytes, version,
+                        url, fallbackUrl) {
     return {
         id,
-        kind: "voice",
+        kind,
         name,
         version: version || `upstream-${sha256.slice(0, 8)}`,
         archive: filename,
-        url: `${defaultBaseUrl}${filename}`,
-        fallbackUrl: `https://keyboard.futo.org/${filename}`,
+        url: url || `${defaultBaseUrl}${filename}`,
+        fallbackUrl: fallbackUrl || `https://keyboard.futo.org/${filename}`,
         rawFile: true,
         sha256,
         downloadBytes: bytes,
@@ -115,6 +116,7 @@ for (const style of ["twemoji", "openmoji", "noto"]) {
 
 items.push(directFileItem(
     "voice-multilingual-39",
+    "voice",
     "Multilingual - Default, fastest",
     "voice-input-multilingual-39.bin",
     "voice/tiny_acft_q8_0.bin",
@@ -125,6 +127,7 @@ items.push(directFileItem(
 
 items.push(directFileItem(
     "voice-english-39",
+    "voice",
     "English - Fastest",
     "voice-input-english-39.bin",
     "voice/english-39.bin",
@@ -133,6 +136,7 @@ items.push(directFileItem(
 ));
 items.push(directFileItem(
     "voice-english-74",
+    "voice",
     "English - Slower, more accurate",
     "voice-input-english-74.bin",
     "voice/english-74.bin",
@@ -141,6 +145,7 @@ items.push(directFileItem(
 ));
 items.push(directFileItem(
     "voice-english-244",
+    "voice",
     "English - Slowest, most accurate",
     "voice-input-english-244.bin",
     "voice/english-244.bin",
@@ -149,6 +154,7 @@ items.push(directFileItem(
 ));
 items.push(directFileItem(
     "voice-multilingual-74",
+    "voice",
     "Multilingual - Slower, more accurate",
     "voice-input-multilingual-74.bin",
     "voice/multilingual-74.bin",
@@ -157,11 +163,25 @@ items.push(directFileItem(
 ));
 items.push(directFileItem(
     "voice-multilingual-244",
+    "voice",
     "Multilingual - Slowest, most accurate",
     "voice-input-multilingual-244.bin",
     "voice/multilingual-244.bin",
     "15ef255465a6dc582ecf1ec651a4618c7ee2c18c05570bbe46493d248d465ac4",
     264464624
+));
+
+items.push(directFileItem(
+    "prediction-english-futo",
+    "prediction",
+    "English - Context-aware",
+    "futo-content-prediction-english-0.7.0-1.gguf",
+    "prediction/ml4_q6_k.gguf",
+    "6545c1c9ef2d76e9bfb87ad4fcf2061889513af84fcf30d907412be7fcdedb7b",
+    30662880,
+    "upstream-d87d9dbd",
+    "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.0/futo-content-prediction-english-0.7.0-1.gguf",
+    "https://gitlab.futo.org/keyboard/keyboard-large-resources/-/raw/d87d9dbdf3966bbe18413be375dab2f6c7bbdfdd/raw/ml4_q6_k.gguf"
 ));
 
 items.push(item(

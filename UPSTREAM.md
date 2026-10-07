@@ -22,6 +22,25 @@
   are documented in `dictionaries/README.md` and
   `LICENSES/ARABIC-DICTIONARY-ATTRIBUTION.md`.
 
+FUTO typed prediction:
+
+- KeyboardLM source comes from the Android Keyboard revision recorded above.
+- The optional official English v1 model comes from
+  https://gitlab.futo.org/keyboard/keyboard-large-resources.git at commit
+  `d87d9dbdf3966bbe18413be375dab2f6c7bbdfdd`.
+- Model file: `raw/ml4_q6_k.gguf`, 30,662,880 bytes.
+- SHA-256:
+  `6545c1c9ef2d76e9bfb87ad4fcf2061889513af84fcf30d907412be7fcdedb7b`.
+- The model identifies itself as English v1 and is therefore applied only to
+  English typing and next-word suggestions. Other languages keep the existing
+  dictionary and learned-context engine.
+- `prediction/generate-core.py` extracts the non-JNI KeyboardLM implementation
+  from the pinned source during the build. The worker compiles the same pinned
+  llama.cpp/ggml, SentencePiece and protobuf-lite sources and runs outside the
+  Maliit process.
+- Licensing and third-party notices are recorded in
+  `LICENSES/FUTO-PREDICTION-NOTICE.md`.
+
 Keyboard layout definitions:
 
 - Repository: https://github.com/futo-org/futo-keyboard-layouts

@@ -2,6 +2,7 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
 import Nemo.Configuration 1.0
+import com.meego.maliitquick 1.0
 import ".."
 
 BackspaceKey {
@@ -31,8 +32,13 @@ BackspaceKey {
     }
 
     function continueHoldRepeat() {
-        if (!backspaceKey.holdActive || backspaceKey.gestureMoved)
+        if (!MInputMethodQuick.active || !backspaceKey.holdActive
+                || backspaceKey.gestureMoved) {
+            repeatTimer.stop()
+            backspaceKey.holdActive = false
+            backspaceKey.pressed = false
             return
+        }
 
         var elapsed = Date.now() - backspaceKey.holdStartedAt
         backspaceKey.repeatTriggered = true
@@ -63,6 +69,17 @@ BackspaceKey {
         interval: 420
         repeat: false
         onTriggered: backspaceKey.continueHoldRepeat()
+    }
+
+    Connections {
+        target: MInputMethodQuick
+        onActiveChanged: {
+            if (!MInputMethodQuick.active) {
+                repeatTimer.stop()
+                backspaceKey.holdActive = false
+                backspaceKey.pressed = false
+            }
+        }
     }
 
     MouseArea {

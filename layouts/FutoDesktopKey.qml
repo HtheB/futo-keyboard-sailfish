@@ -2,6 +2,7 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
 import com.jolla.keyboard 1.0
+import com.meego.maliitquick 1.0
 import ".."
 
 FunctionKey {
@@ -160,6 +161,20 @@ FunctionKey {
         interval: 85
         repeat: true
         onTriggered: desktopKey.activate()
+    }
+
+    Connections {
+        target: MInputMethodQuick
+        onActiveChanged: {
+            if (!MInputMethodQuick.active) {
+                quickSettingsHoldTimer.stop()
+                repeatDelay.stop()
+                repeatTimer.stop()
+                desktopKey.repeatStarted = false
+                desktopKey.quickSettingsHoldTriggered = false
+                desktopKey.pressed = false
+            }
+        }
     }
 
     MouseArea {

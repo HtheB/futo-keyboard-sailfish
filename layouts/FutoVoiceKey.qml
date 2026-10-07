@@ -3,6 +3,7 @@ import QtQuick 2.0
 import Sailfish.Silica 1.0
 import Nemo.Configuration 1.0
 import com.jolla.keyboard 1.0
+import com.meego.maliitquick 1.0
 import ".."
 
 FunctionKey {
@@ -71,7 +72,7 @@ FunctionKey {
         visible: keyboard.inputHandler && keyboard.inputHandler.voiceRecording
 
         SequentialAnimation on opacity {
-            running: parent.visible
+            running: MInputMethodQuick.active && parent.visible
             loops: Animation.Infinite
             NumberAnimation { from: 0.45; to: 1.0; duration: 500 }
             NumberAnimation { from: 1.0; to: 0.45; duration: 500 }

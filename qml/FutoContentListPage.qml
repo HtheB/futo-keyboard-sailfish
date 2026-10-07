@@ -29,6 +29,8 @@ Page {
             return qsTr("Install one or more models for private offline voice typing.")
         if (packKind === "swipe")
             return qsTr("Install the FUTO Swipe model for accurate gesture typing in every supported language.")
+        if (packKind === "prediction")
+            return qsTr("Install FUTO's context-aware model for better typed suggestions. The official model currently supports English.")
         return qsTr("Install dictionaries only for the languages you use.")
     }
 

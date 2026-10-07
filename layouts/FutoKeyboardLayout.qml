@@ -505,7 +505,13 @@ Column {
         Timer {
             interval: 200
             repeat: true
-            running: !swipeTrail.touchSource
+            // Layout objects remain loaded while the keyboard is hidden. Only
+            // search for the current touch area while Maliit is actually on
+            // screen; otherwise this timer wakes maliit-server five times a
+            // second indefinitely.
+            running: MInputMethodQuick.active
+                     && keyboard.layout === keyboardLayout
+                     && !swipeTrail.touchSource
             onTriggered: swipeTrail.discoverTouchArea()
         }
 

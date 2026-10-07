@@ -543,11 +543,16 @@ public:
         const std::u32string normalizedKey(normalizedQuery.begin(), normalizedQuery.end());
         const bool exactEnglishContraction = allowEnglishContractions
                 && englishContractions().find(normalizedKey) != englishContractions().end();
-        if (!analysis.known || exactEnglishContraction) {
-            const std::string phrase = segmentPhrase(normalizedQuery, capitalize,
-                    allowEnglishContractions);
-            if (!phrase.empty() && phrase != queryUtf8) {
-                analysis.phrases.push_back(phrase);
+        // Very low-frequency exact entries can be common misspellings (for
+        // example "alot").  Do not let those suppress a substantially more
+        // plausible multi-term reading, while preserving established words
+        // and compounds.
+        if (!analysis.known || analysis.knownScore < 80 || exactEnglishContraction) {
+            for (const std::string &phrase : segmentPhrases(normalizedQuery,
+                    capitalize, allowEnglishContractions)) {
+                if (!phrase.empty() && phrase != queryUtf8) {
+                    analysis.phrases.push_back(phrase);
+                }
             }
         }
         return analysis;
@@ -799,12 +804,112 @@ public:
     }
 
 private:
+    struct SegmentCandidate {
+        std::string word;
+        int probability = 0;
+        bool transformed = false;
+        bool corrected = false;
+        bool transposed = false;
+    };
+
     struct PhraseState {
-        bool valid = false;
         std::int64_t score = std::numeric_limits<std::int64_t>::min();
         bool transformed = false;
+        bool corrected = false;
         std::vector<std::string> words;
     };
+
+    static bool betterPhraseState(const PhraseState &left,
+            const PhraseState &right) {
+        if (left.score != right.score) {
+            return left.score > right.score;
+        }
+        if (left.corrected != right.corrected) {
+            return !left.corrected;
+        }
+        return left.words.size() < right.words.size();
+    }
+
+    void retainPhraseState(std::vector<PhraseState> &states,
+            PhraseState candidate) const {
+        states.push_back(std::move(candidate));
+        std::sort(states.begin(), states.end(), betterPhraseState);
+        constexpr std::size_t beamWidth = 4;
+        if (states.size() > beamWidth) {
+            states.resize(beamWidth);
+        }
+    }
+
+    std::vector<SegmentCandidate> exactSegmentCandidates(CodeView key,
+            bool allowEnglishContractions) const {
+        std::vector<SegmentCandidate> result;
+        if (const Entry *exact = findExact(key)) {
+            const int probability = std::max(0, exact->probability);
+            std::string display = displayOf(*exact);
+            // The English pronoun is the one common one-letter word just below
+            // the old generic cut-off.  Treating it as noise is what prevented
+            // "ihave" from ever reaching the phrase ranker.
+            const bool englishPronoun = allowEnglishContractions && key.size() == 1
+                    && key[0] == static_cast<uint32_t>('i')
+                    && (display == "I" || display == "i");
+            if (probability >= 120
+                    && (key.size() > 1 || probability >= 200 || englishPronoun)) {
+                if (display == "OK") {
+                    display = "ok";
+                } else if (englishPronoun) {
+                    display = "I";
+                }
+                result.push_back({display, probability, false, false, false});
+            }
+        }
+        if (allowEnglishContractions) {
+            const std::u32string contractionKey(key.begin(), key.end());
+            const auto contraction = englishContractions().find(contractionKey);
+            if (contraction != englishContractions().end()) {
+                result.clear();
+                result.push_back({contraction->second, 255, true, false, false});
+            }
+        }
+        return result;
+    }
+
+    std::vector<SegmentCandidate> correctedSegmentCandidates(CodeView key,
+            bool capitalizeFirst) const {
+        std::vector<SegmentCandidate> result;
+        if (key.size() < 2 || key.size() > 12) {
+            return result;
+        }
+        const int minimumProbability = key.size() == 2 ? 160
+                : (key.size() == 3 ? 140 : 100);
+        for (const Entry *entry : mExactEntries) {
+            const CodeView spelling = normalizedOf(*entry);
+            if (std::abs(static_cast<int>(spelling.size())
+                    - static_cast<int>(key.size())) > 1) {
+                continue;
+            }
+            const int probability = std::max(0, entry->probability);
+            if (probability < minimumProbability
+                    || boundedDistance(key, spelling, 1) != 1) {
+                continue;
+            }
+            const bool transposed = isAdjacentTransposition(key, spelling);
+            result.push_back({formatDisplay(displayOf(*entry), capitalizeFirst),
+                    probability, false, true, transposed});
+        }
+        std::sort(result.begin(), result.end(), [](const SegmentCandidate &left,
+                const SegmentCandidate &right) {
+            const int leftScore = left.probability + (left.transposed ? 20 : 0);
+            const int rightScore = right.probability + (right.transposed ? 20 : 0);
+            if (leftScore != rightScore) {
+                return leftScore > rightScore;
+            }
+            return left.word.size() < right.word.size();
+        });
+        if (result.size() > 3) {
+            result.resize(3);
+        }
+        return result;
+    }
 
     void buildExactIndex() {
         mExactEntries.reserve(mEntries.size());
@@ -841,91 +946,111 @@ private:
         return *found;
     }
 
-    std::string segmentPhrase(const std::vector<uint32_t> &query,
+    std::vector<std::string> segmentPhrases(const std::vector<uint32_t> &query,
             bool capitalizeFirst, bool allowEnglishContractions) const {
         if (query.size() < 2 || query.size() > MAX_WORD_LENGTH) {
             return {};
         }
         const std::size_t maximumWords = 4;
-        std::vector<std::vector<PhraseState>> states(query.size() + 1,
-                std::vector<PhraseState>(maximumWords + 1));
-        states[0][0].valid = true;
-        states[0][0].score = 0;
+        std::vector<std::vector<std::vector<PhraseState>>> states(query.size() + 1,
+                std::vector<std::vector<PhraseState>>(maximumWords + 1));
+        states[0][0].push_back({0, false, false, {}});
+
+        // A fuzzy segment is only useful when the rest of the input can be
+        // segmented exactly.  Computing that first prevents an expensive scan
+        // of the whole dictionary at every possible substring boundary.
+        std::vector<bool> exactSuffix(query.size() + 1, false);
+        exactSuffix[query.size()] = true;
+        for (std::size_t start = query.size(); start-- > 0;) {
+            for (std::size_t end = start + 1; end <= query.size(); ++end) {
+                if (!exactSuffix[end]) {
+                    continue;
+                }
+                const CodeView key(query.data() + start, end - start);
+                if (!exactSegmentCandidates(key, allowEnglishContractions).empty()) {
+                    exactSuffix[start] = true;
+                    break;
+                }
+            }
+        }
 
         for (std::size_t start = 0; start < query.size(); ++start) {
             for (std::size_t wordCount = 0; wordCount < maximumWords; ++wordCount) {
-                if (!states[start][wordCount].valid) {
+                if (states[start][wordCount].empty()) {
                     continue;
                 }
                 for (std::size_t end = start + 1; end <= query.size(); ++end) {
                     const CodeView key(query.data() + start, end - start);
-                    std::string display;
-                    int probability = -1;
-                    if (const Entry *exact = findExact(key)) {
-                        probability = std::max(0, exact->probability);
-                        if (probability >= 120 && (key.size() > 1 || probability >= 200)) {
-                            display = displayOf(*exact);
-                            if (display == "OK") {
-                                display = "ok";
+                    std::vector<SegmentCandidate> candidates =
+                            exactSegmentCandidates(key, allowEnglishContractions);
+                    const bool canBridgeOneTypo = !exactSuffix[0] && exactSuffix[end]
+                            && query.size() <= 24;
+                    if (candidates.empty() && canBridgeOneTypo) {
+                        candidates = correctedSegmentCandidates(key,
+                                capitalizeFirst && start == 0);
+                    }
+                    for (const SegmentCandidate &segment : candidates) {
+                        for (const PhraseState &state : states[start][wordCount]) {
+                            if (state.corrected && segment.corrected) {
+                                continue;
                             }
+                            PhraseState next = state;
+                            next.score += static_cast<std::int64_t>(
+                                    segment.probability) * 1000000LL
+                                    // Every inferred word boundary carries a
+                                    // substantial prior cost. Without it, a
+                                    // chain of tiny high-frequency words beats
+                                    // a natural phrase simply by having more
+                                    // unigram scores to add.
+                                    - 220000000LL
+                                    - (segment.transformed ? 0 : 1000LL * key.size())
+                                    - (segment.corrected ? 55000000LL : 0)
+                                    + (segment.transposed ? 20000000LL : 0);
+                            next.transformed = next.transformed || segment.transformed;
+                            next.corrected = next.corrected || segment.corrected;
+                            next.words.push_back(segment.word);
+                            retainPhraseState(states[end][wordCount + 1],
+                                    std::move(next));
                         }
-                    }
-                    bool transformed = false;
-                    if (allowEnglishContractions) {
-                        const std::u32string contractionKey(key.begin(), key.end());
-                        const auto contraction =
-                                englishContractions().find(contractionKey);
-                        if (contraction != englishContractions().end()) {
-                            display = contraction->second;
-                            probability = 255;
-                            transformed = true;
-                        }
-                    }
-                    if (display.empty()) {
-                        continue;
-                    }
-                    const std::size_t nextCount = wordCount + 1;
-                    const std::int64_t nextScore = states[start][wordCount].score
-                            + static_cast<std::int64_t>(probability) * 1000000LL
-                            - 12000000LL - (transformed ? 0 : 1000LL * key.size());
-                    PhraseState &next = states[end][nextCount];
-                    if (!next.valid || nextScore > next.score) {
-                        next.valid = true;
-                        next.score = nextScore;
-                        next.transformed = states[start][wordCount].transformed || transformed;
-                        next.words = states[start][wordCount].words;
-                        next.words.push_back(display);
                     }
                 }
             }
         }
 
-        const PhraseState *best = nullptr;
+        std::vector<PhraseState> finals;
         for (std::size_t count = 1; count <= maximumWords; ++count) {
-            const PhraseState &candidate = states[query.size()][count];
-            if (!candidate.valid) {
+            for (const PhraseState &candidate : states[query.size()][count]) {
+                const bool transformedSingle = count == 1 && candidate.transformed;
+                if (count < 2 && !transformedSingle) {
+                    continue;
+                }
+                if (count >= 2 && query.size() < 4) {
+                    continue;
+                }
+                finals.push_back(candidate);
+            }
+        }
+        std::sort(finals.begin(), finals.end(), betterPhraseState);
+        std::vector<std::string> result;
+        for (const PhraseState &candidate : finals) {
+            std::ostringstream phrase;
+            for (std::size_t i = 0; i < candidate.words.size(); ++i) {
+                if (i) {
+                    phrase << ' ';
+                }
+                phrase << candidate.words[i];
+            }
+            const std::string display = formatDisplay(phrase.str(), capitalizeFirst);
+            if (display.empty()
+                    || std::find(result.begin(), result.end(), display) != result.end()) {
                 continue;
             }
-            const bool transformedSingle = count == 1 && candidate.transformed;
-            if ((count < 2 && !transformedSingle)
-                    || (count >= 2 && query.size() < 6 && !candidate.transformed)) {
-                continue;
-            }
-            if (!best || candidate.score > best->score) {
-                best = &candidate;
+            result.push_back(display);
+            if (result.size() >= 3) {
+                break;
             }
         }
-        if (!best) {
-            return {};
-        }
-        std::ostringstream phrase;
-        for (std::size_t i = 0; i < best->words.size(); ++i) {
-            if (i) {
-                phrase << ' ';
-            }
-            phrase << best->words[i];
-        }
-        return formatDisplay(phrase.str(), capitalizeFirst);
+        return result;
     }
 
     void loadEntries(const std::string &path) {

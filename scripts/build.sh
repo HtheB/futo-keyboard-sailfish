@@ -56,6 +56,7 @@ HOST_CXX=${HOST_CXX:-g++}
 DEPS_ROOT=${FUTO_DEPS_ROOT:-$ROOT/build/dependencies}
 SWIPE_SOURCE=${FUTO_SWIPE_SOURCE:-$DEPS_ROOT/sources/futo-swipe-library}
 SWIPE_ET_BUILD=${FUTO_SWIPE_ET_BUILD:-$SWIPE_SOURCE/third_party/executorch/cmake-out-sailfish-$ARCH}
+PREDICTION_SOURCE=${FUTO_PREDICTION_SOURCE:-$DEPS_ROOT/sources/android-keyboard}
 QT_SOURCE=${FUTO_QT_SOURCE:-$DEPS_ROOT/sources/qtbase-5.6.3}
 QT_INCLUDE_ROOT=${FUTO_QT_INCLUDE_ROOT:-$BUILD/qt-compose-includes/include}
 QT_CONFIG_ROOT=${FUTO_QT_CONFIG_ROOT:-$DEPS_ROOT/$ARCH/qt-config}
@@ -68,9 +69,12 @@ TARGET_SYSROOT=${FUTO_TARGET_SYSROOT:-}
 PATH_PREFIX_FLAGS=("-ffile-prefix-map=$ROOT=." "-fmacro-prefix-map=$ROOT=.")
 TARGET_COMPILE_FLAGS=("${PATH_PREFIX_FLAGS[@]}")
 TARGET_CMAKE_FLAGS=()
+PREDICTION_CMAKE_FLAGS=()
 TOOLCHAIN_SHIM=${FUTO_TOOLCHAIN_SHIM:-}
 TARGET_CPU_FLAGS=""
-if [[ "$ARCH" == i486 ]]; then
+if [[ "$ARCH" == armv7hl ]]; then
+    TARGET_CPU_FLAGS="-mfp16-format=ieee"
+elif [[ "$ARCH" == i486 ]]; then
     TARGET_CPU_FLAGS="-msse2 -mfpmath=sse"
 fi
 if [[ -n "$TARGET_SYSROOT" ]]; then
@@ -84,6 +88,17 @@ if [[ -n "$TARGET_SYSROOT" ]]; then
         -DCMAKE_C_FLAGS="-B$SWIPE_TOOL_SHIM $TARGET_CPU_FLAGS ${PATH_PREFIX_FLAGS[*]}"
         -DCMAKE_CXX_FLAGS="-B$SWIPE_TOOL_SHIM $TARGET_CPU_FLAGS ${PATH_PREFIX_FLAGS[*]}"
         -DCMAKE_ASM_FLAGS="-B$SWIPE_TOOL_SHIM"
+    )
+    PREDICTION_CMAKE_FLAGS=(
+        -DCMAKE_SYSROOT="$TARGET_SYSROOT"
+        -DCMAKE_C_FLAGS="-B$SWIPE_TOOL_SHIM $TARGET_CPU_FLAGS ${PATH_PREFIX_FLAGS[*]} -ffile-prefix-map=$PREDICTION_SOURCE=futo-android-keyboard"
+        -DCMAKE_CXX_FLAGS="-B$SWIPE_TOOL_SHIM $TARGET_CPU_FLAGS ${PATH_PREFIX_FLAGS[*]} -ffile-prefix-map=$PREDICTION_SOURCE=futo-android-keyboard"
+        -DCMAKE_ASM_FLAGS="-B$SWIPE_TOOL_SHIM"
+    )
+else
+    PREDICTION_CMAKE_FLAGS=(
+        -DCMAKE_C_FLAGS="$TARGET_CPU_FLAGS ${PATH_PREFIX_FLAGS[*]} -ffile-prefix-map=$PREDICTION_SOURCE=futo-android-keyboard"
+        -DCMAKE_CXX_FLAGS="$TARGET_CPU_FLAGS ${PATH_PREFIX_FLAGS[*]} -ffile-prefix-map=$PREDICTION_SOURCE=futo-android-keyboard"
     )
 fi
 if [[ -n "$TOOLCHAIN_SHIM" ]]; then
@@ -120,6 +135,10 @@ if [[ ${FUTO_SKIP_CORE_BUILD:-0} != 1 && ! -s "$SWIPE_ET_BUILD/libexecutorch.a" 
         FUTO_SWIPE_SOURCE="$SWIPE_SOURCE" \
         FUTO_SWIPE_ET_BUILD="$SWIPE_ET_BUILD" \
         "$ROOT/scripts/bootstrap-futo-swipe.sh"
+fi
+if [[ ${FUTO_SKIP_CORE_BUILD:-0} != 1 && ! -s "$PREDICTION_SOURCE/native/jni/src/ggml/LanguageModel.cpp" ]]; then
+    FUTO_PREDICTION_SOURCE="$PREDICTION_SOURCE" \
+        "$ROOT/scripts/bootstrap-futo-prediction.sh"
 fi
 
 "$ROOT/scripts/check-build-environment.sh"
@@ -204,6 +223,20 @@ cmake --build "$SWIPE_BUILD" --target futo-keyboard-swipe --parallel
 cp "$SWIPE_BUILD/futo-keyboard-swipe" "$BUILD/futo-keyboard-swipe"
 "$STRIP" "$BUILD/futo-keyboard-swipe"
 
+PREDICTION_BUILD="$BUILD/prediction-worker"
+cmake -S "$ROOT/prediction" -B "$PREDICTION_BUILD" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_SYSTEM_NAME=Linux \
+    -DCMAKE_SYSTEM_PROCESSOR="$ARCH" \
+    -DCMAKE_C_COMPILER="$CC" \
+    -DCMAKE_CXX_COMPILER="$CXX" \
+    "${PREDICTION_CMAKE_FLAGS[@]}" \
+    -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+    -DFUTO_ANDROID_SOURCE="$PREDICTION_SOURCE"
+cmake --build "$PREDICTION_BUILD" --target futo-keyboard-prediction --parallel
+cp "$PREDICTION_BUILD/futo-keyboard-prediction" "$BUILD/futo-keyboard-prediction"
+"$STRIP" "$BUILD/futo-keyboard-prediction"
+
 "$CC" "${TARGET_COMPILE_FLAGS[@]}" -std=c11 -O2 -DNDEBUG -fPIC -shared \
     -Wl,-soname,libfuto-maliit-policy.so.1 \
     "$ROOT/hardware/futo_maliit_policy.c" -ldl \
@@ -223,7 +256,7 @@ FUTO_BUILD_DIR="$BUILD" FUTO_TARGET_LIB_ROOT="$TARGET_LIB_ROOT" \
 FUTO_BUILD_DIR="$BUILD" FUTO_TARGET_LIB_ROOT="$TARGET_LIB_ROOT" \
     "$ROOT/scripts/build-wayland-deadkey-hook.sh"
 else
-    for required in futo-keyboard-engine futo-keyboard-swipe libfuto-maliit-policy.so.1 \
+    for required in futo-keyboard-engine futo-keyboard-swipe futo-keyboard-prediction libfuto-maliit-policy.so.1 \
             libcomposeplatforminputcontextplugin.so \
             libafutomaliitcomposewrapper.so libQt5WaylandClient.so.5.6.3 \
             libQt5WaylandClientFutoOriginal.so.5.6.3 stock-wayland.sha256; do
@@ -323,7 +356,7 @@ done
     -o "$BUILD/futo-keyboard-appsupport"
 "$STRIP" "$BUILD/futo-keyboard-appsupport"
 
-file "$BUILD/futo-keyboard-engine" "$BUILD/futo-keyboard-swipe" "$BUILD/futo-keyboard-helper" \
+file "$BUILD/futo-keyboard-engine" "$BUILD/futo-keyboard-swipe" "$BUILD/futo-keyboard-prediction" "$BUILD/futo-keyboard-helper" \
     "$BUILD/futo-keyboard-secrets" "$BUILD/futo-keyboard-keyring" \
     "$BUILD/futo-keyboard-focus" "$BUILD/futo-keyboard-appsupport" \
     "$BUILD/futo-keyboard-voice" \

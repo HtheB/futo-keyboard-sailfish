@@ -4,7 +4,7 @@
 %global _missing_build_ids_terminate_build 0
 
 Name:           futo-keyboard-sailfish
-Version:        0.6.2
+Version:        0.7.0
 Release:        1
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
 License:        LicenseRef-FUTO-Source-First-1.1-kb AND GPL-3.0-only AND BSD-3-Clause AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND LGPL-2.1-or-later AND (LGPL-2.1-only OR LGPL-3.0-only)
@@ -114,6 +114,8 @@ fi
 %license %{_licensedir}/%{name}/ARABIC-DICTIONARY-ATTRIBUTION.md
 %license %{_licensedir}/%{name}/FUTO-SWIPE-GPL-3.0.txt
 %license %{_licensedir}/%{name}/FUTO-SWIPE-MODEL-WEIGHTS-LICENSE.md
+%license %{_licensedir}/%{name}/FUTO-PREDICTION-NOTICE.md
+%license %{_licensedir}/%{name}/PROTOBUF-LITE-BSD-LICENSE.txt
 %license %{_licensedir}/%{name}/LIBX11-COMPOSE-LICENSE.txt
 %license %{_licensedir}/%{name}/QT-COMPOSE-NOTICE.md
 %license %{_licensedir}/%{name}/AMIRI-FONT-LICENSE.txt
@@ -122,6 +124,7 @@ fi
 %license %{_licensedir}/%{name}/MODIFIED-NOTICE.md
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-engine
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-swipe
+%attr(0755,root,root) %{_libexecdir}/futo-keyboard-prediction
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-helper
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-secrets
 %attr(4755,root,root) %{_libexecdir}/futo-keyboard-keyring
@@ -205,6 +208,15 @@ fi
 %{_userunitdir}/maliit-server.service.d/10-futo-hardware-policy.conf
 
 %changelog
+* Wed Oct 07 2026 HtheB - 0.7.0-1
+- Add an optional downloadable context-aware English prediction model for
+  better corrections and next-word suggestions.
+- Split joined words into natural phrases across supported dictionary
+  languages.
+- Prevent revealed passwords from being learned.
+- Produce fully uppercase swipe words while Caps Lock is enabled.
+- Stop hidden keyboard activity to reduce idle CPU usage and battery drain.
+
 * Sun Sep 20 2026 HtheB - 0.6.2-1
 - Restore automatic first-letter capitalization and one-tap Shift.
 - Make the first Backspace after automatic correction restore the original

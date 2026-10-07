@@ -62,6 +62,13 @@ Page {
 
             FutoSettingsMenuItem {
                 width: parent.width
+                text: qsTr("Prediction models")
+                iconSource: "image://theme/icon-m-levels"
+                onClicked: page.openCategory("prediction", qsTr("Prediction models"))
+            }
+
+            FutoSettingsMenuItem {
+                width: parent.width
                 text: qsTr("Swipe typing")
                 iconSource: "image://theme/icon-m-gesture"
                 onClicked: page.openCategory("swipe", qsTr("Swipe typing"))

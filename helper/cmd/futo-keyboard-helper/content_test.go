@@ -197,6 +197,23 @@ func TestContentManagerInstallsAndRemovesVerifiedRawFile(t *testing.T) {
 	}
 }
 
+func TestResolvedPredictionModelPathUsesInstalledModel(t *testing.T) {
+	model := filepath.Join(t.TempDir(), "ml4_q6_k.gguf")
+	if err := os.WriteFile(model, []byte("model"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("FUTO_PREDICTION_MODEL", model)
+	if got := resolvedPredictionModelPath(); got != model {
+		t.Fatalf("prediction model path = %q, want %q", got, model)
+	}
+	if err := os.Remove(model); err != nil {
+		t.Fatal(err)
+	}
+	if got := resolvedPredictionModelPath(); got != "" {
+		t.Fatalf("missing prediction model resolved as %q", got)
+	}
+}
+
 func TestContentManagerKeepsVerifiedRawFileAcrossManifestRevision(t *testing.T) {
 	directory := t.TempDir()
 	root := filepath.Join(directory, "content")

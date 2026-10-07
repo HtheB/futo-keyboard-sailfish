@@ -976,6 +976,44 @@ func TestHistoryLearnsNextWordAndLanguage(t *testing.T) {
 	}
 }
 
+func TestHistoryPhraseBonusIncludesContextAndInternalTransitions(t *testing.T) {
+	store := newHistoryStore(filepath.Join(t.TempDir(), "history.json"), &secureFileCodec{})
+	if err := store.accept("we", "have", "EN"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.accept("have", "fun", "EN"); err != nil {
+		t.Fatal(err)
+	}
+	if got := store.phraseBonus("we", "have fun"); got != 60000000 {
+		t.Fatalf("phrase bonus = %d, want 60000000", got)
+	}
+	if got := store.phraseBonus("they", "have fun"); got != 30000000 {
+		t.Fatalf("internal-only phrase bonus = %d, want 30000000", got)
+	}
+}
+
+func TestShouldUseModelCorrectionPrefersInferredSpaces(t *testing.T) {
+	tests := []struct {
+		candidate string
+		word      string
+		multiword bool
+		want      bool
+	}{
+		{candidate: "Ihave", word: "ihave", want: false},
+		{candidate: "I", word: "i", want: true},
+		{candidate: "doing", word: "doin", want: true},
+		{candidate: "down", word: "doin", multiword: true, want: false},
+		{candidate: "hello", word: "hello", want: false},
+	}
+	for _, test := range tests {
+		if got := shouldUseModelCorrection(test.candidate, test.word,
+			test.multiword); got != test.want {
+			t.Fatalf("shouldUseModelCorrection(%q, %q, %v) = %v, want %v",
+				test.candidate, test.word, test.multiword, got, test.want)
+		}
+	}
+}
+
 func TestHistoryRemoveWordForgetsEveryContext(t *testing.T) {
 	store := newHistoryStore(filepath.Join(t.TempDir(), "history.json"), &secureFileCodec{})
 	for _, previous := range []string{"hello", "goodbye"} {
@@ -1107,15 +1145,19 @@ func TestContextCorrectionProtectsOtherLanguagesAndLearnedWords(t *testing.T) {
 	}
 	for _, test := range tests {
 		got := chooseContextCorrection(test.known, test.learned,
-			"I'm", otherSuggestions, "im", 2)
+			"I'm", "", otherSuggestions, "im", 2)
 		if got != test.want {
 			t.Errorf("chooseContextCorrection(known=%v, learned=%v) = %q, want %q",
 				test.known, test.learned, got, test.want)
 		}
 	}
-	if got := chooseContextCorrection(false, false, "",
+	if got := chooseContextCorrection(false, false, "", "",
 		[]correctionWord{{Word: "the", Score: 190}}, "teh", 0); got != "the" {
 		t.Fatalf("ordinary dictionary correction = %q, want the", got)
+	}
+	if got := chooseContextCorrection(false, false, "", "I have",
+		[]correctionWord{{Word: "have", Score: 220}}, "ihave", 1); got != "I have" {
+		t.Fatalf("joined-word correction = %q, want I have", got)
 	}
 }
 
@@ -1129,6 +1171,60 @@ func TestMergeRankedSuggestionsDeduplicatesAcrossLanguages(t *testing.T) {
 	want := []string{"hel", "Helm", "Hello", "help"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("mergeRankedSuggestions() = %#v, want %#v", got, want)
+	}
+}
+
+func TestCompactPredictionContextKeepsRecentSentenceAndBoundsInput(t *testing.T) {
+	context := "An older sentence should disappear. one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen"
+	got := compactPredictionContext(context)
+	if strings.Contains(got, "older") {
+		t.Fatalf("old sentence remained in prediction context: %q", got)
+	}
+	if len([]rune(got)) > 70 {
+		t.Fatalf("prediction context has %d runes, want at most 70: %q",
+			len([]rune(got)), got)
+	}
+	if !strings.HasSuffix(got, "seventeen") {
+		t.Fatalf("recent words were not retained: %q", got)
+	}
+	if got := compactPredictionContext("hello\tworld\nagain"); got != "hello world again" {
+		t.Fatalf("worker fields were not flattened: %q", got)
+	}
+}
+
+func TestPredictionModelWordsFiltersInvalidAndDuplicateCandidates(t *testing.T) {
+	got := predictionModelWords(predictionModelResponse{Suggestions: []predictionModelSuggestion{
+		{Word: " doing ", Probability: 0.9},
+		{Word: "Doing", Probability: 0.8},
+		{Word: "two words", Probability: 0.7},
+		{Word: "can't", Probability: 0.6},
+	}})
+	want := []predictionModelSuggestion{
+		{Word: "doing", Probability: 0.9},
+		{Word: "can't", Probability: 0.6},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("filtered model words = %#v, want %#v", got, want)
+	}
+}
+
+func TestPredictionModelSettingsMatchCorrectionLevelsAndEnglishVariants(t *testing.T) {
+	if got := predictionModelThreshold(1); got != 4.0 {
+		t.Fatalf("balanced prediction threshold = %v, want FUTO default 4.0", got)
+	}
+	if !(predictionModelThreshold(0) > predictionModelThreshold(1) &&
+		predictionModelThreshold(1) > predictionModelThreshold(2)) {
+		t.Fatal("prediction thresholds do not become more permissive")
+	}
+	for _, language := range []string{"EN", "EN_GB", "EN_IN"} {
+		if !englishPredictionLanguage(language) {
+			t.Fatalf("%s should use the English context model", language)
+		}
+	}
+	for _, language := range []string{"NL", "DE", "AR", ""} {
+		if englishPredictionLanguage(language) {
+			t.Fatalf("%s must not use the English context model", language)
+		}
 	}
 }
 

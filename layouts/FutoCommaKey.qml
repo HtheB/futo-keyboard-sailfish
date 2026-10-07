@@ -130,7 +130,7 @@ FutoCharacterKey {
 		visible: parent.fallbackVoiceActive && parent.voiceHandler.voiceRecording
 
 		SequentialAnimation on opacity {
-			running: parent.visible
+			running: MInputMethodQuick.active && parent.visible
 			loops: Animation.Infinite
 			NumberAnimation { from: 0.45; to: 1.0; duration: 500 }
 			NumberAnimation { from: 1.0; to: 0.45; duration: 500 }

@@ -142,6 +142,22 @@
       ]
     },
     {
+      "id": "prediction-english-futo",
+      "kind": "prediction",
+      "name": "English - Context-aware",
+      "version": "upstream-d87d9dbd",
+      "archive": "futo-content-prediction-english-0.7.0-1.gguf",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.0/futo-content-prediction-english-0.7.0-1.gguf",
+      "fallbackUrl": "https://gitlab.futo.org/keyboard/keyboard-large-resources/-/raw/d87d9dbdf3966bbe18413be375dab2f6c7bbdfdd/raw/ml4_q6_k.gguf",
+      "rawFile": true,
+      "sha256": "6545c1c9ef2d76e9bfb87ad4fcf2061889513af84fcf30d907412be7fcdedb7b",
+      "downloadBytes": 30662880,
+      "installedBytes": 30662880,
+      "paths": [
+        "prediction/ml4_q6_k.gguf"
+      ]
+    },
+    {
       "id": "swipe-universal",
       "kind": "swipe",
       "name": "FUTO Swipe",
