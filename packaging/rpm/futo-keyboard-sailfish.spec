@@ -4,7 +4,7 @@
 %global _missing_build_ids_terminate_build 0
 
 Name:           futo-keyboard-sailfish
-Version:        0.7.0
+Version:        0.7.1
 Release:        1
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
 License:        LicenseRef-FUTO-Source-First-1.1-kb AND GPL-3.0-only AND BSD-3-Clause AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND LGPL-2.1-or-later AND (LGPL-2.1-only OR LGPL-3.0-only)
@@ -208,6 +208,9 @@ fi
 %{_userunitdir}/maliit-server.service.d/10-futo-hardware-policy.conf
 
 %changelog
+* Thu Oct 08 2026 HtheB - 0.7.1-1
+- Let users choose which FUTO Keyboard data is removed during uninstall.
+
 * Wed Oct 07 2026 HtheB - 0.7.0-1
 - Add an optional downloadable context-aware English prediction model for
   better corrections and next-word suggestions.
