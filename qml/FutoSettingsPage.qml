@@ -82,6 +82,7 @@ Page {
         settings.manualPredictionLanguage = ""
         settings.nextWordPredictionEnabled = true
         settings.predictionEnabled = true
+        settings.contextPredictionEnabled = true
         settings.autoCorrectionEnabled = false
         settings.punctuationCorrectionEnabled = false
         settings.correctionLevel = 0
@@ -184,6 +185,7 @@ Page {
         property string manualPredictionLanguage: ""
         property bool nextWordPredictionEnabled: true
         property bool predictionEnabled: true
+        property bool contextPredictionEnabled: true
         property bool autoCorrectionEnabled: false
         property bool punctuationCorrectionEnabled: false
         property int correctionLevel: 0

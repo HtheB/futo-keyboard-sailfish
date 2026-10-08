@@ -1075,6 +1075,15 @@ grep -Fq '6545c1c9ef2d76e9bfb87ad4fcf2061889513af84fcf30d907412be7fcdedb7b' \
 grep -Fq 'd87d9dbdf3966bbe18413be375dab2f6c7bbdfdd/raw/ml4_q6_k.gguf' \
     "$ROOT/content/manifest.json"
 grep -Fq 'Prediction models' "$ROOT/qml/FutoContentPage.qml"
+grep -Fq 'Use context-aware English model' "$ROOT/qml/FutoTypingPage.qml"
+grep -Fq 'property bool contextPredictionEnabled: true' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'keyboardSettings.contextPredictionEnabled' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'usePredictionModel && englishPredictionLanguage' \
+    "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+grep -Fq 'SetContextPredictionEnabled' \
+    "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
 grep -Fq 'FUTO_PREDICTION_ENGINE' \
     "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
 grep -Fq 'futo-keyboard-prediction' "$ROOT/packaging/Makefile"

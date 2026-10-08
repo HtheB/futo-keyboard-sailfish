@@ -1,15 +1,96 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
 import Nemo.Configuration 1.0
+import Nemo.DBus 2.0
 
 Page {
     id: page
     allowedOrientations: Orientation.All
 
+    property bool predictionContentReady: false
+    property bool predictionModelInstalled: false
+    property bool pendingPredictionDownloads: false
+    property bool requestedPredictionEnable: false
+
+    onStatusChanged: {
+        if (status === PageStatus.Active) {
+            refreshPredictionContent()
+            if (pendingPredictionDownloads && !predictionDownloadNavigation.running)
+                predictionDownloadNavigation.start()
+        }
+    }
+
+    Timer {
+        id: predictionDownloadNavigation
+        interval: 1
+        repeat: false
+        onTriggered: {
+            page.pendingPredictionDownloads = false
+            pageStack.push(Qt.resolvedUrl("FutoContentListPage.qml"), {
+                "packKind": "prediction",
+                "pageTitle": qsTr("Prediction models"),
+                "requestedPackId": "prediction-english-futo"
+            })
+        }
+    }
+
+    function setContextPredictionEnabled(enabled) {
+        settings.contextPredictionEnabled = !!enabled
+        helper.typedCall("SetContextPredictionEnabled", [
+            { "type": "b", "value": !!enabled }
+        ], function() {}, function() {})
+    }
+
+    function refreshPredictionContent() {
+        if (helper.status !== DBusInterface.Available)
+            return
+        helper.typedCall("ContentStatus", [], function(resultJson) {
+            var result
+            try {
+                result = JSON.parse(String(resultJson))
+            } catch (error) {
+                return
+            }
+            var installed = false
+            var items = result.items || []
+            for (var i = 0; i < items.length; ++i) {
+                if (String(items[i].id) === "prediction-english-futo") {
+                    installed = !!items[i].installed
+                    break
+                }
+            }
+            page.predictionModelInstalled = installed
+            page.predictionContentReady = true
+            if (installed && page.requestedPredictionEnable) {
+                page.setContextPredictionEnabled(true)
+                page.requestedPredictionEnable = false
+            } else if (!installed && settings.contextPredictionEnabled) {
+                page.setContextPredictionEnabled(false)
+            } else if (!installed && page.status === PageStatus.Active
+                       && !page.pendingPredictionDownloads
+                       && !predictionDownloadNavigation.running) {
+                page.requestedPredictionEnable = false
+            }
+        })
+    }
+
+    function openPredictionDownloads() {
+        var dialog = pageStack.push(Qt.resolvedUrl("FutoContentRequiredDialog.qml"), {
+            "contentName": qsTr("context-aware English prediction model"),
+            "explanation": qsTr("Context-aware predictions need the optional English model. "
+                                + "Open the Prediction models downloader to install it?")
+        })
+        dialog.accepted.connect(function() {
+            page.requestedPredictionEnable = true
+            page.pendingPredictionDownloads = true
+        })
+    }
+
     ConfigurationGroup {
         id: settings
         path: "/sailfish/text_input/futo_keyboard"
         property bool predictionEnabled: true
+        property bool contextPredictionEnabled: true
         property bool nextWordPredictionEnabled: true
         property bool autoCorrectionEnabled: false
         property bool punctuationCorrectionEnabled: false
@@ -24,6 +105,28 @@ Page {
         property bool undoCorrectionEnabled: true
         property bool centerPredictions: false
     }
+
+    DBusInterface {
+        id: helper
+        bus: DBus.SessionBus
+        service: "org.hb.FutoKeyboard1"
+        path: "/org/hb/FutoKeyboard1"
+        iface: "org.hb.FutoKeyboard1"
+        signalsEnabled: true
+        watchServiceStatus: true
+
+        function contentChanged(packId, state) {
+            if (String(packId) === "prediction-english-futo")
+                page.refreshPredictionContent()
+        }
+
+        onStatusChanged: {
+            if (status === DBusInterface.Available)
+                page.refreshPredictionContent()
+        }
+    }
+
+    Component.onCompleted: refreshPredictionContent()
 
     FutoSettingsTestPanel {
         id: testPanel
@@ -69,6 +172,26 @@ Page {
                         settings.autoCorrectionEnabled = false
                         settings.punctuationCorrectionEnabled = false
                     }
+                }
+            }
+
+            TextSwitch {
+                width: parent.width
+                enabled: settings.predictionEnabled
+                         && (page.predictionContentReady
+                             || settings.contextPredictionEnabled)
+                automaticCheck: false
+                checked: settings.contextPredictionEnabled
+                text: qsTr("Use context-aware English model")
+                description: page.predictionModelInstalled
+                        ? qsTr("Uses the downloaded model for better English corrections "
+                               + "and next-word suggestions.")
+                        : qsTr("Requires the optional English prediction model download.")
+                onClicked: {
+                    if (!checked && !page.predictionModelInstalled)
+                        page.openPredictionDownloads()
+                    else
+                        page.setContextPredictionEnabled(!checked)
                 }
             }
 

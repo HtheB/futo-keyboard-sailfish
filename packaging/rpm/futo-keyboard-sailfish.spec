@@ -210,6 +210,8 @@ fi
 %changelog
 * Thu Oct 08 2026 HtheB - 0.7.1-1
 - Let users choose which FUTO Keyboard data is removed during uninstall.
+- Add a switch for enabling or disabling the downloaded context-aware English
+  prediction model.
 
 * Wed Oct 07 2026 HtheB - 0.7.0-1
 - Add an optional downloadable context-aware English prediction model for

@@ -1564,6 +1564,7 @@ InputHandler {
         property bool automaticLanguageDetection: true
         property bool nextWordPredictionEnabled: true
         property bool predictionEnabled: true
+        property bool contextPredictionEnabled: true
         property bool autoCorrectionEnabled: false
         property bool punctuationCorrectionEnabled: false
         property int correctionLevel: 0
@@ -1626,6 +1627,12 @@ InputHandler {
         onEnabledLanguagesChanged: futoHandler.requestSuggestionsSoon()
         onAutomaticLanguageDetectionChanged: futoHandler.requestSuggestionsSoon()
         onNextWordPredictionEnabledChanged: futoHandler.requestSuggestionsSoon()
+        onContextPredictionEnabledChanged: {
+            helper.typedCall("SetContextPredictionEnabled", [
+                { "type": "b", "value": contextPredictionEnabled }
+            ], function() {}, function() {})
+            futoHandler.requestSuggestionsSoon()
+        }
         onPredictionEnabledChanged: {
 			// Do not leave an old composing span behind when suggestions are
 			// disabled from Settings while an editor is still focused.
@@ -4561,7 +4568,8 @@ InputHandler {
             { "type": "s", "value": enabledLanguages() },
             { "type": "s", "value": context },
             { "type": "i", "value": suggestionLimit },
-            { "type": "b", "value": sentenceStart }
+            { "type": "b", "value": sentenceStart },
+            { "type": "b", "value": keyboardSettings.contextPredictionEnabled }
         ], function(resultJson) {
             if (serial !== futoHandler.requestSerial || futoHandler.preedit !== "")
                 return
@@ -4621,7 +4629,8 @@ InputHandler {
             { "type": "i", "value": suggestionLimit },
             { "type": "i", "value": correctionLevel },
             { "type": "b", "value": keyboardSettings.showTypedWord },
-            { "type": "b", "value": keyboardSettings.automaticLanguageDetection }
+            { "type": "b", "value": keyboardSettings.automaticLanguageDetection },
+            { "type": "b", "value": keyboardSettings.contextPredictionEnabled }
         ], function(resultJson) {
             if (serial !== futoHandler.requestSerial
                     || query !== futoHandler.activeSuggestionQuery

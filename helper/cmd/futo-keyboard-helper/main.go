@@ -4474,7 +4474,8 @@ func chooseContextCorrection(known, learned bool, contraction, phrase string,
 }
 
 func (service *service) analyzeContext(languagesCSV, word, context string,
-	limit, correctionLevel int32, showTyped, automaticLanguageDetection bool) (combinedAnalysis, error) {
+	limit, correctionLevel int32, showTyped, automaticLanguageDetection,
+	usePredictionModel bool) (combinedAnalysis, error) {
 	result := combinedAnalysis{Suggestions: []string{}}
 	if !validWord(word) {
 		return result, nil
@@ -4569,7 +4570,8 @@ func (service *service) analyzeContext(languagesCSV, word, context string,
 			}
 		}
 	}
-	if englishPredictionLanguage(detectedLanguage) && resolvedPredictionModelPath() != "" {
+	if usePredictionModel && englishPredictionLanguage(detectedLanguage) &&
+		resolvedPredictionModelPath() != "" {
 		modelResult, modelErr := service.predictionEngine.predict(
 			compactPredictionContext(context), word,
 			predictionModelThreshold(correctionLevel))
@@ -4675,13 +4677,14 @@ func stdMax(left, right int) int {
 func (service *service) Analyze(languagesCSV, word string, limit, correctionLevel int32,
 	showTyped bool) (string, *dbus.Error) {
 	return service.AnalyzeContext(languagesCSV, word, "", limit, correctionLevel,
-		showTyped, true)
+		showTyped, true, true)
 }
 
 func (service *service) AnalyzeContext(languagesCSV, word, context string,
-	limit, correctionLevel int32, showTyped, automaticLanguageDetection bool) (string, *dbus.Error) {
+	limit, correctionLevel int32, showTyped, automaticLanguageDetection,
+	usePredictionModel bool) (string, *dbus.Error) {
 	result, err := service.analyzeContext(languagesCSV, word, context, limit,
-		correctionLevel, showTyped, automaticLanguageDetection)
+		correctionLevel, showTyped, automaticLanguageDetection, usePredictionModel)
 	if err != nil {
 		return "", dbus.MakeFailedError(err)
 	}
@@ -4793,7 +4796,7 @@ func (service *service) AcceptSwipeCorrection(language, source, replacement stri
 }
 
 func (service *service) NextWords(languagesCSV, context string, limit int32,
-	capitalize bool) (string, *dbus.Error) {
+	capitalize, usePredictionModel bool) (string, *dbus.Error) {
 	if limit < 1 {
 		limit = 1
 	} else if limit > 20 {
@@ -4820,7 +4823,8 @@ func (service *service) NextWords(languagesCSV, context string, limit int32,
 	if modelLanguage == "" && len(languages) == 1 {
 		modelLanguage = languages[0]
 	}
-	if englishPredictionLanguage(modelLanguage) && resolvedPredictionModelPath() != "" {
+	if usePredictionModel && englishPredictionLanguage(modelLanguage) &&
+		resolvedPredictionModelPath() != "" {
 		modelResult, modelErr := service.predictionEngine.predict(
 			compactPredictionContext(context), "", 1.0)
 		if modelErr != nil {
@@ -4865,6 +4869,16 @@ func (service *service) NextWords(languagesCSV, context string, limit int32,
 		return "", dbus.MakeFailedError(err)
 	}
 	return string(data), nil
+}
+
+// SetContextPredictionEnabled immediately releases the optional model when it
+// is disabled. Individual prediction requests still carry the setting so the
+// worker cannot be started again while the switch remains off.
+func (service *service) SetContextPredictionEnabled(enabled bool) (bool, *dbus.Error) {
+	if !enabled {
+		service.predictionEngine.reload()
+	}
+	return enabled, nil
 }
 
 func (service *service) Accept(language, word string) (bool, *dbus.Error) {
