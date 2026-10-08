@@ -1,15 +1,16 @@
-# FUTO Keyboard for Sailfish OS 0.6.2
+# FUTO Keyboard for Sailfish OS 0.7.1
 
-## Fixes
+## New features
 
-- Automatic first-letter capitalization and one-tap Shift work correctly
-  again.
-- The first Backspace after automatic correction restores the original word
-  without deleting the following space or punctuation.
-- Uninstalling restores Sailfish's original Arabic font rendering immediately,
-  without requiring a reboot.
-- Uninstalling now requires an explicit button press and a cancellable
-  countdown, with a clear warning before the home screen restarts and running
-  applications close.
-- Sailfish switches to an installed stock keyboard after FUTO is removed, even
-  if its settings contain old or missing keyboard entries.
+- Added the official Bulgarian BDS keyboard layout alongside the existing
+  Bulgarian phonetic layout.
+- Added downloadable prediction dictionaries for Afrikaans, Azerbaijani,
+  Belarusian, Bulgarian, Bengali, Catalan, Esperanto, Estonian, Basque,
+  Galician, Hindi, Hinglish, Armenian, Icelandic, Indonesian, Georgian,
+  Kabyle, Kazakh, Khmer, Kannada, Macedonian, Malayalam, Marathi, Nepali,
+  Punjabi, Slovak, Tamil, Telugu, Thai, Filipino, Toki Pona, Ukrainian, Urdu
+  and Standard Moroccan Tamazight.
+- Added a switch for the downloadable context prediction model, so it can be
+  turned off without removing the downloaded model.
+- The uninstall screen now lets you choose which settings, learned data,
+  passwords and downloaded content should be deleted or kept.

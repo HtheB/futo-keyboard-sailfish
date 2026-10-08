@@ -5,6 +5,24 @@ FUTO/AOSP revision (`upstream/dictionaries/`) does not ship.  They use the
 same AOSP `combined` text format and are compiled by `scripts/build.sh` with
 the regular dictionary compiler.
 
+## FUTO community dictionary conversions
+
+The `af`, `az`, `be`, `bg`, `bn`, `ca`, `eo`, `et`, `eu`, `gl`, `hi`,
+`hi_Latn`, `hy`, `id`, `is`, `ka`, `kab`, `kk`, `km`, `kn`, `mk`, `ml`,
+`mr`, `ne`, `pa`, `sk`, `ta`, `te`, `th`, `tl`, `tok`, `uk`, `ur` and `zgh`
+lists are deterministic word/frequency conversions of the AOSP binary
+dictionaries linked by FUTO Keyboard. Inputs are pinned to the
+Helium314 collection revision recorded in `UPSTREAM.md`; stable entries are
+preferred, with experimental entries used only where FUTO offers no stable
+file. Their provenance and license groups are documented in
+`LICENSES/FUTO-COMMUNITY-DICTIONARIES-ATTRIBUTION.md`.
+
+The converted files contain only word records used by the Sailfish prediction
+and swipe engines. Shortcuts and n-grams from the Android container are not
+invented or flattened into ordinary words. The AOSP frequency byte is retained
+exactly. A safety bound of one million words applies to unusually large source
+dictionaries so that an optional language does not exhaust Maliit's memory.
+
 ## hu_wordlist.combined.gz — Hungarian (Magyar)
 
 Built by `scripts/build-frequency-wordlist.py` (see its header for the exact

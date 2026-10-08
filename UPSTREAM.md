@@ -21,6 +21,15 @@
   Hunspell dictionary. Exact inputs, hashes, transformations and license choice
   are documented in `dictionaries/README.md` and
   `LICENSES/ARABIC-DICTIONARY-ATTRIBUTION.md`.
+- Additional optional language dictionaries are converted from the AOSP
+  dictionary files linked by FUTO at https://keyboard.futo.tech/dictionaries,
+  pinned to Helium314/aosp-dictionaries commit
+  `795c8c4ab3de8286152f53855e006e8362a62103`. Stable files are used wherever
+  offered; Afrikaans, Estonian, Icelandic, Indonesian, Kabyle, Kazakh, Nepali,
+  Slovak and Filipino use the catalogue's explicitly marked experimental files
+  because no stable alternative exists.
+  Exact language coverage and source-license groups are recorded in
+  `LICENSES/FUTO-COMMUNITY-DICTIONARIES-ATTRIBUTION.md`.
 
 FUTO typed prediction:
 

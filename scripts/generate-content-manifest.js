@@ -13,7 +13,24 @@ const packVersion = "0.4.0-1";
 // Only these carry a new version and filename; every other archive already
 // published stays exactly where it is and is never re-downloaded.
 const packVersionOverrides = {
-    "dictionary-ro": "0.4.2-1"
+    "dictionary-ro": "0.4.2-1",
+    "dictionary-af": "0.7.1-1", "dictionary-be": "0.7.1-1",
+    "dictionary-bg": "0.7.1-1", "dictionary-bn": "0.7.1-1",
+    "dictionary-ca": "0.7.1-1", "dictionary-eo": "0.7.1-1",
+    "dictionary-eu": "0.7.1-1", "dictionary-gl": "0.7.1-1",
+    "dictionary-hi": "0.7.1-1", "dictionary-hi-latn": "0.7.1-1",
+    "dictionary-hy": "0.7.1-1", "dictionary-id": "0.7.1-1",
+    "dictionary-ka": "0.7.1-1", "dictionary-kab": "0.7.1-1",
+    "dictionary-kk": "0.7.1-1", "dictionary-kn": "0.7.1-1",
+    "dictionary-ml": "0.7.1-1", "dictionary-mr": "0.7.1-1",
+    "dictionary-pa": "0.7.1-1", "dictionary-sk": "0.7.1-1",
+    "dictionary-ta": "0.7.1-1", "dictionary-te": "0.7.1-1",
+    "dictionary-tok": "0.7.1-1", "dictionary-uk": "0.7.1-1",
+    "dictionary-ur": "0.7.1-1", "dictionary-az": "0.7.1-1",
+    "dictionary-et": "0.7.1-1", "dictionary-is": "0.7.1-1",
+    "dictionary-km": "0.7.1-1", "dictionary-mk": "0.7.1-1",
+    "dictionary-ne": "0.7.1-1", "dictionary-th": "0.7.1-1",
+    "dictionary-tl": "0.7.1-1", "dictionary-zgh": "0.7.1-1"
 };
 
 function versionFor(id) {
@@ -49,7 +66,41 @@ const languages = [
     ["SR", "Српски (ћирилица)", "sr.fksidx", "sr"],
     ["SR_LATN", "Srpski (latinica)", "sr_Latn.fksidx", "sr-latn"],
     ["AR", "العربية", "ar.fksidx", "ar"],
-    ["FA", "فارسی", "fa.fksidx", "fa"]
+    ["FA", "فارسی", "fa.fksidx", "fa"],
+    ["AF", "Afrikaans", "af.fksidx", "af"],
+    ["BE_BY", "Беларуская", "be.fksidx", "be"],
+    ["BG", "Български", "bg.fksidx", "bg"],
+    ["BN_IN", "বাংলা", "bn.fksidx", "bn"],
+    ["CA", "Català", "ca.fksidx", "ca"],
+    ["EO", "Esperanto", "eo.fksidx", "eo"],
+    ["EU_ES", "Euskara", "eu.fksidx", "eu"],
+    ["GL_ES", "Galego", "gl.fksidx", "gl"],
+    ["HI", "हिन्दी", "hi.fksidx", "hi"],
+    ["HI_LATN", "Hinglish", "hi_Latn.fksidx", "hi-latn"],
+    ["HY_AM", "Հայերեն", "hy.fksidx", "hy"],
+    ["IN", "Bahasa Indonesia", "id.fksidx", "id"],
+    ["KA_GE", "ქართული", "ka.fksidx", "ka"],
+    ["KAB", "Taqbaylit", "kab.fksidx", "kab"],
+    ["KK", "Қазақ тілі", "kk.fksidx", "kk"],
+    ["KN_IN", "ಕನ್ನಡ", "kn.fksidx", "kn"],
+    ["ML_IN", "മലയാളം", "ml.fksidx", "ml"],
+    ["MR_IN", "मराठी", "mr.fksidx", "mr"],
+    ["PA_IN", "ਪੰਜਾਬੀ", "pa.fksidx", "pa"],
+    ["SK", "Slovenčina", "sk.fksidx", "sk"],
+    ["TA_IN", "தமிழ்", "ta.fksidx", "ta"],
+    ["TE_IN", "తెలుగు", "te.fksidx", "te"],
+    ["TOK", "toki pona", "tok.fksidx", "tok"],
+    ["UK", "Українська", "uk.fksidx", "uk"],
+    ["UR", "اردو", "ur.fksidx", "ur"],
+    ["AZ_AZ", "Azərbaycanca", "az.fksidx", "az"],
+    ["ET_EE", "Eesti", "et.fksidx", "et"],
+    ["IS", "Íslenska", "is.fksidx", "is"],
+    ["KM_KH", "ភាសាខ្មែរ", "km.fksidx", "km"],
+    ["MK", "Македонски", "mk.fksidx", "mk"],
+    ["NE_NP", "नेपाली", "ne.fksidx", "ne"],
+    ["TH", "ไทย", "th.fksidx", "th"],
+    ["TL", "Filipino", "tl.fksidx", "tl"],
+    ["ZGH", "ⵜⴰⵎⴰⵣⵉⵖⵜ", "zgh.fksidx", "zgh"]
 ];
 
 function recursiveSize(filename) {
@@ -194,14 +245,20 @@ items.push(item(
 ));
 
 for (const [code, name, filename, slug] of languages) {
+    const id = `dictionary-${slug}`;
+    const version = versionFor(id);
+    const archive = `futo-content-dictionary-${slug}-${version}.tar.gz`;
+    const extra = { languageCode: code };
+    if (version === "0.7.1-1")
+        extra.url = `https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/${archive}`;
     items.push(item(
-        `dictionary-${slug}`,
+        id,
         "dictionary",
         name,
-        `futo-content-dictionary-${slug}-${versionFor(`dictionary-${slug}`)}.tar.gz`,
+        archive,
         path.join(projectRoot, "build/dictionaries", filename),
         `dictionaries/${filename}`,
-        { languageCode: code }
+        extra
     ));
 }
 

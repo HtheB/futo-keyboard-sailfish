@@ -215,6 +215,7 @@ check:
 	@test -s LICENSES/NOTO-EMOJI-SVG-LICENSE.txt || exit 1
 	@test -s LICENSES/UNICODE-LICENSE.txt || exit 1
 	@test -s LICENSES/FUTO-LAYOUTS-ATTRIBUTION.md || exit 1
+	@test -s LICENSES/FUTO-COMMUNITY-DICTIONARIES-ATTRIBUTION.md || exit 1
 	@test -s LICENSES/ALINA-PERSIAN-KEYBOARD-BSD.txt || exit 1
 	@test -s LICENSES/PERSIAN-DICTIONARY-ATTRIBUTION.md || exit 1
 	@test -s LICENSES/ARABIC-DICTIONARY-ATTRIBUTION.md || exit 1
@@ -369,6 +370,8 @@ install: check
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/UNICODE-LICENSE.txt"
 	install -Dm0644 LICENSES/FUTO-LAYOUTS-ATTRIBUTION.md \
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/FUTO-LAYOUTS-ATTRIBUTION.md"
+	install -Dm0644 LICENSES/FUTO-COMMUNITY-DICTIONARIES-ATTRIBUTION.md \
+		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/FUTO-COMMUNITY-DICTIONARIES-ATTRIBUTION.md"
 	install -Dm0644 LICENSES/ALINA-PERSIAN-KEYBOARD-BSD.txt \
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/ALINA-PERSIAN-KEYBOARD-BSD.txt"
 	install -Dm0644 LICENSES/HUNGARIAN-DICTIONARY-ATTRIBUTION.md \

@@ -45,16 +45,33 @@ EXCLUDED_LANGUAGES = {
 }
 
 # FUTO dictionaries use either the complete locale or the base language.  Only
-# entries backed by a real downloadable pack are listed here.
+# entries backed by a real downloadable pack in the same script are listed
+# here.  In particular, the available Belarusian, Kazakh and Tamazight packs
+# must not be attached to their Latin-script layout variants.
 PREDICTION_PACKS = {
-    "ar": "ar", "cs": "cs", "da": "da", "de": "de", "de_CH": "de",
-    "el": "el", "en_GB": "en-gb", "en_IN": "en-gb", "en_US": "en-us",
-    "es": "es", "es_419": "es", "es_US": "es", "fa": "fa", "fi": "fi",
-    "fr": "fr", "fr_CA": "fr", "fr_CH": "fr", "hr": "hr", "hu": "hu",
-    "it": "it", "it_CH": "it", "lt": "lt", "lv": "lv", "nb": "nb",
-    "nl": "nl", "nl_BE": "nl", "pl": "pl", "pt_BR": "pt-br",
-    "pt_PT": "pt-pt", "ro": "ro", "ru": "ru", "sl": "sl", "sr": "sr",
-    "sr_Latn": "sr-latn", "sv": "sv", "tr": "tr",
+    "af": "af", "ar": "ar", "az_AZ": "az", "be_BY": "be", "bg": "bg", "bn_BD": "bn",
+    "bn_IN": "bn", "ca": "ca", "cs": "cs", "da": "da", "de": "de",
+    "de_CH": "de", "el": "el", "en_GB": "en-gb", "en_IN": "en-gb",
+    "en_US": "en-us", "eo": "eo", "es": "es", "es_419": "es",
+    "es_US": "es", "et_EE": "et", "eu_ES": "eu", "fa": "fa", "fi": "fi", "fr": "fr",
+    "fr_CA": "fr", "fr_CH": "fr", "gl_ES": "gl", "hi": "hi",
+    "hi_Latn": "hi-latn", "hr": "hr", "hu": "hu", "hy_AM": "hy",
+    "in": "id", "is": "is", "it": "it", "it_CH": "it", "ka_GE": "ka", "kab": "kab",
+    "kk": "kk", "km_KH": "km", "kn_IN": "kn", "lt": "lt", "lv": "lv", "mk": "mk",
+    "ml_IN": "ml", "mr_IN": "mr", "nb": "nb", "ne_NP": "ne", "nl": "nl",
+    "nl_BE": "nl", "pa_IN": "pa",
+    "pl": "pl", "pt_BR": "pt-br", "pt_PT": "pt-pt", "ro": "ro", "ru": "ru",
+    "sk": "sk", "sl": "sl", "sr": "sr", "sr_Latn": "sr-latn", "sv": "sv",
+    "ta_IN": "ta", "ta_LK": "ta", "ta_SG": "ta", "te_IN": "te",
+    "th": "th", "tl": "tl", "tok": "tok", "tr": "tr", "uk": "uk", "ur": "ur",
+    "zgh": "zgh",
+}
+
+# Alternatives intentionally exposed alongside the first upstream language
+# layout.  Most upstream mappings contain technical or specialist variants;
+# only variants explicitly supported by the Sailfish UI belong here.
+EXTRA_LANGUAGE_LAYOUTS = {
+    "bg": ("bulgarian_bds",),
 }
 
 
@@ -343,6 +360,51 @@ def has_latin_lead(value: str) -> bool:
     return True
 
 
+def generated_layout(root: pathlib.Path, files: dict[str, pathlib.Path],
+                     layout_id: str, texts: dict[str, Any]) -> dict[str, Any]:
+    """Parse one directly typed upstream layout into the Sailfish data shape."""
+    path = files[layout_id]
+    document = load_yaml(path)
+    letter_rows: list[list[dict[str, Any]]] = []
+    number_row: list[dict[str, Any]] = []
+    bottom_row: list[dict[str, Any]] = []
+    for row in document.get("rows", []):
+        kind, values = row_values(row)
+        if kind == "bottom":
+            # Sailfish supplies the functional bottom row. Its presence is
+            # still significant because upstream then does not auto-add
+            # Shift/Delete to the final letter row.
+            bottom_row = [{"kind": "custom"}]
+            continue
+        parsed = [parse_key(value, texts) for value in values]
+        if kind == "letters":
+            letter_rows.append(parsed)
+        elif kind == "numbers":
+            number_row = parsed
+
+    explicit_templates = any(key.get("kind") != "character"
+                             for row in letter_rows for key in row)
+    if not bottom_row and not explicit_templates and letter_rows:
+        letter_rows[-1] = ([{"kind": "shift"}] + letter_rows[-1]
+                           + [{"kind": "delete"}])
+    max_characters = max((sum(key.get("kind") == "character" for key in row)
+                          for row in letter_rows), default=0)
+    return {
+        "id": layout_id,
+        "name": str(document.get("name", layout_id)),
+        "script": script_for(root, path, layout_id),
+        "rtl": path.relative_to(root).parts[0] == "ArabicScript",
+        "shiftable": bool((document.get("attributes") or {}).get("shiftable", True)),
+        "autoShift": bool(document.get("autoShift", True)),
+        "numberRowMode": str(document.get("numberRowMode", "Default")),
+        "rows": letter_rows,
+        "numberRow": number_row,
+        "bottomRow": bottom_row,
+        "independentSizing": max_characters >= 11
+            or path.relative_to(root).parts[0] not in {"Default", "LatinScript"},
+    }
+
+
 def generate(root: pathlib.Path, android_root: pathlib.Path, android_revision: str,
              output: pathlib.Path, language_output: pathlib.Path) -> None:
     mapping = load_yaml(root / "mapping.yaml")["languages"]
@@ -352,7 +414,7 @@ def generate(root: pathlib.Path, android_root: pathlib.Path, android_revision: s
     android_files = android_locale_files(android_root, android_revision)
     default_texts = git_json(android_root, android_revision,
         "tools/make-keyboard-text-py/locales/DEFAULT.json")
-    language_source_layout: dict[str, str] = {}
+    language_source_layouts: dict[str, list[str]] = {}
     official_codes: dict[str, str] = {}
     for official_code, ids in mapping.items():
         if official_code in EXCLUDED_LANGUAGES:
@@ -362,79 +424,51 @@ def generate(root: pathlib.Path, android_root: pathlib.Path, android_revision: s
         if not direct:
             raise ValueError(f"{official_code}: no directly typed layout")
         code = normalized_code(official_code)
-        if code in language_source_layout:
+        if code in language_source_layouts:
             raise ValueError(f"duplicate normalized language code {code}")
-        language_source_layout[code] = direct[0]
+        selected = [direct[0]]
+        for layout_id in EXTRA_LANGUAGE_LAYOUTS.get(official_code, ()):
+            if layout_id not in direct:
+                raise ValueError(f"{official_code}: requested layout {layout_id} is not directly typed")
+            if layout_id not in selected:
+                selected.append(layout_id)
+        language_source_layouts[code] = selected
         official_codes[code] = official_code
 
     layouts: list[dict[str, Any]] = []
     language_layout: dict[str, str] = {}
+    language_layout_options: dict[str, list[str]] = {}
     alternatives: dict[str, dict[str, list[dict[str, str]]]] = {}
     signatures: dict[str, str] = {}
     used_ids: set[str] = set()
-    for code, layout_id in language_source_layout.items():
+    for code, layout_ids in language_source_layouts.items():
         official_code = official_codes[code]
         texts = locale_texts(android_root, android_revision, android_files,
                              official_code, default_texts)
         alternatives[code] = language_morekeys(texts)
-        path = files[layout_id]
-        document = load_yaml(path)
-        letter_rows: list[list[dict[str, Any]]] = []
-        number_row: list[dict[str, Any]] = []
-        bottom_row: list[dict[str, Any]] = []
-        for row in document.get("rows", []):
-            kind, values = row_values(row)
-            if kind == "bottom":
-                # Sailfish supplies the functional bottom row. Its presence is
-                # still significant because upstream then does not auto-add
-                # Shift/Delete to the final letter row.
-                bottom_row = [{"kind": "custom"}]
-                continue
-            parsed = [parse_key(value, texts) for value in values]
-            if kind == "letters":
-                letter_rows.append(parsed)
-            elif kind == "numbers":
-                number_row = parsed
-
-        explicit_templates = any(key.get("kind") != "character"
-                                 for row in letter_rows for key in row)
-        if not bottom_row and not explicit_templates and letter_rows:
-            letter_rows[-1] = ([{"kind": "shift"}] + letter_rows[-1]
-                               + [{"kind": "delete"}])
-        max_characters = max((sum(key.get("kind") == "character" for key in row)
-                              for row in letter_rows), default=0)
-        layout = {
-            "id": layout_id,
-            "name": str(document.get("name", layout_id)),
-            "script": script_for(root, path, layout_id),
-            "rtl": path.relative_to(root).parts[0] == "ArabicScript",
-            "shiftable": bool((document.get("attributes") or {}).get("shiftable", True)),
-            "autoShift": bool(document.get("autoShift", True)),
-            "numberRowMode": str(document.get("numberRowMode", "Default")),
-            "rows": letter_rows,
-            "numberRow": number_row,
-            "bottomRow": bottom_row,
-            "independentSizing": max_characters >= 11
-                or path.relative_to(root).parts[0] not in {"Default", "LatinScript"},
-        }
-        signature_value = dict(layout)
-        signature_value.pop("id")
-        signature_value.pop("name")
-        signature = json.dumps(signature_value, ensure_ascii=False, sort_keys=True,
-                               separators=(",", ":"))
-        if signature in signatures:
-            resolved_id = signatures[signature]
-        else:
-            resolved_id = layout_id
-            if resolved_id in used_ids:
-                resolved_id = layout_id + "__" + code.lower()
-            layout["id"] = resolved_id
-            if resolved_id != layout_id:
-                layout["name"] += " (" + code.replace("_", "-") + ")"
-            layouts.append(layout)
-            signatures[signature] = resolved_id
-            used_ids.add(resolved_id)
-        language_layout[code] = resolved_id
+        language_layout_options[code] = []
+        for layout_id in layout_ids:
+            layout = generated_layout(root, files, layout_id, texts)
+            signature_value = dict(layout)
+            signature_value.pop("id")
+            signature_value.pop("name")
+            signature = json.dumps(signature_value, ensure_ascii=False, sort_keys=True,
+                                   separators=(",", ":"))
+            if signature in signatures:
+                resolved_id = signatures[signature]
+            else:
+                resolved_id = layout_id
+                if resolved_id in used_ids:
+                    resolved_id = layout_id + "__" + code.lower()
+                layout["id"] = resolved_id
+                if resolved_id != layout_id:
+                    layout["name"] += " (" + code.replace("_", "-") + ")"
+                layouts.append(layout)
+                signatures[signature] = resolved_id
+                used_ids.add(resolved_id)
+            if resolved_id not in language_layout_options[code]:
+                language_layout_options[code].append(resolved_id)
+        language_layout[code] = language_layout_options[code][0]
 
     languages = []
     for code, layout_id in language_layout.items():
@@ -478,6 +512,9 @@ def generate(root: pathlib.Path, android_root: pathlib.Path, android_revision: s
         + "var layouts = " + json.dumps(layouts, ensure_ascii=False, separators=(",", ":")) + "\n\n"
         + "var languageLayoutIds = " + json.dumps(language_layout, ensure_ascii=False,
                                                    separators=(",", ":")) + "\n\n"
+        + "var languageLayoutOptions = " + json.dumps(language_layout_options,
+                                                         ensure_ascii=False,
+                                                         separators=(",", ":")) + "\n\n"
         + "var languageAlternatives = " + json.dumps(alternatives, ensure_ascii=False,
                                                        separators=(",", ":")) + "\n",
         encoding="utf-8", newline="\n")

@@ -471,9 +471,15 @@ function compatibleIndices(languageCode) {
     if (legacy !== undefined && legacy < legacyLayoutCount)
         result.push(legacy)
     var entry = catalogueEntry(languageCode)
-    if (entry && generatedIndexById[entry.layoutId] !== undefined
-            && result.indexOf(generatedIndexById[entry.layoutId]) < 0)
-        result.push(generatedIndexById[entry.layoutId])
+    var generatedOptions = Generated.languageLayoutOptions
+            && Generated.languageLayoutOptions[languageCode]
+            ? Generated.languageLayoutOptions[languageCode]
+            : (entry ? [entry.layoutId] : [])
+    for (var optionIndex = 0; optionIndex < generatedOptions.length; ++optionIndex) {
+        var generatedIndex = generatedIndexById[generatedOptions[optionIndex]]
+        if (generatedIndex !== undefined && result.indexOf(generatedIndex) < 0)
+            result.push(generatedIndex)
+    }
     return result
 }
 

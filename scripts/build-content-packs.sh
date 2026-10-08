@@ -6,7 +6,26 @@ OUTPUT=${FUTO_CONTENT_OUTPUT:-"$ROOT/build/content-packs"}
 PACK_VERSION=0.4.0-1
 # Packs whose content changed after the release their base URL points at.
 # Keep this in step with packVersionOverrides in generate-content-manifest.js.
-declare -A PACK_VERSION_OVERRIDES=( [dictionary-ro]=0.4.2-1 )
+declare -A PACK_VERSION_OVERRIDES=(
+    [dictionary-ro]=0.4.2-1
+    [dictionary-af]=0.7.1-1 [dictionary-be]=0.7.1-1
+    [dictionary-bg]=0.7.1-1 [dictionary-bn]=0.7.1-1
+    [dictionary-ca]=0.7.1-1 [dictionary-eo]=0.7.1-1
+    [dictionary-eu]=0.7.1-1 [dictionary-gl]=0.7.1-1
+    [dictionary-hi]=0.7.1-1 [dictionary-hi-latn]=0.7.1-1
+    [dictionary-hy]=0.7.1-1 [dictionary-id]=0.7.1-1
+    [dictionary-ka]=0.7.1-1 [dictionary-kab]=0.7.1-1
+    [dictionary-kk]=0.7.1-1 [dictionary-kn]=0.7.1-1
+    [dictionary-ml]=0.7.1-1 [dictionary-mr]=0.7.1-1
+    [dictionary-pa]=0.7.1-1 [dictionary-sk]=0.7.1-1
+    [dictionary-ta]=0.7.1-1 [dictionary-te]=0.7.1-1
+    [dictionary-tok]=0.7.1-1 [dictionary-uk]=0.7.1-1
+    [dictionary-ur]=0.7.1-1 [dictionary-az]=0.7.1-1
+    [dictionary-et]=0.7.1-1 [dictionary-is]=0.7.1-1
+    [dictionary-km]=0.7.1-1 [dictionary-mk]=0.7.1-1
+    [dictionary-ne]=0.7.1-1 [dictionary-th]=0.7.1-1
+    [dictionary-tl]=0.7.1-1 [dictionary-zgh]=0.7.1-1
+)
 
 mkdir -p "$OUTPUT" "$ROOT/content"
 find "$OUTPUT" -maxdepth 1 -type f \
@@ -60,7 +79,9 @@ archive_directory_as "futo-content-swipe-universal-$PACK_VERSION.tar.gz" \
 
 dictionary_files=(
     ar cs da de el en_GB en_US es fa fi fr hr hu it lt lv nb nl pl
-    pt_BR pt_PT ro ru sl sr sr_Latn sv tr
+    pt_BR pt_PT ro ru sl sr sr_Latn sv tr af be bg bn ca eo eu gl hi
+    hi_Latn hy id ka kab kk kn ml mr pa sk ta te tok uk ur az et is km mk
+    ne th tl zgh
 )
 for dictionary in "${dictionary_files[@]}"; do
     file="$ROOT/build/dictionaries/$dictionary.fksidx"

@@ -37,10 +37,10 @@ function loadLanguageData() {
 const languageData = loadLanguageData();
 assert(generated.upstreamRevision === "fb4dad270790d980c32417b60359104bd0c32c1c",
        "generated layouts do not use the pinned FUTO revision");
-assert(generated.layouts.length === 97, "expected 97 distinct resolved FUTO layouts");
+assert(generated.layouts.length === 98, "expected 98 distinct resolved FUTO layouts");
 assert(catalogue.languages.length === 140, "expected 140 eligible FUTO languages");
-assert(catalogue.languages.filter(item => item.prediction).length === 36,
-       "prediction catalogue must contain exactly 36 dictionary-backed locales");
+assert(catalogue.languages.filter(item => item.prediction).length === 73,
+       "prediction catalogue must contain exactly 73 dictionary-backed locales");
 assert(catalogue.languages.every(item => item.swipe === item.prediction),
        "swipe must only be offered where a prediction dictionary exists");
 const excluded = ["IW", "ZH", "ZH_HANT", "JA", "KO", "VI", "GA", "HAW",
@@ -74,7 +74,26 @@ assert(shavian.rows.length === 5, "Shavian's five-row layout was flattened");
 const punjabi = generated.layouts.find(item => item.id === generated.languageLayoutIds.PA_IN);
 assert(punjabi.numberRow.length === 10,
        "Gurmukhi's explicit FUTO number row is missing");
+assert(Array.from(generated.languageLayoutOptions.BG).join(",")
+       === "bulgarian,bulgarian_bds",
+       "Bulgarian must offer both its phonetic and official BDS layouts");
+const bulgarianBds = generated.layouts.find(item => item.id === "bulgarian_bds");
+assert(bulgarianBds.rows.map(row => row.filter(key => key.kind === "character")
+       .map(key => key.caption).join("")).join("/")
+       === "уеишщксдзцб/ьяаожгтнвмч/юйъэфхпрл",
+       "the official Bulgarian BDS key order changed");
 assert(generated.layouts.find(item => item.id === "qwerty").name === "QWERTY",
        "the generated FUTO QWERTY label changed");
 
-process.stdout.write("Generated layout validation passed: 140 languages, 97 layouts.\n");
+const newlyBacked = {
+    AZ_AZ: "az", ET_EE: "et", IS: "is", KM_KH: "km", MK: "mk",
+    NE_NP: "ne", TH: "th", TL: "tl", ZGH: "zgh"
+};
+for (const code of Object.keys(newlyBacked)) {
+    const language = catalogue.languages.find(item => item.code === code);
+    assert(language && language.dictionaryPack === newlyBacked[code]
+           && language.prediction && language.swipe,
+           code + " does not expose its verified dictionary pack");
+}
+
+process.stdout.write("Generated layout validation passed: 140 languages, 98 layouts.\n");

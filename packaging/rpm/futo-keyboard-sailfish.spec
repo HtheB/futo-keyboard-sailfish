@@ -108,6 +108,7 @@ fi
 %license %{_licensedir}/%{name}/NOTO-EMOJI-SVG-LICENSE.txt
 %license %{_licensedir}/%{name}/UNICODE-LICENSE.txt
 %license %{_licensedir}/%{name}/FUTO-LAYOUTS-ATTRIBUTION.md
+%license %{_licensedir}/%{name}/FUTO-COMMUNITY-DICTIONARIES-ATTRIBUTION.md
 %license %{_licensedir}/%{name}/ALINA-PERSIAN-KEYBOARD-BSD.txt
 %license %{_licensedir}/%{name}/HUNGARIAN-DICTIONARY-ATTRIBUTION.md
 %license %{_licensedir}/%{name}/PERSIAN-DICTIONARY-ATTRIBUTION.md

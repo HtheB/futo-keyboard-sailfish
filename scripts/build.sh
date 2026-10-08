@@ -145,7 +145,8 @@ fi
 
 LANGUAGES=(
     en_US en_GB nl tr de fr es it pt_BR pt_PT sv nb da fi pl cs ro sl hr lv lt
-    el ru sr sr_Latn hu ar fa
+    el ru sr sr_Latn hu ar fa af be bg bn ca eo eu gl hi hi_Latn hy id ka kab
+    kk kn ml mr pa sk ta te tok uk ur az et is km mk ne th tl zgh
 )
 
 # Languages whose upstream word list is dominated by its lowest frequency

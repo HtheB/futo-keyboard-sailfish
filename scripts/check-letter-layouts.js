@@ -20,6 +20,7 @@ const context = {
     Generated: {
         layouts: dataVariable("FutoGeneratedLayouts.js", "layouts"),
         languageLayoutIds: dataVariable("FutoGeneratedLayouts.js", "languageLayoutIds"),
+        languageLayoutOptions: dataVariable("FutoGeneratedLayouts.js", "languageLayoutOptions"),
         languageAlternatives: dataVariable("FutoGeneratedLayouts.js", "languageAlternatives")
     },
     Catalogue: { languages: dataVariable("FutoLanguageCatalogue.js", "languages") }
@@ -33,7 +34,7 @@ function assert(condition, message) {
 }
 
 assert(context.legacyLayoutCount === 21, "Expected twenty-one stable legacy layouts");
-assert(context.count === 118, "Expected 21 stable plus 97 generated layouts");
+assert(context.count === 119, "Expected 21 stable plus 98 generated layouts");
 const establishedLanguageCodes = new Set([
     "AR", "CS", "DA", "DE", "EL", "EN", "EN_GB", "ES", "FA", "FI", "FR",
     "HR", "HU", "IT", "LT", "LV", "NB", "NL", "PL", "PT_BR", "PT_PT",
@@ -67,6 +68,11 @@ assert(context.name(19) === "Serbian Cyrillic",
        "Serbian Cyrillic must be appended at index 19");
 assert(context.name(20) === "Persian",
        "Persian must be appended at index 20");
+const bulgarianLayouts = Array.from(context.compatibleIndices("BG"))
+    .map(index => context.layouts[index].id);
+assert(bulgarianLayouts.includes("bulgarian")
+       && bulgarianLayouts.includes("bulgarian_bds"),
+       "Bulgarian must expose both phonetic and BDS layouts");
 assert(context.menuNames.length === context.count,
        "Every layout must have a compact held-123 menu name");
 for (let layout = 0; layout < context.count; ++layout) {

@@ -168,6 +168,7 @@ const layoutData = {
     Generated: {
         layouts: dataVariable("FutoGeneratedLayouts.js", "layouts"),
         languageLayoutIds: dataVariable("FutoGeneratedLayouts.js", "languageLayoutIds"),
+        languageLayoutOptions: dataVariable("FutoGeneratedLayouts.js", "languageLayoutOptions"),
         languageAlternatives: dataVariable("FutoGeneratedLayouts.js", "languageAlternatives")
     },
     Catalogue: { languages: dataVariable("FutoLanguageCatalogue.js", "languages") }
@@ -181,7 +182,7 @@ function assert(condition, message) {
 }
 
 assert(layoutData.legacyLayoutCount === 21, "persisted layout indices changed")
-assert(layoutData.layouts.length === 118, "generated FUTO layouts missing")
+assert(layoutData.layouts.length === 119, "generated FUTO layouts missing")
 assert(layoutData.layouts.some(layout => layout.name === "QWERTY"),
        "the established SwiftKey-style QWERTY entry must exist")
 assert(layoutData.layouts.filter(layout => layout.name === "QWERTY").length >= 2,
@@ -251,6 +252,10 @@ grep -Fq 'Creative Commons Attribution-ShareAlike 4.0 International' \
 grep -Fq 'LICENSES/HUNGARIAN-DICTIONARY-ATTRIBUTION.md' \
     "$ROOT/packaging/Makefile"
 grep -Fq '%license %{_licensedir}/%{name}/HUNGARIAN-DICTIONARY-ATTRIBUTION.md' \
+    "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"
+grep -Fq 'LICENSES/FUTO-COMMUNITY-DICTIONARIES-ATTRIBUTION.md' \
+    "$ROOT/packaging/Makefile"
+grep -Fq '%license %{_licensedir}/%{name}/FUTO-COMMUNITY-DICTIONARIES-ATTRIBUTION.md' \
     "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"
 test -s "$ROOT/dictionaries/fa_wordlist.combined.gz"
 gzip -t "$ROOT/dictionaries/fa_wordlist.combined.gz"

@@ -163,9 +163,9 @@
       "name": "FUTO Swipe",
       "version": "0.4.0-1",
       "archive": "futo-content-swipe-universal-0.4.0-1.tar.gz",
-      "sha256": "e76f759c4e2c234318bae628af5008966b073f4a5a375deb34b6cdfa02a27d36",
-      "downloadBytes": 9438556,
-      "installedBytes": 10445405,
+      "sha256": "3d909c460cf94dd16b8cf8500bffecde3197c743af63e9782149e9d5edd1ae6e",
+      "downloadBytes": 9437966,
+      "installedBytes": 10445480,
       "paths": [
         "swipe/models"
       ]
@@ -561,6 +561,516 @@
         "dictionaries/fa.fksidx"
       ],
       "languageCode": "FA"
+    },
+    {
+      "id": "dictionary-af",
+      "kind": "dictionary",
+      "name": "Afrikaans",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-af-0.7.1-1.tar.gz",
+      "sha256": "4462e21a228caf54efa4890bdd480cbd058e35d25033c970c5609b7e7a4cce72",
+      "downloadBytes": 2521641,
+      "installedBytes": 14291083,
+      "paths": [
+        "dictionaries/af.fksidx"
+      ],
+      "languageCode": "AF",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-af-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-be",
+      "kind": "dictionary",
+      "name": "Беларуская",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-be-0.7.1-1.tar.gz",
+      "sha256": "d7f4ef5a5b0a5ba9f92199bdc6a502aa4c2703704d69396d97a17f020d9e298a",
+      "downloadBytes": 7472081,
+      "installedBytes": 71783801,
+      "paths": [
+        "dictionaries/be.fksidx"
+      ],
+      "languageCode": "BE_BY",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-be-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-bg",
+      "kind": "dictionary",
+      "name": "Български",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-bg-0.7.1-1.tar.gz",
+      "sha256": "7410044abf20d20de7dd8fbee6422a89ef7d7c0c3e61033f9780e2b4bb84884a",
+      "downloadBytes": 831367,
+      "installedBytes": 5613112,
+      "paths": [
+        "dictionaries/bg.fksidx"
+      ],
+      "languageCode": "BG",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-bg-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-bn",
+      "kind": "dictionary",
+      "name": "বাংলা",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-bn-0.7.1-1.tar.gz",
+      "sha256": "2b85755aed9d1da9f380c4b6570ad38fb54f1607246d9d69d61882303b47c71e",
+      "downloadBytes": 1346488,
+      "installedBytes": 8942317,
+      "paths": [
+        "dictionaries/bn.fksidx"
+      ],
+      "languageCode": "BN_IN",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-bn-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-ca",
+      "kind": "dictionary",
+      "name": "Català",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-ca-0.7.1-1.tar.gz",
+      "sha256": "2e39b269012b81eecaf505aef8fb08defdd6bb80b946a348a8e61bc064f0dfc9",
+      "downloadBytes": 655901,
+      "installedBytes": 3148478,
+      "paths": [
+        "dictionaries/ca.fksidx"
+      ],
+      "languageCode": "CA",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-ca-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-eo",
+      "kind": "dictionary",
+      "name": "Esperanto",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-eo-0.7.1-1.tar.gz",
+      "sha256": "90590388e5c15bd02880a21b1ce40555fc3a41cca98c8996b55ba4096130b775",
+      "downloadBytes": 254738,
+      "installedBytes": 1318575,
+      "paths": [
+        "dictionaries/eo.fksidx"
+      ],
+      "languageCode": "EO",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-eo-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-eu",
+      "kind": "dictionary",
+      "name": "Euskara",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-eu-0.7.1-1.tar.gz",
+      "sha256": "153525580192ad50af38e2bcf81a9cd37d29415b7e3df9eeca94b6f3ed7887a1",
+      "downloadBytes": 918335,
+      "installedBytes": 5960485,
+      "paths": [
+        "dictionaries/eu.fksidx"
+      ],
+      "languageCode": "EU_ES",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-eu-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-gl",
+      "kind": "dictionary",
+      "name": "Galego",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-gl-0.7.1-1.tar.gz",
+      "sha256": "c39f6583af683cd3b13a0f097b317d618690bc4caaff6df35f76aa92ffd0714b",
+      "downloadBytes": 514180,
+      "installedBytes": 2810512,
+      "paths": [
+        "dictionaries/gl.fksidx"
+      ],
+      "languageCode": "GL_ES",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-gl-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-hi",
+      "kind": "dictionary",
+      "name": "हिन्दी",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-hi-0.7.1-1.tar.gz",
+      "sha256": "94552101d9bc332eeb32b6f2bcc5155a360a6921317f6814376c95915c287733",
+      "downloadBytes": 505408,
+      "installedBytes": 2500667,
+      "paths": [
+        "dictionaries/hi.fksidx"
+      ],
+      "languageCode": "HI",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-hi-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-hi-latn",
+      "kind": "dictionary",
+      "name": "Hinglish",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-hi-latn-0.7.1-1.tar.gz",
+      "sha256": "9d41db2a1a7df851080ec345c39cc4af5be681d8fb314933bb87c431effe4bf3",
+      "downloadBytes": 1949021,
+      "installedBytes": 10286002,
+      "paths": [
+        "dictionaries/hi_Latn.fksidx"
+      ],
+      "languageCode": "HI_LATN",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-hi-latn-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-hy",
+      "kind": "dictionary",
+      "name": "Հայերեն",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-hy-0.7.1-1.tar.gz",
+      "sha256": "dd8bb91a3533940b51bdd8cc688edfd861d1314325262ddf1b2bc01d0d54a59d",
+      "downloadBytes": 1702035,
+      "installedBytes": 12398596,
+      "paths": [
+        "dictionaries/hy.fksidx"
+      ],
+      "languageCode": "HY_AM",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-hy-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-id",
+      "kind": "dictionary",
+      "name": "Bahasa Indonesia",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-id-0.7.1-1.tar.gz",
+      "sha256": "eda1ca7f596eb33a1ab88354d47cacb4aa98cbef4e3f6ea95f95a919b04bea4a",
+      "downloadBytes": 1787571,
+      "installedBytes": 15233606,
+      "paths": [
+        "dictionaries/id.fksidx"
+      ],
+      "languageCode": "IN",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-id-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-ka",
+      "kind": "dictionary",
+      "name": "ქართული",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-ka-0.7.1-1.tar.gz",
+      "sha256": "b9292673e25506be0eed9264758779e5ab78a40ade605d57ff69ff14fdfb01cf",
+      "downloadBytes": 981896,
+      "installedBytes": 6520952,
+      "paths": [
+        "dictionaries/ka.fksidx"
+      ],
+      "languageCode": "KA_GE",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-ka-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-kab",
+      "kind": "dictionary",
+      "name": "Taqbaylit",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-kab-0.7.1-1.tar.gz",
+      "sha256": "881443ce363f04b7c860637e55f2c72c3cf710c341dfa85b4096c59406d12202",
+      "downloadBytes": 839335,
+      "installedBytes": 4406217,
+      "paths": [
+        "dictionaries/kab.fksidx"
+      ],
+      "languageCode": "KAB",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-kab-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-kk",
+      "kind": "dictionary",
+      "name": "Қазақ тілі",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-kk-0.7.1-1.tar.gz",
+      "sha256": "20be29497eebf0e432590c29cb863e50dd3ab62a9c81bda19a20311a2991f7ba",
+      "downloadBytes": 948898,
+      "installedBytes": 6128233,
+      "paths": [
+        "dictionaries/kk.fksidx"
+      ],
+      "languageCode": "KK",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-kk-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-kn",
+      "kind": "dictionary",
+      "name": "ಕನ್ನಡ",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-kn-0.7.1-1.tar.gz",
+      "sha256": "93307d9faa5b2c768cd85a5950378c132b54569c0aa9ec25dbd148aa480115d0",
+      "downloadBytes": 521958,
+      "installedBytes": 3184782,
+      "paths": [
+        "dictionaries/kn.fksidx"
+      ],
+      "languageCode": "KN_IN",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-kn-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-ml",
+      "kind": "dictionary",
+      "name": "മലയാളം",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-ml-0.7.1-1.tar.gz",
+      "sha256": "afc5296ae8cad2c052ccdb1ad95cd6e133f44e3c4cab769451a494ec0561bc4f",
+      "downloadBytes": 591270,
+      "installedBytes": 3597194,
+      "paths": [
+        "dictionaries/ml.fksidx"
+      ],
+      "languageCode": "ML_IN",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-ml-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-mr",
+      "kind": "dictionary",
+      "name": "मराठी",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-mr-0.7.1-1.tar.gz",
+      "sha256": "4cf7520d52729921a5a581f4de6b1c8ff1e7db08ac3bc357bfce8af3269d9c6b",
+      "downloadBytes": 515354,
+      "installedBytes": 2684344,
+      "paths": [
+        "dictionaries/mr.fksidx"
+      ],
+      "languageCode": "MR_IN",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-mr-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-pa",
+      "kind": "dictionary",
+      "name": "ਪੰਜਾਬੀ",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-pa-0.7.1-1.tar.gz",
+      "sha256": "bbf63c3687b1bfe522ea97defde7b1a7b5e90d67e90ebf926507ce261b45b93d",
+      "downloadBytes": 171804,
+      "installedBytes": 788807,
+      "paths": [
+        "dictionaries/pa.fksidx"
+      ],
+      "languageCode": "PA_IN",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-pa-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-sk",
+      "kind": "dictionary",
+      "name": "Slovenčina",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-sk-0.7.1-1.tar.gz",
+      "sha256": "08c76b3334f72ffdea40260b039510249f0d7446f89ca9fab0c26f4b1e989e87",
+      "downloadBytes": 7314775,
+      "installedBytes": 38432150,
+      "paths": [
+        "dictionaries/sk.fksidx"
+      ],
+      "languageCode": "SK",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-sk-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-ta",
+      "kind": "dictionary",
+      "name": "தமிழ்",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-ta-0.7.1-1.tar.gz",
+      "sha256": "2c7447a652a56081cdf175c647ccfd9b549b3d2c0c9c9bc204a566f1d60a1ee6",
+      "downloadBytes": 531894,
+      "installedBytes": 3509173,
+      "paths": [
+        "dictionaries/ta.fksidx"
+      ],
+      "languageCode": "TA_IN",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-ta-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-te",
+      "kind": "dictionary",
+      "name": "తెలుగు",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-te-0.7.1-1.tar.gz",
+      "sha256": "4d2e2ddf7395050cd8ec0c140bff09bbb2825d8749a90dd0588ae96cca978c19",
+      "downloadBytes": 540790,
+      "installedBytes": 3091226,
+      "paths": [
+        "dictionaries/te.fksidx"
+      ],
+      "languageCode": "TE_IN",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-te-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-tok",
+      "kind": "dictionary",
+      "name": "toki pona",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-tok-0.7.1-1.tar.gz",
+      "sha256": "54820bfbdd6bb6b69517ca3bc728488151e5bb843b405d8bd6d2e8567313197d",
+      "downloadBytes": 2274,
+      "installedBytes": 7575,
+      "paths": [
+        "dictionaries/tok.fksidx"
+      ],
+      "languageCode": "TOK",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-tok-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-uk",
+      "kind": "dictionary",
+      "name": "Українська",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-uk-0.7.1-1.tar.gz",
+      "sha256": "11e1d3bf871720e39fc959ef338c3a6c7bdb723a78f05e2f6905c47c5785bc9f",
+      "downloadBytes": 4955186,
+      "installedBytes": 39648854,
+      "paths": [
+        "dictionaries/uk.fksidx"
+      ],
+      "languageCode": "UK",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-uk-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-ur",
+      "kind": "dictionary",
+      "name": "اردو",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-ur-0.7.1-1.tar.gz",
+      "sha256": "5e6eb95bd4b7c7aa3e3c4f06491fcc31da52cf96e43cc96af16769f37e229df7",
+      "downloadBytes": 465598,
+      "installedBytes": 2004759,
+      "paths": [
+        "dictionaries/ur.fksidx"
+      ],
+      "languageCode": "UR",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-ur-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-az",
+      "kind": "dictionary",
+      "name": "Azərbaycanca",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-az-0.7.1-1.tar.gz",
+      "sha256": "ac70c34868ed9d600800bf5f04af314f27022b293dcaa066c392d9de3f2d74ca",
+      "downloadBytes": 483008,
+      "installedBytes": 2575692,
+      "paths": [
+        "dictionaries/az.fksidx"
+      ],
+      "languageCode": "AZ_AZ",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-az-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-et",
+      "kind": "dictionary",
+      "name": "Eesti",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-et-0.7.1-1.tar.gz",
+      "sha256": "9d9980b4660ea6f9b0e2c44bb028ab8c328de27e8806abd1de776adeb7bfaecd",
+      "downloadBytes": 7189676,
+      "installedBytes": 49004125,
+      "paths": [
+        "dictionaries/et.fksidx"
+      ],
+      "languageCode": "ET_EE",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-et-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-is",
+      "kind": "dictionary",
+      "name": "Íslenska",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-is-0.7.1-1.tar.gz",
+      "sha256": "08f28845351bf057602b5de1cf7a39a46db9285922d8283b669df17408579801",
+      "downloadBytes": 2839358,
+      "installedBytes": 17608418,
+      "paths": [
+        "dictionaries/is.fksidx"
+      ],
+      "languageCode": "IS",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-is-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-km",
+      "kind": "dictionary",
+      "name": "ភាសាខ្មែរ",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-km-0.7.1-1.tar.gz",
+      "sha256": "a725a2f97bfcf7170b813dc08dccdd7cd2c3980bbce0bb78cfb0dd608de5282d",
+      "downloadBytes": 543780,
+      "installedBytes": 3841033,
+      "paths": [
+        "dictionaries/km.fksidx"
+      ],
+      "languageCode": "KM_KH",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-km-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-mk",
+      "kind": "dictionary",
+      "name": "Македонски",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-mk-0.7.1-1.tar.gz",
+      "sha256": "22692ff90944ba7c13deb1f58dd8fdb8712e3ab6aaa1fc76b66db76ebb420e0c",
+      "downloadBytes": 2336370,
+      "installedBytes": 14326265,
+      "paths": [
+        "dictionaries/mk.fksidx"
+      ],
+      "languageCode": "MK",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-mk-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-ne",
+      "kind": "dictionary",
+      "name": "नेपाली",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-ne-0.7.1-1.tar.gz",
+      "sha256": "1dd6e6a7bb502c62db3a39821348632dc88c57a0064ed81ef6d17ed9834d23eb",
+      "downloadBytes": 4583308,
+      "installedBytes": 43287595,
+      "paths": [
+        "dictionaries/ne.fksidx"
+      ],
+      "languageCode": "NE_NP",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-ne-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-th",
+      "kind": "dictionary",
+      "name": "ไทย",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-th-0.7.1-1.tar.gz",
+      "sha256": "fcd8d7ed8e4ee273f6b57ba1109ecf98026a7759e4a20e334a0985c6ac69e621",
+      "downloadBytes": 1004844,
+      "installedBytes": 4912658,
+      "paths": [
+        "dictionaries/th.fksidx"
+      ],
+      "languageCode": "TH",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-th-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-tl",
+      "kind": "dictionary",
+      "name": "Filipino",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-tl-0.7.1-1.tar.gz",
+      "sha256": "191b6eb96fa25491e18c8bf58bf9e4623d9365f816534390e2c1e389b7114255",
+      "downloadBytes": 114143,
+      "installedBytes": 489796,
+      "paths": [
+        "dictionaries/tl.fksidx"
+      ],
+      "languageCode": "TL",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-tl-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "dictionary-zgh",
+      "kind": "dictionary",
+      "name": "ⵜⴰⵎⴰⵣⵉⵖⵜ",
+      "version": "0.7.1-1",
+      "archive": "futo-content-dictionary-zgh-0.7.1-1.tar.gz",
+      "sha256": "0f27a3eeb83e0e0bbc09f707fe21481620c6b64642549b6d830c9336f1c90243",
+      "downloadBytes": 1688762,
+      "installedBytes": 13363185,
+      "paths": [
+        "dictionaries/zgh.fksidx"
+      ],
+      "languageCode": "ZGH",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-zgh-0.7.1-1.tar.gz"
     }
   ]
 }
