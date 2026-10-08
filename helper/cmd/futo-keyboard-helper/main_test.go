@@ -1306,6 +1306,74 @@ func TestKeyboardModeSettingKeepsOrientationsSeparate(t *testing.T) {
 	}
 }
 
+func TestRemoveKeyboardUserFilesClearsOnlyFutoData(t *testing.T) {
+	home := t.TempDir()
+	dataDirectory := filepath.Join(home, ".local", "share", keyboardPackageName)
+	paths := map[string]string{
+		"content": filepath.Join(dataDirectory, "content", "emoji", "twemoji",
+			"emoji.svg"),
+		"learned":  filepath.Join(dataDirectory, "personal-dictionary.json"),
+		"password": filepath.Join(dataDirectory, "password-vault.json"),
+		"settings": filepath.Join(dataDirectory, "keep-virtual-hardware"),
+		"voice":    filepath.Join(dataDirectory, "voice", "recording.wav"),
+	}
+	for _, path := range paths {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("private"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	keepPath := filepath.Join(home, "Documents", "FUTO-Keyboard", "backup.futo")
+	if err := os.MkdirAll(filepath.Dir(keepPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(keepPath, []byte("backup"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := removeKeyboardUserFiles(dataDirectory, uninstallCleanupOptions{
+		Learned: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for name, path := range paths {
+		_, err := os.Stat(path)
+		removed := name == "learned" || name == "voice"
+		if removed && !os.IsNotExist(err) {
+			t.Errorf("selected %s data remains: %v", name, err)
+		}
+		if !removed && err != nil {
+			t.Errorf("unselected %s data was removed: %v", name, err)
+		}
+	}
+	if _, err := os.Stat(keepPath); err != nil {
+		t.Fatalf("exported backup was removed: %v", err)
+	}
+	if err := removeKeyboardUserFiles(dataDirectory, uninstallCleanupOptions{
+		Settings: true, Learned: true, Passwords: true, Content: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(dataDirectory); !os.IsNotExist(err) {
+		t.Fatalf("FUTO data directory still exists after full cleanup: %v", err)
+	}
+	if _, err := os.Stat(keepPath); err != nil {
+		t.Fatalf("exported backup was removed by full cleanup: %v", err)
+	}
+
+	unsafe := []string{"", home, filepath.Join(home, ".local", "share"),
+		filepath.Join(home, "Documents", keyboardPackageName)}
+	for _, path := range unsafe {
+		if err := removeKeyboardUserFiles(path, uninstallCleanupOptions{
+			Settings: true, Learned: true, Passwords: true, Content: true,
+		}); err == nil {
+			t.Errorf("unsafe removal path %q was accepted", path)
+		}
+	}
+}
+
 func TestKeyboardModeSignalIsIntrospected(t *testing.T) {
 	iface := helperIntrospectionInterface(&service{})
 	if len(iface.Signals) != 5 {

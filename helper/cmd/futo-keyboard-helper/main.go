@@ -2997,6 +2997,7 @@ type service struct {
 	vault                    *vaultStore
 	credentialIndex          *credentialMatchIndex
 	content                  *contentManager
+	dataDirectory            string
 	vaultKeyPath             string
 	vaultSessionMu           sync.Mutex
 	vaultSessions            map[dbus.Sender]vaultSession
@@ -3345,6 +3346,7 @@ const (
 	// system's authorisation prompt itself.
 	packageKitClientPath = "/usr/bin/pkcon"
 	keyboardPackageName  = "futo-keyboard-sailfish"
+	keyboardSettingsRoot = "/sailfish/text_input/futo_keyboard/"
 	// The settings application, as it appears in its own command line.
 	settingsProcessPattern = "jolla-settings"
 )
@@ -6186,13 +6188,18 @@ func showAndroidKeyboardWithRetries() {
 // IME.  Some apps immediately hide the first request, so the helper repeats it
 // briefly.  The set-user-ID bridge accepts no arguments and can only request
 // that the keyboard be shown.
-// UninstallKeyboard hands the removal to PackageKit rather than doing it here,
-// and answers before it finishes. A successful removal stops this service
-// while the call is still open, so waiting for the result would lose the reply
-// and make every success look like a failure. Only a removal that did not
-// happen has anyone left to tell, and it says so with UninstallFailed.
-func (service *service) UninstallKeyboard() *dbus.Error {
-	go service.removeKeyboardPackage()
+// UninstallKeyboard hands the package removal to PackageKit and keeps this
+// already-running process alive long enough to apply the user's cleanup
+// choices after PackageKit confirms success.
+func (service *service) UninstallKeyboard(removeSettings, removeLearned,
+	removePasswords, removeContent bool) *dbus.Error {
+	options := uninstallCleanupOptions{
+		Settings:  removeSettings,
+		Learned:   removeLearned,
+		Passwords: removePasswords,
+		Content:   removeContent,
+	}
+	go service.removeKeyboardPackage(options)
 	return nil
 }
 
@@ -6213,7 +6220,113 @@ func installedPackageID(ctx context.Context) (string, error) {
 	return "", fmt.Errorf("unexpected rpm output %q", id)
 }
 
-func (service *service) removeKeyboardPackage() {
+// validKeyboardDataDirectory keeps the destructive part of uninstall pinned
+// to FUTO's own application-data directory. In particular, an unavailable
+// home directory must never turn this into a removal of .local/share itself.
+func validKeyboardDataDirectory(path string) bool {
+	clean := filepath.Clean(path)
+	if !filepath.IsAbs(clean) || filepath.Base(clean) != keyboardPackageName {
+		return false
+	}
+	share := filepath.Dir(clean)
+	local := filepath.Dir(share)
+	return filepath.Base(share) == "share" && filepath.Base(local) == ".local"
+}
+
+type uninstallCleanupOptions struct {
+	Settings  bool
+	Learned   bool
+	Passwords bool
+	Content   bool
+}
+
+func removeFileAndTemporaryCopies(path string) error {
+	for _, suffix := range []string{"", ".new", ".old", ".legacy-empty"} {
+		if err := os.Remove(path + suffix); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+func removeKeyboardUserFiles(path string, options uninstallCleanupOptions) error {
+	if !validKeyboardDataDirectory(path) {
+		return fmt.Errorf("refusing to remove unexpected data directory %q", path)
+	}
+	if options.Settings && options.Learned && options.Passwords && options.Content {
+		return os.RemoveAll(path)
+	}
+
+	if options.Settings {
+		if err := removeFileAndTemporaryCopies(
+			filepath.Join(path, "keep-virtual-hardware")); err != nil {
+			return err
+		}
+	}
+	if options.Learned {
+		for _, name := range []string{
+			"personal-dictionary.json",
+			"prediction-history.json",
+			"url-history.json",
+			"clipboard-history.json",
+		} {
+			if err := removeFileAndTemporaryCopies(filepath.Join(path, name)); err != nil {
+				return err
+			}
+		}
+	}
+	if options.Passwords {
+		for _, name := range []string{
+			"password-vault.json",
+			"password-vault-index.json",
+			"password-vault-key.bin",
+		} {
+			if err := removeFileAndTemporaryCopies(filepath.Join(path, name)); err != nil {
+				return err
+			}
+		}
+	}
+	if options.Content {
+		if err := os.RemoveAll(filepath.Join(path, "content")); err != nil {
+			return err
+		}
+	}
+	// Recordings and transient download state are not reusable user data.
+	if err := os.RemoveAll(filepath.Join(path, "voice")); err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) &&
+		!errors.Is(err, syscall.ENOTEMPTY) {
+		return err
+	}
+	return nil
+}
+
+// removeKeyboardUserState runs only after PackageKit has confirmed that the
+// RPM was removed. Canceling or failing the system authorization prompt must
+// leave all of the user's data intact.
+func (service *service) removeKeyboardUserState(options uninstallCleanupOptions) error {
+	_, _ = service.CancelVoiceInput()
+	service.vault.lock()
+	service.codec.clearKey()
+
+	failures := make([]string, 0, 2)
+	if err := removeKeyboardUserFiles(service.dataDirectory, options); err != nil {
+		failures = append(failures, "stored data: "+err.Error())
+	}
+	if options.Settings {
+		if err := exec.Command("/usr/bin/dconf", "reset", "-f",
+			keyboardSettingsRoot).Run(); err != nil {
+			failures = append(failures, "settings: "+err.Error())
+		}
+	}
+	if len(failures) != 0 {
+		return errors.New(strings.Join(failures, "; "))
+	}
+	return nil
+}
+
+func (service *service) removeKeyboardPackage(options uninstallCleanupOptions) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	// PackageKit will not resolve this package by name: the repository it came
@@ -6234,9 +6347,15 @@ func (service *service) removeKeyboardPackage() {
 	output, err := command.CombinedOutput()
 	if err == nil {
 		// This process outlives its own package: the files are gone, but it
-		// is still the only thing that can report the outcome and close the
-		// settings application afterwards.
-		service.emitUninstall(uninstallFinishedSignal, "")
+		// is still the only thing that can remove this user's private state,
+		// report the outcome, and close the settings application afterwards.
+		cleanupMessage := ""
+		if cleanupErr := service.removeKeyboardUserState(options); cleanupErr != nil {
+			cleanupMessage = "FUTO Keyboard was removed, but some personal data " +
+				"could not be removed: " + cleanupErr.Error()
+			log.Print(cleanupMessage)
+		}
+		service.emitUninstall(uninstallFinishedSignal, cleanupMessage)
 		return
 	}
 	message := strings.TrimSpace(string(output))
@@ -7127,6 +7246,7 @@ func main() {
 		credentialIndex: newCredentialMatchIndex(
 			filepath.Join(dataDirectory, "password-vault-index.json"), codec),
 		content:         content,
+		dataDirectory:   dataDirectory,
 		vaultKeyPath:    filepath.Join(dataDirectory, "password-vault-key.bin"),
 		vaultSessions:   make(map[dbus.Sender]vaultSession),
 		soundSlots:      make(chan struct{}, 4),

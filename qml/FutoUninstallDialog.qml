@@ -12,10 +12,16 @@ Page {
     id: page
     allowedOrientations: Orientation.All
     property bool startingRemoval: false
+    property bool removeSettings: true
+    property bool removeLearned: true
+    property bool removePasswords: true
+    property bool removeContent: true
 
     SilicaFlickable {
         anchors.fill: parent
         contentHeight: content.height + Theme.paddingLarge
+        clip: true
+        VerticalScrollDecorator { flickable: parent }
 
         Column {
             id: content
@@ -39,13 +45,65 @@ Page {
                 wrapMode: Text.Wrap
                 color: Theme.secondaryColor
                 font.pixelSize: Theme.fontSizeSmall
-                text: qsTr("The keyboard, its settings, and everything it has "
-                           + "learned are removed from this device. Downloaded "
-                           + "dictionaries, voice models and emoji are removed "
-                           + "as well. Sailfish switches back to its own "
-                           + "keyboard. Save any open work before continuing: "
-                           + "removing FUTO restarts the Sailfish home screen "
-                           + "and closes running applications.")
+                text: qsTr("Choose which FUTO data should also be deleted. "
+                           + "Anything you leave unchecked is kept for a future "
+                           + "reinstall. Exported backups in Documents are "
+                           + "always kept.")
+            }
+
+            SectionHeader { text: qsTr("Delete during uninstall") }
+
+            Column {
+                width: parent.width
+
+                TextSwitch {
+                    width: parent.width
+                    automaticCheck: false
+                    text: qsTr("Settings and interface preferences")
+                    description: qsTr("Languages, layouts, gestures, appearance, emoji "
+                                      + "history and other keyboard options")
+                    checked: page.removeSettings
+                    onClicked: page.removeSettings = !checked
+                }
+
+                TextSwitch {
+                    width: parent.width
+                    automaticCheck: false
+                    text: qsTr("Learned data and clipboard history")
+                    description: qsTr("Learned words, context, URLs and FUTO clipboard entries")
+                    checked: page.removeLearned
+                    onClicked: page.removeLearned = !checked
+                }
+
+                TextSwitch {
+                    width: parent.width
+                    automaticCheck: false
+                    text: qsTr("Saved passwords")
+                    description: qsTr("Accounts stored in FUTO's password vault")
+                    checked: page.removePasswords
+                    onClicked: page.removePasswords = !checked
+                }
+
+                TextSwitch {
+                    width: parent.width
+                    automaticCheck: false
+                    text: qsTr("Downloaded content")
+                    description: qsTr("Dictionaries, emoji styles, voice models, swipe data "
+                                      + "and prediction models")
+                    checked: page.removeContent
+                    onClicked: page.removeContent = !checked
+                }
+            }
+
+            Label {
+                x: Theme.horizontalPageMargin
+                width: parent.width - 2 * x
+                wrapMode: Text.Wrap
+                color: Theme.secondaryColor
+                font.pixelSize: Theme.fontSizeExtraSmall
+                text: qsTr("Sailfish switches back to its own keyboard. Save any open "
+                           + "work before continuing: uninstalling FUTO restarts the "
+                           + "Sailfish home screen and closes running applications.")
             }
 
             Button {
@@ -61,7 +119,12 @@ Page {
                                 function() {
                                     page.startingRemoval = true
                                     pageStack.replace(Qt.resolvedUrl(
-                                        "FutoUninstallProgressPage.qml"))
+                                        "FutoUninstallProgressPage.qml"), {
+                                        "removeSettings": page.removeSettings,
+                                        "removeLearned": page.removeLearned,
+                                        "removePasswords": page.removePasswords,
+                                        "removeContent": page.removeContent
+                                    })
                                 })
                 }
             }

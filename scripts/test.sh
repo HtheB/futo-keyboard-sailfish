@@ -26,7 +26,8 @@ grep -Fq 'futo-keyboard-restore-stock-layout' "$ROOT/packaging/Makefile"
 test -x "$ROOT/packaging/scripts/futo-keyboard-restore-stock-layout" ||
     sh -n "$ROOT/packaging/scripts/futo-keyboard-restore-stock-layout"
 grep -Fq 'com/jolla/layouts' "$ROOT/packaging/scripts/futo-keyboard-restore-stock-layout"
-grep -Fq 'func (service *service) UninstallKeyboard()' "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+grep -Fq 'func (service *service) UninstallKeyboard(removeSettings, removeLearned,' \
+    "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
 grep -Fq 'Uninstall FUTO Keyboard' "$ROOT/qml/FutoMaintenancePage.qml"
 # Removing the keyboard is confirmed on a page of its own, not by beating a
 # remorse timer, and pkcon must answer its own simulation prompt or the
@@ -35,9 +36,9 @@ grep -Fq 'FutoUninstallDialog.qml' "$ROOT/qml/FutoMaintenancePage.qml"
 grep -Fq 'FutoUninstallDialog.qml' "$ROOT/packaging/Makefile"
 test -s "$ROOT/qml/FutoUninstallDialog.qml"
 grep -Fq '"--plain", "-y",' "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
-# A successful removal stops the helper while the call is still open, so
-# waiting for the reply would make every success look like a failure.
-grep -Fq 'go service.removeKeyboardPackage()' "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+# The helper applies the chosen data cleanup after PackageKit confirms that
+# removal succeeded. The D-Bus call itself stays asynchronous.
+grep -Fq 'go service.removeKeyboardPackage(options)' "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
 grep -Fq 'uninstallFailedSignal' "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
 # The removal reports on a page of its own, which cannot be left until it
 # has finished, and only a failure leaves a way back.
@@ -89,6 +90,14 @@ grep -Fq 'if [ "$1" -eq 0 ]; then' \
     "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"
 grep -Fq 'and closes running applications' \
     "$ROOT/qml/FutoUninstallDialog.qml"
+grep -Fq 'dconf", "reset", "-f",' \
+    "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+grep -Fq 'removeKeyboardUserFiles(service.dataDirectory, options)' \
+    "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+grep -Fq 'property bool removeSettings: true' \
+    "$ROOT/qml/FutoUninstallDialog.qml"
+grep -Fq '"type": "b", "value": page.removeContent' \
+    "$ROOT/qml/FutoUninstallProgressPage.qml"
 # The About page states the version in its own words. It drifted silently
 # through a release once; make a mismatch with the package a build failure.
 spec_version=$(grep '^Version:' "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec" |

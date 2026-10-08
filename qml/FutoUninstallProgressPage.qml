@@ -1,8 +1,7 @@
 /* Shows the removal happening, and refuses to be left until it has.
  *
- * A successful removal takes the helper down with it, so the service going
- * away is what says the package is gone. Only a removal that did not happen
- * has anyone left to report it, and it arrives as UninstallFailed.
+ * The already-running helper survives long enough to report PackageKit's
+ * result and apply the cleanup choices selected on the warning page.
  */
 import QtQuick 2.0
 import Sailfish.Silica 1.0
@@ -15,6 +14,10 @@ Page {
     // "removing", "done" or "failed"
     property string phase: "removing"
     property string message: ""
+    property bool removeSettings: true
+    property bool removeLearned: true
+    property bool removePasswords: true
+    property bool removeContent: true
 
     // There is nothing to go back to while it is working, and nothing left to
     // go back to once it has worked. A failure leaves everything in place, so
@@ -22,9 +25,10 @@ Page {
     backNavigation: phase === "failed"
     showNavigationIndicator: phase === "failed"
 
-    function succeed() {
+    function succeed(reason) {
         if (phase !== "removing")
             return
+        message = String(reason || "")
         phase = "done"
         failTimer.stop()
     }
@@ -50,7 +54,7 @@ Page {
         }
 
         function uninstallFinished(reason) {
-            page.succeed()
+            page.succeed(reason)
         }
     }
 
@@ -62,7 +66,12 @@ Page {
     }
 
     Component.onCompleted: {
-        helper.typedCall("UninstallKeyboard", [], function() {}, function() {})
+        helper.typedCall("UninstallKeyboard", [
+            { "type": "b", "value": page.removeSettings },
+            { "type": "b", "value": page.removeLearned },
+            { "type": "b", "value": page.removePasswords },
+            { "type": "b", "value": page.removeContent }
+        ], function() {}, function() {})
     }
 
     SilicaFlickable {
@@ -110,8 +119,11 @@ Page {
                 font.pixelSize: Theme.fontSizeSmall
                 text: {
                     if (page.phase === "done")
-                        return qsTr("Sailfish has switched back to its own "
-                                    + "keyboard.")
+                        return page.message !== ""
+                                ? page.message
+                                : qsTr("Sailfish has switched back to its own "
+                                       + "keyboard. The selected FUTO data "
+                                       + "has been removed.")
                     if (page.phase === "failed")
                         return page.message !== ""
                                 ? page.message
