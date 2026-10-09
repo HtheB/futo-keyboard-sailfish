@@ -4,6 +4,13 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 ENGINE="$ROOT/build/futo-dictionary-compiler"
 
+bash "$ROOT/scripts/test-textinput-settings-hook.sh"
+if grep -Eq '^Requires:[[:space:]]+patch([[:space:]]|$)' \
+        "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"; then
+    echo "Text input integration must remain available to offline installations" >&2
+    exit 1
+fi
+
 node --check - < "$ROOT/packaging/polkit/49-futo-keyboard-secrets.rules"
 node "$ROOT/scripts/check-symbol-data.js"
 echo '8decb0be8598af58ce4f3d38862da6387b99acee44626963f2363b8ec54f4f79  assets/fonts/FutoAndroidRiyal-Regular.ttf' |

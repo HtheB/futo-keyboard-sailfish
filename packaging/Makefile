@@ -175,8 +175,7 @@ check:
 	@test -s packaging/scripts/remove-wayland-deadkey-hook.sh || exit 1
 	@test -s packaging/scripts/install-textinput-bottom-hook.sh || exit 1
 	@test -s packaging/scripts/remove-textinput-bottom-hook.sh || exit 1
-	@test -s packaging/patches/textinput-bottom-settings.patch || exit 1
-	@grep -q 'FutoTextInputSettings.qml' packaging/patches/textinput-bottom-settings.patch || exit 1
+	@! grep -Eq '(^|[[:space:]])patch([[:space:]]|$$)' packaging/scripts/*textinput-bottom-hook.sh || exit 1
 	@test -s packaging/settings/futo-keyboard.json || exit 1
 	@! grep -q '^settings=' layouts/layouts_futo.conf || exit 1
 	@test -s packaging/systemd/maliit-server.service.d/10-futo-hardware-policy.conf || exit 1
@@ -271,8 +270,6 @@ install: check
 		"$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-remove-textinput-bottom-hook"
 	install -Dm0755 packaging/scripts/futo-keyboard-restore-stock-layout \
 		"$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-restore-stock-layout"
-	install -Dm0644 packaging/patches/textinput-bottom-settings.patch \
-		"$(PACKAGE_ROOT)/integration/textinput-bottom-settings.patch"
 	install -Dm0644 "$(COMPOSE_ROOT)/en_US.UTF-8/Compose" \
 		"$(DESTDIR)$(PREFIX)/share/X11/locale/en_US.UTF-8/Compose"
 	install -Dm0644 "$(COMPOSE_ROOT)/compose.dir" \
