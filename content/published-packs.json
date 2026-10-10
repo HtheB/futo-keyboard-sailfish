@@ -1,10 +1,586 @@
 {
+  "emoji-twemoji": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-emoji-twemoji-0.4.0-1.tar.gz",
+    "sha256": "199555c90c3305e05bfd5f218bdffea9e85d1299931ffc2341490febc4affd6a",
+    "downloadBytes": 1892403,
+    "installedBytes": 10021356,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-emoji-twemoji-0.4.0-1.tar.gz"
+  },
+  "emoji-openmoji": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-emoji-openmoji-0.4.0-1.tar.gz",
+    "sha256": "959ea3503ce6fd52a949d2f02cdb5ba80398d2cd7ada2cf31ce1f6487efbb57a",
+    "downloadBytes": 1974366,
+    "installedBytes": 12995532,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-emoji-openmoji-0.4.0-1.tar.gz"
+  },
+  "emoji-noto": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-emoji-noto-0.4.0-1.tar.gz",
+    "sha256": "5b4946f7478793c433786b52731f1adf9c15424f29ee41436804ad3dfb63030c",
+    "downloadBytes": 21041933,
+    "installedBytes": 21424825,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-emoji-noto-0.4.0-1.tar.gz"
+  },
+  "voice-multilingual-39": {
+    "version": "0.4.0-1",
+    "archive": "voice-input-multilingual-39.bin",
+    "sha256": "07aa4d514144deacf5ffec5cacb36c93dee272fda9e64ac33a801f8cd5cbd953",
+    "downloadBytes": 43537450,
+    "installedBytes": 43537450,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/voice-input-multilingual-39.bin"
+  },
+  "voice-english-39": {
+    "version": "upstream-4b5480aa",
+    "archive": "voice-input-english-39.bin",
+    "sha256": "4b5480aa1b14a7efc5b578ef176510970a898049671c3cd237285b3e3f6bfbfc",
+    "downloadBytes": 43550795,
+    "installedBytes": 43550795,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/voice-input-english-39.bin"
+  },
+  "voice-english-74": {
+    "version": "upstream-e9b4b7b8",
+    "archive": "voice-input-english-74.bin",
+    "sha256": "e9b4b7b81b8a28769e8aa9962aa39bb9f21b622cf6a63982e93f065ed5caf1c8",
+    "downloadBytes": 81781811,
+    "installedBytes": 81781811,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/voice-input-english-74.bin"
+  },
+  "voice-english-244": {
+    "version": "upstream-58fbe949",
+    "archive": "voice-input-english-244.bin",
+    "sha256": "58fbe949992dafed917590d58bc12ca577b08b9957f0b3e0d7ee71b64bed3aa8",
+    "downloadBytes": 264477561,
+    "installedBytes": 264477561,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/voice-input-english-244.bin"
+  },
+  "voice-multilingual-74": {
+    "version": "upstream-e44f352c",
+    "archive": "voice-input-multilingual-74.bin",
+    "sha256": "e44f352c9aa2c3609dece20c733c4ad4a75c28cd9ab07d005383df55fa96efc4",
+    "downloadBytes": 81768602,
+    "installedBytes": 81768602,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/voice-input-multilingual-74.bin"
+  },
+  "voice-multilingual-244": {
+    "version": "upstream-15ef2554",
+    "archive": "voice-input-multilingual-244.bin",
+    "sha256": "15ef255465a6dc582ecf1ec651a4618c7ee2c18c05570bbe46493d248d465ac4",
+    "downloadBytes": 264464624,
+    "installedBytes": 264464624,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/voice-input-multilingual-244.bin"
+  },
+  "prediction-english-futo": {
+    "version": "upstream-d87d9dbd",
+    "archive": "futo-content-prediction-english-0.7.0-1.gguf",
+    "sha256": "6545c1c9ef2d76e9bfb87ad4fcf2061889513af84fcf30d907412be7fcdedb7b",
+    "downloadBytes": 30662880,
+    "installedBytes": 30662880,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.0/futo-content-prediction-english-0.7.0-1.gguf"
+  },
   "swipe-universal": {
     "version": "0.4.0-1",
     "archive": "futo-content-swipe-universal-0.4.0-1.tar.gz",
-    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-swipe-universal-0.4.0-1.tar.gz",
     "sha256": "e76f759c4e2c234318bae628af5008966b073f4a5a375deb34b6cdfa02a27d36",
     "downloadBytes": 9438556,
-    "installedBytes": 10445405
+    "installedBytes": 10445405,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-swipe-universal-0.4.0-1.tar.gz"
+  },
+  "dictionary-en-us": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-en-us-0.4.0-1.tar.gz",
+    "sha256": "a420ccb877e78dc21ddf7321d4472b1fb87965a1b8373a3c99c9bcc123100302",
+    "downloadBytes": 1927440,
+    "installedBytes": 8125605,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-en-us-0.4.0-1.tar.gz"
+  },
+  "dictionary-en-gb": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-en-gb-0.4.0-1.tar.gz",
+    "sha256": "694c04c52e8510b06dc50aff01730be98287e304c426edd07eb0ccd60484bdf5",
+    "downloadBytes": 1890474,
+    "installedBytes": 7967575,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-en-gb-0.4.0-1.tar.gz"
+  },
+  "dictionary-nl": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-nl-0.4.0-1.tar.gz",
+    "sha256": "3ef32a2b17cff68c4dca001ef4127b058dae5920303b0461ad3767702e7ec81c",
+    "downloadBytes": 2421382,
+    "installedBytes": 10959072,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-nl-0.4.0-1.tar.gz"
+  },
+  "dictionary-tr": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-tr-0.4.0-1.tar.gz",
+    "sha256": "946795bfdec704fc3eb6d00e8271c93c8c7217d6a0f47be7bcb21326854837bc",
+    "downloadBytes": 2135016,
+    "installedBytes": 10311640,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-tr-0.4.0-1.tar.gz"
+  },
+  "dictionary-de": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-de-0.4.0-1.tar.gz",
+    "sha256": "e266a44cd59084e178a58f08a3b122adc0544458bc2fe8d1aa0061a4ee89ea63",
+    "downloadBytes": 2973507,
+    "installedBytes": 13416593,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-de-0.4.0-1.tar.gz"
+  },
+  "dictionary-fr": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-fr-0.4.0-1.tar.gz",
+    "sha256": "6602e290a4c97bd98a0ddbbaf8d7a16b4fe160744e377388bcf0b03cebfed0cd",
+    "downloadBytes": 2503164,
+    "installedBytes": 10773344,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-fr-0.4.0-1.tar.gz"
+  },
+  "dictionary-es": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-es-0.4.0-1.tar.gz",
+    "sha256": "eae023a6bbc5daf329e1bcaf5fc3e7162d53dda12dfe49da75a95afe1efa78f0",
+    "downloadBytes": 2601864,
+    "installedBytes": 13239731,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-es-0.4.0-1.tar.gz"
+  },
+  "dictionary-it": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-it-0.4.0-1.tar.gz",
+    "sha256": "719dc816c5e90f7bd3acfc2f338f2763ae169cc0cfe4cf7a9527aea84770a8c7",
+    "downloadBytes": 2107785,
+    "installedBytes": 9680707,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-it-0.4.0-1.tar.gz"
+  },
+  "dictionary-pt-br": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-pt-br-0.4.0-1.tar.gz",
+    "sha256": "e3306b72a47dc92afdaa191e6cf48cd2f21470a0cba9e5d6e0b6eae6aeb4900f",
+    "downloadBytes": 1972695,
+    "installedBytes": 8836017,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-pt-br-0.4.0-1.tar.gz"
+  },
+  "dictionary-pt-pt": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-pt-pt-0.4.0-1.tar.gz",
+    "sha256": "b80284a82cf5e6269323f541ac072ce5017f17c5d2052ee09f3ca50e55468415",
+    "downloadBytes": 2450954,
+    "installedBytes": 11026095,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-pt-pt-0.4.0-1.tar.gz"
+  },
+  "dictionary-sv": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-sv-0.4.0-1.tar.gz",
+    "sha256": "1a11e530fe3d0220d045af55cf2683e5fb868c51f17f59274e2fdd2717a36bed",
+    "downloadBytes": 2625498,
+    "installedBytes": 11788446,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-sv-0.4.0-1.tar.gz"
+  },
+  "dictionary-nb": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-nb-0.4.0-1.tar.gz",
+    "sha256": "4137af6c65f71bd0d5d1c386c2d591d045ace7b650a0b1417b33ff053585c4d1",
+    "downloadBytes": 2234631,
+    "installedBytes": 10444580,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-nb-0.4.0-1.tar.gz"
+  },
+  "dictionary-da": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-da-0.4.0-1.tar.gz",
+    "sha256": "e518621581adc58444374d1a9fc6fb6f95e543018b468a45c346b64ee4b7bf9e",
+    "downloadBytes": 2334333,
+    "installedBytes": 10291009,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-da-0.4.0-1.tar.gz"
+  },
+  "dictionary-fi": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-fi-0.4.0-1.tar.gz",
+    "sha256": "fef5ca90cb314b365ac7eddfe3e00eaff7bff837c5bfd2036d6cee70209dd93a",
+    "downloadBytes": 2923066,
+    "installedBytes": 13438929,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-fi-0.4.0-1.tar.gz"
+  },
+  "dictionary-pl": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-pl-0.4.0-1.tar.gz",
+    "sha256": "c11e8c4d2168620d8c8452017885198e6792d49a8e852a3e2c527fc75c87f648",
+    "downloadBytes": 2451311,
+    "installedBytes": 10310224,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-pl-0.4.0-1.tar.gz"
+  },
+  "dictionary-cs": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-cs-0.4.0-1.tar.gz",
+    "sha256": "39ba9715a4ac8547a5d498bed74da130e262b893815e9a61a09c489d6d0983fd",
+    "downloadBytes": 2097217,
+    "installedBytes": 8664661,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-cs-0.4.0-1.tar.gz"
+  },
+  "dictionary-ro": {
+    "version": "0.4.2-1",
+    "archive": "futo-content-dictionary-ro-0.4.2-1.tar.gz",
+    "sha256": "425d31ca5beb6ab5a9a531a1e3b4907ea3b9249fb498e7a1ca8f08913f64f4e5",
+    "downloadBytes": 5298875,
+    "installedBytes": 38280640,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-ro-0.4.2-1.tar.gz"
+  },
+  "dictionary-sl": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-sl-0.4.0-1.tar.gz",
+    "sha256": "20709234d2ac2337af0fd4ebcb94824ec2744cad32234b4962cc9a4f509403b6",
+    "downloadBytes": 684145,
+    "installedBytes": 2819943,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-sl-0.4.0-1.tar.gz"
+  },
+  "dictionary-hr": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-hr-0.4.0-1.tar.gz",
+    "sha256": "80ae8e7a22c8585526075e931617ee2e604918974498a28819674f1ad8903a20",
+    "downloadBytes": 2268901,
+    "installedBytes": 10776822,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-hr-0.4.0-1.tar.gz"
+  },
+  "dictionary-hu": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-hu-0.4.0-1.tar.gz",
+    "sha256": "64ba0a7a57621a15fc5bae18ff5719914917c035b177b1d46720195871fa82fb",
+    "downloadBytes": 2885093,
+    "installedBytes": 11545363,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-hu-0.4.0-1.tar.gz"
+  },
+  "dictionary-lv": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-lv-0.4.0-1.tar.gz",
+    "sha256": "18926029923b019c4662bda3bd4dde533638225aea64a1ef2fbf67c65b942b7d",
+    "downloadBytes": 2154654,
+    "installedBytes": 10761049,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-lv-0.4.0-1.tar.gz"
+  },
+  "dictionary-lt": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-lt-0.4.0-1.tar.gz",
+    "sha256": "54d91f119e6a95d7fdbb9f69f2cfcc1f45f4ac8eb46fa5becd3f92c1f5a0d91e",
+    "downloadBytes": 2238692,
+    "installedBytes": 10758668,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-lt-0.4.0-1.tar.gz"
+  },
+  "dictionary-el": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-el-0.4.0-1.tar.gz",
+    "sha256": "35c03a1eb4d5d32953f29c413086b753403cb5c03813aadf9e325e1bacf1a1ce",
+    "downloadBytes": 2311021,
+    "installedBytes": 11478244,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-el-0.4.0-1.tar.gz"
+  },
+  "dictionary-ru": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-ru-0.4.0-1.tar.gz",
+    "sha256": "60c5ec6221f4026ae8fdaa598a5f4e62741174f5e92f1704e6cab4c2a30df62e",
+    "downloadBytes": 2959146,
+    "installedBytes": 13566707,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-ru-0.4.0-1.tar.gz"
+  },
+  "dictionary-sr": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-sr-0.4.0-1.tar.gz",
+    "sha256": "f1a6739f2c93ea8f67ffb8ad72ab4020b163a5f590cc99825f912cb3386bb84a",
+    "downloadBytes": 2228086,
+    "installedBytes": 11003000,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-sr-0.4.0-1.tar.gz"
+  },
+  "dictionary-sr-latn": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-sr-latn-0.4.0-1.tar.gz",
+    "sha256": "a662ba62740b14923262d8a57164b6973a247563550b443606f8d3fa92ef010f",
+    "downloadBytes": 2071210,
+    "installedBytes": 9594154,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-sr-latn-0.4.0-1.tar.gz"
+  },
+  "dictionary-ar": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-ar-0.4.0-1.tar.gz",
+    "sha256": "202408a13ed63e386d63b9e0e38642a97aac25d5040708f432de1f3c77879b73",
+    "downloadBytes": 2234243,
+    "installedBytes": 9135300,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-ar-0.4.0-1.tar.gz"
+  },
+  "dictionary-fa": {
+    "version": "0.4.0-1",
+    "archive": "futo-content-dictionary-fa-0.4.0-1.tar.gz",
+    "sha256": "2d4cc8a7542a844aa25cb34d5dd8525d0a73da10c46ac7b4f5dd8161ad232bb8",
+    "downloadBytes": 2034080,
+    "installedBytes": 9564000,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/futo-content-dictionary-fa-0.4.0-1.tar.gz"
+  },
+  "dictionary-af": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-af-0.7.1-1.tar.gz",
+    "sha256": "4462e21a228caf54efa4890bdd480cbd058e35d25033c970c5609b7e7a4cce72",
+    "downloadBytes": 2521641,
+    "installedBytes": 14291083,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-af-0.7.1-1.tar.gz"
+  },
+  "dictionary-be": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-be-0.7.1-1.tar.gz",
+    "sha256": "d7f4ef5a5b0a5ba9f92199bdc6a502aa4c2703704d69396d97a17f020d9e298a",
+    "downloadBytes": 7472081,
+    "installedBytes": 71783801,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-be-0.7.1-1.tar.gz"
+  },
+  "dictionary-bg": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-bg-0.7.1-1.tar.gz",
+    "sha256": "7410044abf20d20de7dd8fbee6422a89ef7d7c0c3e61033f9780e2b4bb84884a",
+    "downloadBytes": 831367,
+    "installedBytes": 5613112,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-bg-0.7.1-1.tar.gz"
+  },
+  "dictionary-bn": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-bn-0.7.1-1.tar.gz",
+    "sha256": "2b85755aed9d1da9f380c4b6570ad38fb54f1607246d9d69d61882303b47c71e",
+    "downloadBytes": 1346488,
+    "installedBytes": 8942317,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-bn-0.7.1-1.tar.gz"
+  },
+  "dictionary-ca": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-ca-0.7.1-1.tar.gz",
+    "sha256": "2e39b269012b81eecaf505aef8fb08defdd6bb80b946a348a8e61bc064f0dfc9",
+    "downloadBytes": 655901,
+    "installedBytes": 3148478,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-ca-0.7.1-1.tar.gz"
+  },
+  "dictionary-eo": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-eo-0.7.1-1.tar.gz",
+    "sha256": "90590388e5c15bd02880a21b1ce40555fc3a41cca98c8996b55ba4096130b775",
+    "downloadBytes": 254738,
+    "installedBytes": 1318575,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-eo-0.7.1-1.tar.gz"
+  },
+  "dictionary-eu": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-eu-0.7.1-1.tar.gz",
+    "sha256": "153525580192ad50af38e2bcf81a9cd37d29415b7e3df9eeca94b6f3ed7887a1",
+    "downloadBytes": 918335,
+    "installedBytes": 5960485,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-eu-0.7.1-1.tar.gz"
+  },
+  "dictionary-gl": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-gl-0.7.1-1.tar.gz",
+    "sha256": "c39f6583af683cd3b13a0f097b317d618690bc4caaff6df35f76aa92ffd0714b",
+    "downloadBytes": 514180,
+    "installedBytes": 2810512,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-gl-0.7.1-1.tar.gz"
+  },
+  "dictionary-hi": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-hi-0.7.1-1.tar.gz",
+    "sha256": "94552101d9bc332eeb32b6f2bcc5155a360a6921317f6814376c95915c287733",
+    "downloadBytes": 505408,
+    "installedBytes": 2500667,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-hi-0.7.1-1.tar.gz"
+  },
+  "dictionary-hi-latn": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-hi-latn-0.7.1-1.tar.gz",
+    "sha256": "9d41db2a1a7df851080ec345c39cc4af5be681d8fb314933bb87c431effe4bf3",
+    "downloadBytes": 1949021,
+    "installedBytes": 10286002,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-hi-latn-0.7.1-1.tar.gz"
+  },
+  "dictionary-hy": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-hy-0.7.1-1.tar.gz",
+    "sha256": "dd8bb91a3533940b51bdd8cc688edfd861d1314325262ddf1b2bc01d0d54a59d",
+    "downloadBytes": 1702035,
+    "installedBytes": 12398596,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-hy-0.7.1-1.tar.gz"
+  },
+  "dictionary-id": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-id-0.7.1-1.tar.gz",
+    "sha256": "eda1ca7f596eb33a1ab88354d47cacb4aa98cbef4e3f6ea95f95a919b04bea4a",
+    "downloadBytes": 1787571,
+    "installedBytes": 15233606,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-id-0.7.1-1.tar.gz"
+  },
+  "dictionary-ka": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-ka-0.7.1-1.tar.gz",
+    "sha256": "b9292673e25506be0eed9264758779e5ab78a40ade605d57ff69ff14fdfb01cf",
+    "downloadBytes": 981896,
+    "installedBytes": 6520952,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-ka-0.7.1-1.tar.gz"
+  },
+  "dictionary-kab": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-kab-0.7.1-1.tar.gz",
+    "sha256": "881443ce363f04b7c860637e55f2c72c3cf710c341dfa85b4096c59406d12202",
+    "downloadBytes": 839335,
+    "installedBytes": 4406217,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-kab-0.7.1-1.tar.gz"
+  },
+  "dictionary-kk": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-kk-0.7.1-1.tar.gz",
+    "sha256": "20be29497eebf0e432590c29cb863e50dd3ab62a9c81bda19a20311a2991f7ba",
+    "downloadBytes": 948898,
+    "installedBytes": 6128233,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-kk-0.7.1-1.tar.gz"
+  },
+  "dictionary-kn": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-kn-0.7.1-1.tar.gz",
+    "sha256": "93307d9faa5b2c768cd85a5950378c132b54569c0aa9ec25dbd148aa480115d0",
+    "downloadBytes": 521958,
+    "installedBytes": 3184782,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-kn-0.7.1-1.tar.gz"
+  },
+  "dictionary-ml": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-ml-0.7.1-1.tar.gz",
+    "sha256": "afc5296ae8cad2c052ccdb1ad95cd6e133f44e3c4cab769451a494ec0561bc4f",
+    "downloadBytes": 591270,
+    "installedBytes": 3597194,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-ml-0.7.1-1.tar.gz"
+  },
+  "dictionary-mr": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-mr-0.7.1-1.tar.gz",
+    "sha256": "4cf7520d52729921a5a581f4de6b1c8ff1e7db08ac3bc357bfce8af3269d9c6b",
+    "downloadBytes": 515354,
+    "installedBytes": 2684344,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-mr-0.7.1-1.tar.gz"
+  },
+  "dictionary-pa": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-pa-0.7.1-1.tar.gz",
+    "sha256": "bbf63c3687b1bfe522ea97defde7b1a7b5e90d67e90ebf926507ce261b45b93d",
+    "downloadBytes": 171804,
+    "installedBytes": 788807,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-pa-0.7.1-1.tar.gz"
+  },
+  "dictionary-sk": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-sk-0.7.1-1.tar.gz",
+    "sha256": "08c76b3334f72ffdea40260b039510249f0d7446f89ca9fab0c26f4b1e989e87",
+    "downloadBytes": 7314775,
+    "installedBytes": 38432150,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-sk-0.7.1-1.tar.gz"
+  },
+  "dictionary-ta": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-ta-0.7.1-1.tar.gz",
+    "sha256": "2c7447a652a56081cdf175c647ccfd9b549b3d2c0c9c9bc204a566f1d60a1ee6",
+    "downloadBytes": 531894,
+    "installedBytes": 3509173,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-ta-0.7.1-1.tar.gz"
+  },
+  "dictionary-te": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-te-0.7.1-1.tar.gz",
+    "sha256": "4d2e2ddf7395050cd8ec0c140bff09bbb2825d8749a90dd0588ae96cca978c19",
+    "downloadBytes": 540790,
+    "installedBytes": 3091226,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-te-0.7.1-1.tar.gz"
+  },
+  "dictionary-tok": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-tok-0.7.1-1.tar.gz",
+    "sha256": "54820bfbdd6bb6b69517ca3bc728488151e5bb843b405d8bd6d2e8567313197d",
+    "downloadBytes": 2274,
+    "installedBytes": 7575,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-tok-0.7.1-1.tar.gz"
+  },
+  "dictionary-uk": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-uk-0.7.1-1.tar.gz",
+    "sha256": "11e1d3bf871720e39fc959ef338c3a6c7bdb723a78f05e2f6905c47c5785bc9f",
+    "downloadBytes": 4955186,
+    "installedBytes": 39648854,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-uk-0.7.1-1.tar.gz"
+  },
+  "dictionary-ur": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-ur-0.7.1-1.tar.gz",
+    "sha256": "5e6eb95bd4b7c7aa3e3c4f06491fcc31da52cf96e43cc96af16769f37e229df7",
+    "downloadBytes": 465598,
+    "installedBytes": 2004759,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-ur-0.7.1-1.tar.gz"
+  },
+  "dictionary-az": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-az-0.7.1-1.tar.gz",
+    "sha256": "ac70c34868ed9d600800bf5f04af314f27022b293dcaa066c392d9de3f2d74ca",
+    "downloadBytes": 483008,
+    "installedBytes": 2575692,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-az-0.7.1-1.tar.gz"
+  },
+  "dictionary-et": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-et-0.7.1-1.tar.gz",
+    "sha256": "9d9980b4660ea6f9b0e2c44bb028ab8c328de27e8806abd1de776adeb7bfaecd",
+    "downloadBytes": 7189676,
+    "installedBytes": 49004125,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-et-0.7.1-1.tar.gz"
+  },
+  "dictionary-is": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-is-0.7.1-1.tar.gz",
+    "sha256": "08f28845351bf057602b5de1cf7a39a46db9285922d8283b669df17408579801",
+    "downloadBytes": 2839358,
+    "installedBytes": 17608418,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-is-0.7.1-1.tar.gz"
+  },
+  "dictionary-km": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-km-0.7.1-1.tar.gz",
+    "sha256": "a725a2f97bfcf7170b813dc08dccdd7cd2c3980bbce0bb78cfb0dd608de5282d",
+    "downloadBytes": 543780,
+    "installedBytes": 3841033,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-km-0.7.1-1.tar.gz"
+  },
+  "dictionary-mk": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-mk-0.7.1-1.tar.gz",
+    "sha256": "22692ff90944ba7c13deb1f58dd8fdb8712e3ab6aaa1fc76b66db76ebb420e0c",
+    "downloadBytes": 2336370,
+    "installedBytes": 14326265,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-mk-0.7.1-1.tar.gz"
+  },
+  "dictionary-ne": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-ne-0.7.1-1.tar.gz",
+    "sha256": "1dd6e6a7bb502c62db3a39821348632dc88c57a0064ed81ef6d17ed9834d23eb",
+    "downloadBytes": 4583308,
+    "installedBytes": 43287595,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-ne-0.7.1-1.tar.gz"
+  },
+  "dictionary-th": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-th-0.7.1-1.tar.gz",
+    "sha256": "fcd8d7ed8e4ee273f6b57ba1109ecf98026a7759e4a20e334a0985c6ac69e621",
+    "downloadBytes": 1004844,
+    "installedBytes": 4912658,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-th-0.7.1-1.tar.gz"
+  },
+  "dictionary-tl": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-tl-0.7.1-1.tar.gz",
+    "sha256": "191b6eb96fa25491e18c8bf58bf9e4623d9365f816534390e2c1e389b7114255",
+    "downloadBytes": 114143,
+    "installedBytes": 489796,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-tl-0.7.1-1.tar.gz"
+  },
+  "dictionary-zgh": {
+    "version": "0.7.1-1",
+    "archive": "futo-content-dictionary-zgh-0.7.1-1.tar.gz",
+    "sha256": "0f27a3eeb83e0e0bbc09f707fe21481620c6b64642549b6d830c9336f1c90243",
+    "downloadBytes": 1688762,
+    "installedBytes": 13363185,
+    "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-zgh-0.7.1-1.tar.gz"
   }
 }

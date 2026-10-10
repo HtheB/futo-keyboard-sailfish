@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
+node "$ROOT/scripts/generate-helper-languages.js" --check
 ARCH=${FUTO_ARCH:-aarch64}
 BUILD=${FUTO_BUILD_DIR:-$ROOT/build/$ARCH}
 HOST_BUILD=${FUTO_HOST_BUILD_DIR:-$ROOT/build}

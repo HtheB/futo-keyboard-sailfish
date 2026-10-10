@@ -60,7 +60,7 @@ const (
 	forcedAppSupportDconfPath = "/sailfish/text_input/futo_keyboard/forcedAppSupportKeyEvents"
 	vaultAuthAction           = "org.hb.futo.keyboard.saved-login"
 	vaultSaveAuthAction       = "org.hb.futo.keyboard.save-login"
-	version                   = "0.5.0"
+	version                   = "0.8.0"
 )
 
 func zeroBytes(data []byte) {
@@ -257,45 +257,6 @@ type languageInfo struct {
 	Name string
 }
 
-var supportedLanguages = []languageInfo{
-	{Code: "EN", File: "en_US.fksidx", Name: "English (US)"},
-	{Code: "EN_GB", File: "en_GB.fksidx", Name: "English (UK)"},
-	{Code: "EN_IN", File: "en_GB.fksidx", Name: "English (India)"},
-	{Code: "NL", File: "nl.fksidx", Name: "Nederlands"},
-	{Code: "NL_BE", File: "nl.fksidx", Name: "Nederlands (België)"},
-	{Code: "TR", File: "tr.fksidx", Name: "Türkçe"},
-	{Code: "DE", File: "de.fksidx", Name: "Deutsch"},
-	{Code: "DE_CH", File: "de.fksidx", Name: "Deutsch (Schweiz)"},
-	{Code: "FR", File: "fr.fksidx", Name: "Français"},
-	{Code: "FR_CA", File: "fr.fksidx", Name: "Français (Canada)"},
-	{Code: "FR_CH", File: "fr.fksidx", Name: "Français (Suisse)"},
-	{Code: "ES", File: "es.fksidx", Name: "Español"},
-	{Code: "ES_419", File: "es.fksidx", Name: "Español (Latinoamérica)"},
-	{Code: "ES_US", File: "es.fksidx", Name: "Español (Estados Unidos)"},
-	{Code: "IT", File: "it.fksidx", Name: "Italiano"},
-	{Code: "IT_CH", File: "it.fksidx", Name: "Italiano (Svizzera)"},
-	{Code: "PT_BR", File: "pt_BR.fksidx", Name: "Português (Brasil)"},
-	{Code: "PT_PT", File: "pt_PT.fksidx", Name: "Português (Portugal)"},
-	{Code: "SV", File: "sv.fksidx", Name: "Svenska"},
-	{Code: "NB", File: "nb.fksidx", Name: "Norsk bokmål"},
-	{Code: "DA", File: "da.fksidx", Name: "Dansk"},
-	{Code: "FI", File: "fi.fksidx", Name: "Suomi"},
-	{Code: "PL", File: "pl.fksidx", Name: "Polski"},
-	{Code: "CS", File: "cs.fksidx", Name: "Čeština"},
-	{Code: "RO", File: "ro.fksidx", Name: "Română"},
-	{Code: "SL", File: "sl.fksidx", Name: "Slovenščina"},
-	{Code: "HR", File: "hr.fksidx", Name: "Hrvatski"},
-	{Code: "HU", File: "hu.fksidx", Name: "Magyar"},
-	{Code: "LV", File: "lv.fksidx", Name: "Latviešu"},
-	{Code: "LT", File: "lt.fksidx", Name: "Lietuvių"},
-	{Code: "EL", File: "el.fksidx", Name: "Ελληνικά"},
-	{Code: "RU", File: "ru.fksidx", Name: "Русский"},
-	{Code: "SR", File: "sr.fksidx", Name: "Српски (ћирилица)"},
-	{Code: "SR_LATN", File: "sr_Latn.fksidx", Name: "Srpski (latinica)"},
-	{Code: "AR", File: "ar.fksidx", Name: "العربية"},
-	{Code: "FA", File: "fa.fksidx", Name: "فارسی"},
-}
-
 type scoredWord struct {
 	Word     string `json:"word"`
 	Score    int64  `json:"score"`
@@ -342,6 +303,8 @@ type engineProcess struct {
 	command *exec.Cmd
 	stdin   io.WriteCloser
 	stdout  *bufio.Reader
+	// Empty in production; integration tests use the host-built worker.
+	executablePath string
 }
 
 // swipeProcess owns the GPL FUTO Swipe worker separately from the existing
@@ -763,7 +726,11 @@ func (engine *engineProcess) startLocked() error {
 	if len(arguments) == 0 {
 		return errors.New("no prediction dictionaries are installed")
 	}
-	command := exec.Command(enginePath, arguments...)
+	worker := enginePath
+	if engine.executablePath != "" {
+		worker = engine.executablePath
+	}
+	command := exec.Command(worker, arguments...)
 	stdin, err := command.StdinPipe()
 	if err != nil {
 		return err

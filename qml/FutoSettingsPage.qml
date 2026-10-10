@@ -139,9 +139,10 @@ Page {
         settings.emojiSizeScale = 1.0
         settings.layoutVariant = 0
         settings.layoutAssignments = '{"EN":0,"NL":0,"TR":3}'
-        settings.layoutAssignmentVersion = 1
+        settings.layoutIds = '{"EN":"legacy-0","NL":"legacy-0","TR":"legacy-3"}'
+        settings.layoutAssignmentVersion = 2
         settings.manualLayoutAssignments = '{}'
-        settings.layoutDefaultsVersion = 2
+        settings.layoutDefaultsVersion = 3
         settings.clipboardHistoryEnabled = false
         settings.clipboardRetentionSeconds = 3600
         settings.clipboardReturnAfterPaste = true
@@ -259,6 +260,7 @@ Page {
         property real emojiSizeScale: 1.0
         property int layoutVariant: 0
         property string layoutAssignments: "{}"
+        property string layoutIds: "{}"
         property int layoutAssignmentVersion: 0
         property string manualLayoutAssignments: "{}"
         property int layoutDefaultsVersion: 2

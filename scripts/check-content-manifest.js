@@ -15,6 +15,13 @@ function check(item) {
     assert.strictEqual(item.url || manifest.baseUrl + item.archive, pin.url);
 }
 check(manifest.items.find(item => item.id === "swipe-universal"));
+for (const item of manifest.items) {
+    const published = pins[item.id];
+    assert(published, "Missing published download contract: " + item.id);
+    for (const key of ["version", "archive", "sha256", "downloadBytes", "installedBytes"])
+        assert.strictEqual(item[key], published[key], item.id + " changed published " + key);
+    assert.strictEqual(item.url || manifest.baseUrl + item.archive, published.url);
+}
 
 // Deliberately make every local archive and installed tree different. The
 // generator must preserve the published contract rather than hash the rebuild.
@@ -34,5 +41,12 @@ vm.runInNewContext(fs.readFileSync(path.join(__dirname, "generate-content-manife
         : (() => { throw new Error(`unexpected dependency ${name}`); })()
 });
 check(generated.items.find(item => item.id === "swipe-universal"));
+for (const item of generated.items) {
+    const published = pins[item.id];
+    for (const key of ["version", "archive", "sha256", "downloadBytes", "installedBytes"])
+        assert.strictEqual(item[key], published[key], item.id + " contract changed after local rebuild");
+    assert.strictEqual(item.url || generated.baseUrl + item.archive, published.url,
+        item.id + " URL changed after local rebuild");
+}
 assert.notStrictEqual(generated.items[0].sha256, pin.sha256);
 console.log("Published content metadata stays pinned across rebuilds.");

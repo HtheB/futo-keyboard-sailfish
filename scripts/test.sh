@@ -9,6 +9,8 @@ node "$ROOT/scripts/check-credential-context.js"
 node "$ROOT/scripts/check-browser-credentials.js"
 node "$ROOT/scripts/check-content-manifest.js"
 node "$ROOT/scripts/check-word-suggestions.js"
+node "$ROOT/scripts/generate-word-character-ranges.js" --check
+node "$ROOT/scripts/check-word-characters.js"
 cc -std=c11 -Wall -Wextra -Werror "$ROOT/vault/test-browser-origin.c" \
     -ldl -o "$ROOT/build/test-browser-origin"
 "$ROOT/build/test-browser-origin"
@@ -158,6 +160,8 @@ grep -Fq '0xFDFC' "$ROOT/scripts/build-android-riyal-font.py"
 grep -Fq 'RIAL_CODEPOINT = 0xFDFC' "$ROOT/scripts/build-amiri-riyal-font.py"
 grep -Fq '65-futo-keyboard-symbols.conf' "$ROOT/packaging/Makefile"
 node "$ROOT/scripts/check-generated-layouts.js"
+node "$ROOT/scripts/generate-helper-languages.js" --check
+node "$ROOT/scripts/check-layout-assignments.js"
 node "$ROOT/scripts/check-punctuation-spacing.js"
 node "$ROOT/scripts/check-committed-word-transitions.js"
 node "$ROOT/scripts/check-symbol-popups.js"

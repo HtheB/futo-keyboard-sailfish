@@ -184,9 +184,12 @@ Page {
     function assignedLayout(code) {
         var assignments = layoutAssignments()
         var manualAssignments = manualAssignmentFlags()
-        var value = Number(assignments[String(code)])
-        return isFinite(value) && (languageEnabled(code) || manualAssignments[String(code)])
-                ? LetterLayouts.clampedIndex(value)
+        var identities = {}
+        try {
+            identities = JSON.parse(String(settings.layoutIds)) || {}
+        } catch (error) { }
+        return languageEnabled(code) || manualAssignments[String(code)]
+                ? LetterLayouts.assignedIndex(code, assignments, identities)
                 : LetterLayouts.defaultForLanguage(code)
     }
 
@@ -209,6 +212,7 @@ Page {
         path: "/sailfish/text_input/futo_keyboard"
         property string enabledLanguages: "EN,NL,TR"
         property string layoutAssignments: "{}"
+        property string layoutIds: "{}"
         property string manualLayoutAssignments: "{}"
         property bool automaticLanguageDetection: true
 		property bool mergeSameLayoutLanguages: true

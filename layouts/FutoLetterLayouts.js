@@ -262,6 +262,10 @@ function qwertyAlternateSet(letterValue, numberRowVisible, shiftedValue) {
     return shiftedValue ? shiftedAlternateSet(set) : set
 }
 
+// Pre-0.7.1 defaults were shifted by an inserted catalogue entry. Repair
+// those recognizable defaults once, then persist stable layout identifiers.
+var pre071Defaults = {"SJE":91,"BN_BD":31,"BN_IN":32,"BOD":33,"CA":34,"CKB":35,"CV":37,"CY":38,"DA":39,"DE_CH":41,"EN_SHAW":43,"EO":45,"ES_419":46,"ES_US":46,"ET_EE":47,"EU_ES":46,"FR_CH":51,"GAG":52,"GL_ES":46,"HA":53,"HI":54,"HY_AM":57,"IPA":117,"IS":58,"IT_CH":41,"IZH":59,"KA_GE":61,"KAA":62,"KAB":60,"KK":63,"KK_LATN":64,"KM_KH":65,"KN_IN":66,"KRL":68,"KU_LATN":69,"KY":70,"LO_LA":71,"LUD":73,"MK":76,"ML_IN":77,"MN_MN":78,"MR_IN":79,"MT":80,"MY":81,"NE_NP":83,"NEW_NP":84,"NL_BE":50,"PA_IN":86,"PT_BR":34,"PT_PT":34,"SAH":89,"SE":90,"SI_LK":96,"SMA":93,"SMJ":94,"SMN":95,"SQ":98,"TA_IN":100,"TA_LK":100,"TA_SG":100,"TE_IN":101,"TG":102,"TH":103,"TK":104,"TL":46,"TOK":105,"TT":107,"TYV":70,"SJU":92,"UG":109,"UK":110,"UR":111,"UZ_UZ":112,"VEP":73,"VOT":113,"ZGH_LATN":116,"KPV":67,"MHR":74,"MRJ":75,"YRK":114,"NIO":85,"ENF":44,"ENH":44,"KOI":67,"UDM":108,"ZGH":115}
+
 var legacyLayoutCount = legacyLayouts.length
 var layouts = legacyLayouts.concat(Generated.layouts)
 var count = layouts.length
@@ -367,6 +371,39 @@ function clampedIndex(value) {
     if (!isFinite(parsed))
         return 0
     return Math.max(0, Math.min(count - 1, Math.round(parsed)))
+}
+
+function idForIndex(value) {
+    var index = clampedIndex(value)
+    return index < legacyLayoutCount ? "legacy-" + index : layouts[index].id
+}
+
+function indexForId(id) {
+    id = String(id || "")
+    if (generatedIndexById[id] !== undefined)
+        return generatedIndexById[id]
+    if (/^legacy-[0-9]+$/.test(id)) {
+        var index = Number(id.slice(7))
+        if (index >= 0 && index < legacyLayoutCount)
+            return index
+    }
+    return -1
+}
+
+function assignedIndex(code, assignments, identities) {
+    code = String(code)
+    var index = indexForId(identities[code])
+    var compatible = compatibleIndices(code)
+    if (index >= 0 && compatible.indexOf(index) >= 0)
+        return index
+    var value = Number(assignments[code])
+    // Old numeric settings carry no catalogue version. Only translate a
+    // recognizable former default, never guess arbitrary custom selections.
+    if (!identities[code] && pre071Defaults[code] !== undefined
+            && value === pre071Defaults[code])
+        value = defaultForLanguage(code)
+    return isFinite(value) && compatible.indexOf(value) >= 0
+            ? value : defaultForLanguage(code)
 }
 
 function name(value) {

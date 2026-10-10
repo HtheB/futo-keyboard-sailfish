@@ -61,6 +61,7 @@ FutoKeyboardLayout {
         property real numberRowHeightScale: 1.0
         property int layoutVariant: 0
         property string layoutAssignments: "{}"
+        property string layoutIds: "{}"
         property int layoutAssignmentVersion: 0
         property string manualLayoutAssignments: "{}"
         property int layoutDefaultsVersion: 3
@@ -345,11 +346,18 @@ FutoKeyboardLayout {
         return result && typeof result === "object" ? result : {}
     }
 
+    function layoutIdentities() {
+        try {
+            var identities = JSON.parse(String(layoutSettings.layoutIds))
+            return identities && typeof identities === "object" ? identities : {}
+        } catch (error) {
+            return {}
+        }
+    }
+
     function layoutForLanguage(languageCode) {
-        var assignments = layoutAssignments()
-        var value = Number(assignments[String(languageCode)])
-        return isFinite(value) ? LetterLayouts.clampedIndex(value)
-                               : LetterLayouts.defaultForLanguage(languageCode)
+        return LetterLayouts.assignedIndex(languageCode, layoutAssignments(),
+                                          layoutIdentities())
     }
 
     function assignLayoutToLanguage(languageCode, layoutValue) {
@@ -359,11 +367,14 @@ FutoKeyboardLayout {
             return false
         var assignments = layoutAssignments()
         var manualAssignments = manualAssignmentFlags()
+        var identities = layoutIdentities()
         assignments[String(languageCode)] = layoutValue
+        identities[String(languageCode)] = LetterLayouts.idForIndex(layoutValue)
         manualAssignments[String(languageCode)] = true
         layoutSettings.manualLayoutAssignments = JSON.stringify(manualAssignments)
+        layoutSettings.layoutIds = JSON.stringify(identities)
         layoutSettings.layoutAssignments = JSON.stringify(assignments)
-        layoutSettings.layoutAssignmentVersion = 1
+        layoutSettings.layoutAssignmentVersion = 2
         layoutSettings.layoutVariant = layoutValue
         synchronizeDetectedLanguage()
         return true
@@ -371,6 +382,7 @@ FutoKeyboardLayout {
 
     function ensureLayoutAssignments() {
         var assignments = layoutAssignments()
+        var identities = layoutIdentities()
         var manualAssignments = manualAssignmentFlags()
         var languages = enabledPredictionLanguages()
         var legacyMigration = layoutSettings.layoutAssignmentVersion < 1
@@ -436,8 +448,20 @@ FutoKeyboardLayout {
         for (var storedCode in assignments) {
             if (languages.indexOf(storedCode) < 0 && !manualAssignments[storedCode]) {
                 delete assignments[storedCode]
+                delete identities[storedCode]
                 changed = true
             }
+        }
+
+        // Store identities for disabled manual choices too. Generated catalogue
+        // additions must not change them when the language is enabled later.
+        for (var identityCode in assignments) {
+            var resolved = LetterLayouts.assignedIndex(identityCode, assignments, identities)
+            if (assignments[identityCode] !== resolved) {
+                assignments[identityCode] = resolved
+                changed = true
+            }
+            identities[identityCode] = LetterLayouts.idForIndex(resolved)
         }
 
         for (var i = 0; i < languages.length; ++i) {
@@ -449,13 +473,17 @@ FutoKeyboardLayout {
                 assignments[code] = LetterLayouts.defaultForLanguage(code)
                 changed = true
             }
+            identities[code] = LetterLayouts.idForIndex(assignments[code])
         }
         if (manualChanged)
             layoutSettings.manualLayoutAssignments = JSON.stringify(manualAssignments)
+        var encodedIds = JSON.stringify(identities)
+        if (layoutSettings.layoutIds !== encodedIds)
+            layoutSettings.layoutIds = encodedIds
         if (changed) {
             layoutSettings.layoutAssignments = JSON.stringify(assignments)
-            layoutSettings.layoutAssignmentVersion = 1
         }
+        layoutSettings.layoutAssignmentVersion = 2
         if (defaultsMigration || nationalMigration)
             layoutSettings.layoutDefaultsVersion = 3
         ensureActiveLetterLayout()
@@ -1246,6 +1274,7 @@ FutoKeyboardLayout {
         }
         onEnabledLanguagesChanged: root.ensureLayoutAssignments()
         onLayoutAssignmentsChanged: root.ensureActiveLetterLayout()
+        onLayoutIdsChanged: root.ensureActiveLetterLayout()
         onAutomaticLanguageDetectionChanged: root.synchronizeDetectedLanguage()
         onManualPredictionLanguageChanged: {
             if (root.suppressNextLanguageSwipeCancel) {

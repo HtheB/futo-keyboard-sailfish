@@ -10,7 +10,7 @@
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
-const { spawn } = require("child_process");
+const { spawn, execFileSync } = require("child_process");
 
 const root = path.resolve(__dirname, "..");
 const worker = process.env.FUTO_SWIPE_WORKER
@@ -79,9 +79,11 @@ function geometryFor(rows) {
     const geometry = [];
     rows.forEach((row, rowIndex) => {
         const letters = row.map(item => typeof item === "string" ? item
-            : item && item.kind === "character" ? item.output || item.caption : "")
+            : item && item.kind === "character" ? item.caption : "")
             .filter(Boolean);
         letters.forEach((letter, column) => {
+            if (!/^[\p{Letter}\p{Mark}]$/u.test(letter))
+                return;
             let x;
             if (rowIndex === 0 || letters.length >= 10) {
                 x = (column + 0.5) / letters.length;
@@ -90,7 +92,7 @@ function geometryFor(rows) {
             } else {
                 x = (column + 1.5) / (letters.length + 3.0);
             }
-            const y = (rowIndex + 0.5) / 3.0;
+            const y = (rowIndex + 0.5) / rows.length;
             const point = { letter: String(letter).toLowerCase(), x, y };
             if (!keys.has(point.letter))
                 keys.set(point.letter, point);
@@ -128,6 +130,8 @@ function traceFor(word, keys) {
         elapsed += 12;
     };
     append(centers[0].x, centers[0].y);
+    if (centers.length === 1)
+        append(centers[0].x, centers[0].y);
     for (let index = 1; index < centers.length; ++index) {
         const from = centers[index - 1];
         const to = centers[index];
@@ -152,20 +156,43 @@ async function main() {
         throw new Error(`FUTO Swipe model is missing: ${encoder}`);
 
     const { layouts, defaults } = loadLayouts();
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, "content/manifest.json"), "utf8"));
+    const registry = fs.readFileSync(path.join(root, "helper/cmd/futo-keyboard-helper/languages_generated.go"), "utf8");
+    const dictionaryFiles = new Map(Array.from(registry.matchAll(/Code: "([^"]+)", File: "([^"]+)"/g), match => [match[1], match[2]]));
+    const auditAll = process.env.FUTO_SWIPE_AUDIT_ALL === "1";
+    if (auditAll) {
+        cases.splice(0);
+        for (const [language, filename] of dictionaryFiles) {
+            const result = execFileSync(path.join(root, "build/futo-dictionary-compiler"),
+                ["--dictionary", language + "=" + path.join(root, "build/dictionaries", filename)],
+                {input: `TOP\t${language}\t1024\n`, encoding: "utf8", stdio: ["pipe", "pipe", "ignore"]});
+            if (!result.startsWith("OK\t"))
+                throw new Error(language + " dictionary query failed");
+            const geometry = geometryFor(layouts[defaults[language]].rows);
+            const word = JSON.parse(result.slice(3)).sort((a, b) =>
+                Number(Array.from(a).length === 1) - Number(Array.from(b).length === 1)).find(word => {
+                if (Array.from(word).length < 1 || Array.from(word).length > 14)
+                    return false;
+                try {
+                    traceFor(word, geometry.keys);
+                    return true;
+                } catch (_) { return false; }
+            });
+            if (!word)
+                throw new Error(language + " has no drawable word in its default layout");
+            cases.push([language, word]);
+        }
+    }
     const argumentsList = ["--encoder", encoder];
     if (fs.existsSync(decoder))
         argumentsList.push("--decoder", decoder);
     if (fs.existsSync(lmModel) && fs.existsSync(lmVocab))
         argumentsList.push("--lm-model", lmModel, "--lm-vocab", lmVocab);
-    const dictionaryAliases = {
-        DE_CH: "de", EN_IN: "en_GB", ES_419: "es", ES_US: "es",
-        FR_CA: "fr", FR_CH: "fr", IT_CH: "it", NL_BE: "nl"
-    };
-    for (const [language] of cases) {
-        const filename = dictionaryAliases[language] || (language === "EN" ? "en_US"
-            : (language === "EN_GB" ? "en_GB"
-               : (language === "SR_LATN" ? "sr_Latn" : language.toLowerCase())));
-        const dictionary = path.join(root, "build", "dictionaries", `${filename}.fksidx`);
+    for (const language of new Set(cases.map(item => item[0]))) {
+        const filename = dictionaryFiles.get(language);
+        if (!filename || !manifest.items.some(item => item.paths.includes("dictionaries/" + filename)))
+            throw new Error("Missing registered dictionary for " + language);
+        const dictionary = path.join(root, "build", "dictionaries", filename);
         if (!fs.existsSync(dictionary))
             throw new Error(`compiled dictionary is missing: ${dictionary}`);
         argumentsList.push("--dictionary", `${language}=${dictionary}`);
@@ -224,7 +251,7 @@ async function main() {
         const rank = suggestions.indexOf(expected);
         console.log(`${language.padEnd(7)} ${expected.padEnd(10)} rank=${rank < 0 ? "-" : rank + 1}`
                     + `  ${suggestions.slice(0, 5).join(", ")}`);
-        if (suggestions.length === 0 || rank < 0
+        if (suggestions.length === 0 || (!auditAll && rank < 0)
                 || (mustRankFirst.has(`${language}\t${expected}`) && rank !== 0))
             failures++;
     }

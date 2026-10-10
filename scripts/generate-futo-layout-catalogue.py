@@ -470,6 +470,18 @@ def generate(root: pathlib.Path, android_root: pathlib.Path, android_revision: s
                 language_layout_options[code].append(resolved_id)
         language_layout[code] = language_layout_options[code][0]
 
+    # Published ordinal choices are append-only, even though runtime settings
+    # now also store IDs. Discovering another language must not reorder layouts.
+    order_path = pathlib.Path(__file__).resolve().parent.parent / "content" / "layout-order.json"
+    order = json.loads(order_path.read_text(encoding="utf-8"))["generatedIds"]
+    if len(order) != len(set(order)):
+        raise ValueError("duplicate published layout identifiers")
+    by_id = {item["id"]: item for item in layouts}
+    missing = set(order) - set(by_id)
+    if missing:
+        raise ValueError(f"published layouts disappeared: {sorted(missing)}")
+    layouts = [by_id[key] for key in order] + [item for item in layouts if item["id"] not in order]
+
     languages = []
     for code, layout_id in language_layout.items():
         official_code = official_codes[code]
