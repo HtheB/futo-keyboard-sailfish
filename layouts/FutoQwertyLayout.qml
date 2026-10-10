@@ -1276,6 +1276,7 @@ FutoKeyboardLayout {
         onLayoutAssignmentsChanged: root.ensureActiveLetterLayout()
         onLayoutIdsChanged: root.ensureActiveLetterLayout()
         onAutomaticLanguageDetectionChanged: root.synchronizeDetectedLanguage()
+        onMergeSameLayoutLanguagesChanged: root.synchronizeDetectedLanguage()
         onManualPredictionLanguageChanged: {
             if (root.suppressNextLanguageSwipeCancel) {
                 root.suppressNextLanguageSwipeCancel = false

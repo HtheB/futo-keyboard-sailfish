@@ -1035,7 +1035,8 @@ func (store *learnedStore) contains(language, word string) bool {
 	return false
 }
 
-func (store *learnedStore) matchesLanguages(languages []string, prefix string, maximum int) []string {
+func (store *learnedStore) matchesLanguages(languages []string, prefix string, maximum int,
+	allowShared func(string) bool) []string {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	type rankedWord struct {
@@ -1054,6 +1055,9 @@ func (store *learnedStore) matchesLanguages(languages []string, prefix string, m
 		}
 		for word, count := range words {
 			if count < 2 || !strings.HasPrefix(strings.ToLower(word), prefix) {
+				continue
+			}
+			if language == "MULTI" && allowShared != nil && !allowShared(word) {
 				continue
 			}
 			key := strings.ToLower(word)
@@ -1083,7 +1087,8 @@ func (store *learnedStore) matchesLanguages(languages []string, prefix string, m
 	return result
 }
 
-func (store *learnedStore) containsLanguages(languages []string, word string) bool {
+func (store *learnedStore) containsLanguages(languages []string, word string,
+	allowShared func(string) bool) bool {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	word = strings.ToLower(word)
@@ -1097,6 +1102,9 @@ func (store *learnedStore) containsLanguages(languages []string, word string) bo
 		}
 		for learnedWord, count := range words {
 			if count >= 2 && strings.ToLower(learnedWord) == word {
+				if language == "MULTI" && allowShared != nil && !allowShared(learnedWord) {
+					continue
+				}
 				return true
 			}
 		}
@@ -1613,7 +1621,35 @@ func (store *historyStore) dominantLanguage(word string, allowed []string) strin
 	return best
 }
 
+// Earlier versions put automatically learned words in the shared MULTI bucket.
+// Their recorded language still lets us filter them without rewriting or
+// deleting the user's data. Untagged manual/imported words remain shared.
+func (store *historyStore) wordAllowedInLanguages(word string, languages []string) bool {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	return store.wordAllowedInLanguagesLocked(word, languages)
+}
+
+func (store *historyStore) wordAllowedInLanguagesLocked(word string, languages []string) bool {
+	counts := store.data.LanguageWords[normalizedHistoryWord(word)]
+	for _, language := range languages {
+		if counts[language] > 0 {
+			return true
+		}
+	}
+	for _, count := range counts {
+		if count > 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func (store *historyStore) next(previous string, maximum int) []string {
+	return store.nextLanguages(previous, nil, maximum)
+}
+
+func (store *historyStore) nextLanguages(previous string, languages []string, maximum int) []string {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	words := store.data.Bigrams[normalizedHistoryWord(previous)]
@@ -1623,6 +1659,9 @@ func (store *historyStore) next(previous string, maximum int) []string {
 	}
 	items := make([]ranked, 0, len(words))
 	for word, count := range words {
+		if len(languages) > 0 && !store.wordAllowedInLanguagesLocked(word, languages) {
+			continue
+		}
 		items = append(items, ranked{word: word, count: count})
 	}
 	sort.Slice(items, func(i, j int) bool {
@@ -4643,8 +4682,11 @@ func (service *service) analyzeContext(languagesCSV, word, context string,
 		corrections[index].Word = matchTypedCase(corrections[index].Word, word)
 	}
 
+	allowShared := func(candidate string) bool {
+		return service.history.wordAllowedInLanguages(candidate, languages)
+	}
 	personal := service.withoutSuppressed(
-		service.learned.matchesLanguages(languages, word, int(limit)))
+		service.learned.matchesLanguages(languages, word, int(limit), allowShared))
 	for index := range personal {
 		personal[index] = matchTypedCase(personal[index], word)
 	}
@@ -4652,7 +4694,7 @@ func (service *service) analyzeContext(languagesCSV, word, context string,
 		word, showTyped, personal, ranked, int(limit))
 	result.Language = detectedLanguage
 	result.Correction = chooseContextCorrection(allKnown,
-		service.learned.containsLanguages(languages, word), contractionCorrection,
+		service.learned.containsLanguages(languages, word, allowShared), contractionCorrection,
 		phraseCorrection,
 		corrections, word, int(correctionLevel))
 	if modelCorrection != "" {
@@ -4834,7 +4876,7 @@ func (service *service) NextWords(languagesCSV, context string, limit int32,
 	// otherwise one accidental learned pair can permanently hide the natural
 	// continuation (for example, "I am" showing an unrelated learned word
 	// before "not" or "a").
-	for _, word := range service.history.next(previous, int(limit)) {
+	for _, word := range service.history.nextLanguages(previous, languages, int(limit)) {
 		appendWord(word)
 	}
 	ordered := make([]string, 0, len(languages))
@@ -4916,7 +4958,7 @@ func (service *service) AcceptContext(languagesCSV, previous, word,
 	if !allowed {
 		normalizedLanguage = languages[0]
 	}
-	if err := service.learned.accept("MULTI", word); err != nil {
+	if err := service.learned.accept(normalizedLanguage, word); err != nil {
 		return false, dbus.MakeFailedError(err)
 	}
 	if err := service.history.accept(previous, word, normalizedLanguage); err != nil {

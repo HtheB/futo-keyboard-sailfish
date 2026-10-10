@@ -9,6 +9,7 @@ node "$ROOT/scripts/check-credential-context.js"
 node "$ROOT/scripts/check-browser-credentials.js"
 node "$ROOT/scripts/check-content-manifest.js"
 node "$ROOT/scripts/check-word-suggestions.js"
+node "$ROOT/scripts/check-language-isolation.js"
 node "$ROOT/scripts/generate-word-character-ranges.js" --check
 node "$ROOT/scripts/check-word-characters.js"
 cc -std=c11 -Wall -Wextra -Werror "$ROOT/vault/test-browser-origin.c" \

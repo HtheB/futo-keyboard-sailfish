@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 ARCH=${FUTO_ARCH:-aarch64}
 VERSION=0.8.0
-RELEASE=1
+RELEASE=2
 NAME=futo-keyboard-sailfish
 OUTPUT_DIR=${FUTO_RPM_OUTPUT_DIR:-$ROOT/build/rpm}
 BINARY_DIR=${FUTO_BINARY_DIR:-$ROOT/build/$ARCH}

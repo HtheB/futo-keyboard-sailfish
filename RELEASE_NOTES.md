@@ -14,3 +14,4 @@
 - Fixed the download size-mismatch error when downloading FUTO Swipe.
 - Fixed language layouts changing after an update, including Danish appearing as Welsh.
 - Fixed downloaded dictionaries not being used for predictions and swipe typing in some languages, including Icelandic.
+- Turning off language combining also keeps learned suggestions and next-word predictions separate.
