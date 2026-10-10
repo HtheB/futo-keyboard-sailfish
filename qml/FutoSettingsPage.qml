@@ -81,6 +81,7 @@ Page {
 		settings.mergeSameLayoutLanguages = true
         settings.manualPredictionLanguage = ""
         settings.nextWordPredictionEnabled = true
+        settings.allowSuggestionsWithSpaces = true
         settings.predictionEnabled = true
         settings.contextPredictionEnabled = true
         settings.autoCorrectionEnabled = false
@@ -200,6 +201,7 @@ Page {
 		property bool mergeSameLayoutLanguages: true
         property string manualPredictionLanguage: ""
         property bool nextWordPredictionEnabled: true
+        property bool allowSuggestionsWithSpaces: true
         property bool predictionEnabled: true
         property bool contextPredictionEnabled: true
         property bool autoCorrectionEnabled: false

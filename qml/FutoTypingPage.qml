@@ -92,6 +92,7 @@ Page {
         property bool predictionEnabled: true
         property bool contextPredictionEnabled: true
         property bool nextWordPredictionEnabled: true
+        property bool allowSuggestionsWithSpaces: true
         property bool autoCorrectionEnabled: false
         property bool punctuationCorrectionEnabled: false
         property int correctionLevel: 0
@@ -211,6 +212,17 @@ Page {
                 enabled: settings.predictionEnabled
                 text: qsTr("Keep my exact spelling as the first suggestion")
                 onClicked: settings.showTypedWord = !checked
+            }
+
+            TextSwitch {
+                width: parent.width
+                automaticCheck: false
+                checked: settings.allowSuggestionsWithSpaces
+                enabled: settings.predictionEnabled
+                text: qsTr("Suggestions containing spaces")
+                description: qsTr("Turn this off to suggest only single words, without "
+                                  + "splitting words or suggesting phrases.")
+                onClicked: settings.allowSuggestionsWithSpaces = !checked
             }
 
             TextSwitch {

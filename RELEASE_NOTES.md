@@ -5,6 +5,7 @@
 - Added optional Android™ AppSupport autofill for saving and filling logins,
   with device authentication before using a saved login.
 - Saved passwords are now listed in alphabetical order.
+- Added an option to turn off suggestions containing spaces.
 
 ## Fixes
 

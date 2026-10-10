@@ -1972,6 +1972,37 @@ InputHandler {
         return result
     }
 
+    function allowedWordSuggestion(value) {
+        var text = displayableSuggestion(value)
+        return !keyboardSettings.allowSuggestionsWithSpaces && /\s/.test(text)
+                ? "" : text
+    }
+
+    function wordSuggestions(values) {
+        var result = []
+        var nonEmpty = nonEmptySuggestions(values)
+        for (var i = 0; i < nonEmpty.length; ++i) {
+            var text = allowedWordSuggestion(nonEmpty[i])
+            if (text !== "")
+                result.push(text)
+        }
+        return result
+    }
+
+    function refreshWordSuggestionPreference() {
+        // Invalidate pending replies and filter the existing row immediately.
+        // Application autofill and URL results are separate from word predictions.
+        requestSerial++
+        if (!urlSuggestionResultsActive) {
+            var visible = []
+            for (var i = 0; i < predictionModel.count; ++i)
+                visible.push(String(predictionModel.get(i).text))
+            replacePredictionSuggestions(visible, correctionCandidate)
+            suggestionsUpdated()
+        }
+        requestSuggestionsSoon()
+    }
+
     function compactUrlSuggestion(value) {
         return String(value).replace(/^[a-z][a-z0-9+.-]*:\/\//i, "")
                 .replace(/^([^\/?#]+)\/$/, "$1")
@@ -2018,8 +2049,8 @@ InputHandler {
     }
 
     function replacePredictionSuggestions(values, primaryValue) {
-        var suggestions = nonEmptySuggestions(values)
-        var primary = displayableSuggestion(primaryValue)
+        var suggestions = wordSuggestions(values)
+        var primary = allowedWordSuggestion(primaryValue)
         var configuredLimit = Number(keyboardSettings.suggestionCount)
         var maximum = isFinite(configuredLimit)
                 ? Math.max(3, Math.min(12, Math.round(configuredLimit))) : 12
@@ -2053,7 +2084,7 @@ InputHandler {
     }
 
     function visiblePrimaryCorrection() {
-        if (correctionCandidate === "")
+        if (allowedWordSuggestion(correctionCandidate) === "")
             return ""
         for (var i = 0; i < predictionModel.count; ++i) {
             var item = predictionModel.get(i)
@@ -2325,6 +2356,7 @@ InputHandler {
         property string lastDetectedLanguage: ""
         property bool automaticLanguageDetection: true
         property bool nextWordPredictionEnabled: true
+        property bool allowSuggestionsWithSpaces: true
         property bool predictionEnabled: true
         property bool contextPredictionEnabled: true
         property bool autoCorrectionEnabled: false
@@ -2391,6 +2423,7 @@ InputHandler {
         onEnabledLanguagesChanged: futoHandler.requestSuggestionsSoon()
         onAutomaticLanguageDetectionChanged: futoHandler.requestSuggestionsSoon()
         onNextWordPredictionEnabledChanged: futoHandler.requestSuggestionsSoon()
+        onAllowSuggestionsWithSpacesChanged: futoHandler.refreshWordSuggestionPreference()
         onContextPredictionEnabledChanged: {
             helper.typedCall("SetContextPredictionEnabled", [
                 { "type": "b", "value": contextPredictionEnabled }
@@ -5451,7 +5484,8 @@ InputHandler {
             var primaryCorrection = keyboardSettings.predictionEnabled
                     && (keyboardSettings.autoCorrectionEnabled
                         || keyboardSettings.punctuationCorrectionEnabled)
-                    && result.correction ? String(result.correction) : ""
+                    && result.correction
+                    ? futoHandler.allowedWordSuggestion(result.correction) : ""
             futoHandler.correctionQuery = primaryCorrection !== "" ? query : ""
             futoHandler.correctionCandidate = primaryCorrection
             futoHandler.replacePredictionSuggestions(
@@ -6307,7 +6341,7 @@ InputHandler {
 			} catch (error) {
 				result = { "suggestions": [], "language": "" }
 			}
-			var suggestions = futoHandler.nonEmptySuggestions(result.suggestions || [])
+			var suggestions = futoHandler.wordSuggestions(result.suggestions || [])
 			if (suggestions.length < 1)
 				return
 			// The decoder's capitalize flag deliberately means "capitalize the

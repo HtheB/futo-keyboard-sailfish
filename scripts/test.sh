@@ -8,6 +8,7 @@ bash "$ROOT/scripts/test-textinput-settings-hook.sh"
 node "$ROOT/scripts/check-credential-context.js"
 node "$ROOT/scripts/check-browser-credentials.js"
 node "$ROOT/scripts/check-content-manifest.js"
+node "$ROOT/scripts/check-word-suggestions.js"
 cc -std=c11 -Wall -Wextra -Werror "$ROOT/vault/test-browser-origin.c" \
     -ldl -o "$ROOT/build/test-browser-origin"
 "$ROOT/build/test-browser-origin"
