@@ -137,10 +137,33 @@ Item {
             }
         }
 
-        ViewPlaceholder {
-            enabled: accountList.count === 0
-            text: qsTr("No saved logins for this site or app")
-            hintText: qsTr("Tap ABC to return to the keyboard")
+        Column {
+            // The keyboard has no Silica ApplicationWindow. ViewPlaceholder's
+            // window-dependent visibility can leave its empty-state text over
+            // real accounts here, so bind the message directly to this list.
+            parent: accountList
+            anchors.centerIn: parent
+            width: parent.width - 2 * Theme.paddingLarge
+            spacing: Theme.paddingMedium
+            visible: accountList.count === 0
+
+            Label {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+                text: qsTr("No saved logins for this site or app")
+                color: Theme.secondaryColor
+                font.pixelSize: Theme.fontSizeMedium
+            }
+
+            Label {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+                text: qsTr("Tap ABC to return to the keyboard")
+                color: Theme.secondaryColor
+                font.pixelSize: Theme.fontSizeSmall
+            }
         }
 
         VerticalScrollDecorator {}

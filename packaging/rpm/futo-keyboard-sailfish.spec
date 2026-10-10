@@ -4,11 +4,12 @@
 %global _missing_build_ids_terminate_build 0
 
 Name:           futo-keyboard-sailfish
-Version:        0.7.1
+Version:        0.8.0
 Release:        1
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
 License:        LicenseRef-FUTO-Source-First-1.1-kb AND GPL-3.0-only AND BSD-3-Clause AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND LGPL-2.1-or-later AND (LGPL-2.1-only OR LGPL-3.0-only)
 Source0:        %{name}-%{version}.tar.gz
+Icon:           %{name}.xpm
 ExclusiveArch:  aarch64 armv7hl i486
 
 BuildRequires:  make
@@ -98,6 +99,8 @@ if [ "$1" -eq 0 ]; then
 fi
 
 %files
+%{_datadir}/icons/hicolor/128x128/apps/futo-keyboard-sailfish.png
+%attr(0755,root,root) %{_libexecdir}/futo-keyboard-setup-toast
 %defattr(0644,root,root,0755)
 %license %{_licensedir}/%{name}/FUTO-SOURCE-FIRST-LICENSE.md
 %license %{_licensedir}/%{name}/FUTO-VOICE-SOURCE-FIRST-LICENSE.md
@@ -128,9 +131,12 @@ fi
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-prediction
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-helper
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-secrets
+%attr(2755,root,privileged) %{_libexecdir}/futo-keyboard-device-auth
 %attr(4755,root,root) %{_libexecdir}/futo-keyboard-keyring
 %attr(4755,root,root) %{_libexecdir}/futo-keyboard-focus
 %attr(4755,root,root) %{_libexecdir}/futo-keyboard-appsupport
+%attr(4755,root,root) %{_libexecdir}/futo-keyboard-browser-origin
+%attr(4755,root,root) %{_libexecdir}/futo-keyboard-editor
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-voice
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-install-wayland-deadkey-hook
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-remove-wayland-deadkey-hook

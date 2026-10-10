@@ -104,12 +104,25 @@ InputHandler {
 	property bool voicePushToTalk: false
 	property int voiceSessionSerial: 0
 	property bool passwordVaultPanelOpen: false
+	property string androidAutofillRequestId: ""
+	property string androidAutofillRequestOrigin: ""
+	property bool androidAutofillRequestLoading: false
 	property bool passwordVaultBusy: false
 	property string passwordVaultMessage: ""
 	property string passwordVaultToken: ""
+	property string passwordVaultAuthRequestId: ""
+	property int passwordVaultAuthSerial: 0
 	property bool passwordVaultRequestedFromPassword: false
+	property bool passwordVaultRequestedUnscoped: false
 	property string passwordVaultRequestedOrigin: ""
 	property int passwordVaultSelectionSerial: 0
+	property string credentialAutofillOrigin: ""
+	property string credentialAutofillApplication: ""
+	property int credentialAutofillSerial: 0
+	property bool credentialAutofillValidationPending: false
+	property bool credentialAutofillWritePending: false
+	property int passwordVaultResumeSerial: 0
+	property int passwordVaultResumeAttempts: 0
 	property string credentialAutofillUsername: ""
 	property string credentialAutofillPassword: ""
 	// 0 = inactive, 1 = waiting for the username editor, 2 = waiting for
@@ -120,14 +133,21 @@ InputHandler {
 	property int credentialAutofillStepAttempts: 0
 	property int credentialAutofillFocusAttempts: 0
 	property bool credentialOfferDismissedForFocus: false
+	property string credentialFilledOrigin: ""
+	readonly property bool credentialFilledForCurrentOrigin:
+	        credentialFilledOrigin !== ""
+	        && credentialFilledOrigin === String(lastCredentialOrigin).toLowerCase()
 	property string activeAndroidComponent: ""
+	property string credentialContextAndroidPackage: ""
+	property bool credentialPlatformKnown: false
+	property bool credentialPlatformAndroid: false
+	property int credentialPlatformSerial: 0
 	property string activePolicyApplicationId: ""
 	property string activeApplicationDisplayName: ""
 	property string activeApplicationDisplayPackage: ""
 	property var applicationDisplayNames: ({})
 	property int activeApplicationDisplaySerial: 0
 	property bool androidSurfaceAwaitingIdentity: false
-	readonly property int credentialOriginFallbackSeconds: 6 * 60 * 60
     property string credentialCapturePassword: ""
     property string credentialCaptureUsername: ""
     property string credentialCaptureOrigin: ""
@@ -135,10 +155,19 @@ InputHandler {
     property string credentialPendingUsername: ""
     property string credentialPendingOrigin: ""
     property string lastCredentialUsername: ""
+    property string lastCredentialUsernameOrigin: ""
     property string lastCredentialOrigin: ""
+	property var nativeBrowserCredentialContext: ({})
+	property int nativeBrowserCredentialContextSerial: 0
+	property var passwordVaultNativeContext: ({})
+	property bool passwordVaultNativeFillPending: false
     property bool credentialSaveInProgress: false
     property bool credentialCaptureSuppressed: false
 	property bool credentialMatchAvailable: false
+	property bool credentialOriginAvailable: false
+	property bool credentialOriginResolutionPending: false
+	property bool credentialOriginUpdateInProgress: false
+	property bool credentialAnyAvailable: false
 	property int credentialMatchSerial: 0
 	property int contentRevision: 0
     readonly property string activeSuggestionQuery: preedit !== "" ? preedit : editingWord
@@ -150,8 +179,12 @@ InputHandler {
     // removing the platform's hidden/sensitive flags; that must change only
     // rendering, never prediction or learning behavior.
     property bool passwordFocusProtected: false
-    readonly property bool platformPasswordField: MInputMethodQuick.hiddenText
-            || !!MInputMethodQuick.extensions.sensitiveInput
+	readonly property bool platformPasswordField: MInputMethodQuick.hiddenText
+	        || !!MInputMethodQuick.extensions.sensitiveInput
+	        || passwordMetadataAvailable()
+	        || (editorSessionActive && !!nativeBrowserCredentialContext.available
+	            && nativeBrowserCredentialContext.password && nativeBrowserCredentialContext.revealed
+	            && (!credentialPlatformKnown || !credentialPlatformAndroid))
     readonly property bool passwordField: platformPasswordField
             || passwordFocusProtected
     // A field that only turns suggestions off is not private: many ordinary
@@ -165,6 +198,7 @@ InputHandler {
     readonly property bool hardwareKeyboardSuppressed:
             !keyboardSettings.keepVirtualWithHardwareKeyboard
             && hardwareKeyboardAvailable
+	        && !passwordVaultBusy && credentialAutofillStage === 0
     readonly property string activePredictionLanguages: keyboard.layout
             && keyboard.layout.activePredictionLanguages !== undefined
             ? String(keyboard.layout.activePredictionLanguages)
@@ -187,29 +221,49 @@ InputHandler {
 	        && (!keyboardSettings.predictionEnabled
 	            || !MInputMethodQuick.predictionEnabled
 	            || terminalInputApplication())
+	readonly property bool explicitCredentialUsernameField:
+	        !passwordField && !urlField
+	        && (usernameMetadataAvailable() || emailContentTypeActive())
 	readonly property bool credentialUsernameField: !passwordField && !urlField
-	        && (usernameMetadataAvailable() || emailContentTypeActive()
+	        && (explicitCredentialUsernameField
 	            || !MInputMethodQuick.predictionEnabled
 	            // Many browser and AppSupport login forms expose their username
 	            // editor as ordinary free text. Looking up the encrypted
 	            // origin-count index is harmless; the prompt is still shown only
 	            // when that exact website/application has a saved login.
 	            || MInputMethodQuick.contentType === Maliit.FreeTextContentType)
-	readonly property bool credentialFieldCandidate: passwordField
-	        || credentialUsernameField
+	readonly property bool credentialBrowserSurface:
+	        browserApplicationId(applicationIdFromMetadata())
+	        || browserApplicationId(activeAndroidComponent)
+	        || sailfishBrowserApplicationId(activePolicyApplicationId)
+	readonly property bool unscopedCredentialField:
+	        // Only a browser whose selected URL cannot be resolved gets the
+	        // authenticated all-accounts fallback. Native/Android applications
+	        // always have a stable app identity, so showing unrelated website
+	        // accounts there would be both confusing and unsafe.
+	        credentialBrowserSurface
+	        && (passwordField || credentialUsernameField)
+	readonly property bool androidCompanionOwnsCredentials:
+	        keyboardSettings.androidAutofillEnabled && keyboardSettings.androidAutofillActive
+	        && (!credentialPlatformKnown || credentialPlatformAndroid)
+	readonly property bool credentialFieldCandidate: !androidCompanionOwnsCredentials
+	        && (passwordField || credentialUsernameField)
 	readonly property bool credentialSavingPrivateBlocked:
+            androidCompanionOwnsCredentials
+            ||
             keyboardSettings.incognitoMode
             || !!MInputMethodQuick.extensions.privateMode
             || !!MInputMethodQuick.extensions.incognitoMode
             || (keyboardSettings.incognitoOnPrivacySwitch && privacySwitchActive)
 	        || internalCredentialApplication(applicationIdFromMetadata())
-	        || internalCredentialApplication(activePolicyApplicationId)
+	        || (normalizedApplicationId(activeAndroidComponent) === ""
+	            && internalCredentialApplication(activePolicyApplicationId))
 	// Private/password input must never be learned or offered for saving, but
 	// using an existing encrypted login is a separate read-only operation. A
 	// hidden password editor may expose private/incognito flags automatically;
 	// do not let those flags remove the authenticated saved-login affordance.
 	readonly property bool credentialLookupPrivateBlocked:
-	        credentialSavingPrivateBlocked && !passwordField
+	        androidAutofillRequestId === "" && credentialSavingPrivateBlocked && !passwordField
     readonly property bool ordinaryPredictionStripEnabled:
             keyboardSettings.predictionEnabled && activePredictionsAvailable
             && !passwordField && (!urlField || urlSuggestionFallbackActive)
@@ -332,6 +386,7 @@ InputHandler {
         credentialCaptureIdleTimer.stop()
         if (clearContext) {
             lastCredentialUsername = ""
+			lastCredentialUsernameOrigin = ""
             lastCredentialOrigin = ""
         }
     }
@@ -347,20 +402,39 @@ InputHandler {
 		syncEditorTypedBuffer()
         var value = rawEditorText().trim()
 		if (value === "") {
-			if (credentialUsernameField)
-				lastCredentialUsername = ""
+			// Focus changes often expose the new empty editor before Maliit has
+			// published its password metadata. Clearing here lost the username
+			// captured from the previous editor exactly when it was needed.
 			return
 		}
         if (value.length > 320 || /[\r\n]/.test(value))
             return
         if (looksLikeUrlCandidate(value)) {
-            lastCredentialOrigin = value
+			rememberCredentialOrigin(value)
         } else if (value.indexOf(" ") < 0) {
             // Kept only in volatile keyboard memory until the user explicitly
             // accepts or dismisses the save prompt.
             lastCredentialUsername = value
+			lastCredentialUsernameOrigin = lastCredentialOrigin
         }
     }
+
+	function rememberCredentialOrigin(value) {
+		value = String(value || "").trim()
+		if (value === "")
+			return
+		var newKey = credentialOriginKey(value)
+		var usernameKey = credentialOriginKey(lastCredentialUsernameOrigin)
+		if (lastCredentialUsername !== "" && usernameKey !== ""
+				&& newKey !== "" && usernameKey !== newKey) {
+			lastCredentialUsername = ""
+			lastCredentialUsernameOrigin = ""
+		}
+		lastCredentialOrigin = value
+		if (lastCredentialUsername !== "" && usernameKey === ""
+				&& newKey !== "")
+			lastCredentialUsernameOrigin = value
+	}
 
     function credentialOriginFromMetadata() {
         var extensions = MInputMethodQuick.extensions || {}
@@ -398,6 +472,13 @@ InputHandler {
 		        value)
 	}
 
+	function sailfishBrowserApplicationId(value) {
+		value = normalizedApplicationId(value)
+		return value === "sailfish-browser"
+		        || value === "org.sailfishos.browser"
+		        || value === "jolla-browser"
+	}
+
 	function terminalInputApplication() {
 		var metadataId = normalizedApplicationId(applicationIdFromMetadata())
 		var policyId = normalizedApplicationId(activePolicyApplicationId)
@@ -410,6 +491,8 @@ InputHandler {
 		return applicationId === "jolla-settings"
 		        || applicationId === "com.jolla.settings"
 		        || applicationId === "org.sailfishos.settings"
+		        || applicationId === "lipstick-security-ui"
+		        || applicationId === "lipstick"
 	}
 
 	function applicationIdFromMetadata() {
@@ -474,50 +557,235 @@ InputHandler {
 		var origin = String(value || "").trim()
 		var originKey = credentialOriginKey(origin)
 		if (origin.toLocaleLowerCase().indexOf("app://") === 0) {
-			var cachedLabel = String(applicationDisplayNames[originKey] || "").trim()
+			var applicationKey = normalizedApplicationId(origin.substring(6))
+			var cachedLabel = String(applicationDisplayNames[applicationKey] || "").trim()
 			if (cachedLabel !== "")
 				return cachedLabel
-			if (originKey === activeApplicationDisplayPackage
+			if (applicationKey === activeApplicationDisplayPackage
 					&& activeApplicationDisplayName.trim() !== "")
 				return activeApplicationDisplayName
 		}
 		return originKey
 	}
 
-	function resolveApplicationCredentialOrigin(callback) {
-		var candidate = applicationIdFromMetadata()
-		if (candidate === "")
-			candidate = normalizedApplicationId(activeAndroidComponent)
-		if (candidate !== "" && !browserApplicationId(candidate)) {
+	function resolveBrowserCredentialOrigin(applicationId, allowBrowserApplication,
+			callback) {
+		applicationId = normalizedApplicationId(applicationId)
+		androidSurfaceAwaitingIdentity = false
+		if (!sailfishBrowserApplicationId(applicationId)) {
+			callback(allowBrowserApplication ? "app://" + applicationId : "")
+			return
+		}
+		// Ask the live editor, not the last normal tab saved in browser history.
+		var contextSerial = ++nativeBrowserCredentialContextSerial
+		helper.typedCall("NativeBrowserCredentialContext", [], function(result) {
+			if (contextSerial !== futoHandler.nativeBrowserCredentialContextSerial) {
+				callback("")
+				return
+			}
+			var context = ({})
+			try { context = JSON.parse(String(result)) } catch (error) {}
+			futoHandler.nativeBrowserCredentialContext = context
+			callback(context.available ? String(context.origin || "") : "")
+		}, function() {
+			if (contextSerial === futoHandler.nativeBrowserCredentialContextSerial)
+				futoHandler.nativeBrowserCredentialContext = ({})
+			callback("")
+		})
+	}
+
+	function resolveAndroidCredentialOrigin(applicationId, allowBrowserApplication,
+			callback) {
+		applicationId = normalizedApplicationId(applicationId)
+		androidSurfaceAwaitingIdentity = applicationId === ""
+		if (applicationId !== ""
+				&& normalizedApplicationId(activeAndroidComponent) !== applicationId)
+			activeAndroidComponent = applicationId
+		if (applicationId === "") {
+			callback("")
+		} else if (browserApplicationId(applicationId)) {
+			// A browser package is not a credential origin. Resolve the selected
+			// website when the browser exposes one; otherwise keep the prompt
+			// unscoped rather than saving a site login against Firefox/Chrome.
+			helper.typedCall("CurrentAndroidBrowserOrigin", [
+				{ "type": "s", "value": applicationId }
+			], function(origin) {
+				callback(String(origin || ""))
+			}, function() {
+				callback("")
+			})
+		} else {
+			callback("app://" + applicationId)
+		}
+	}
+
+	function resolveProcessCredentialOrigin(processId, retainedAndroidCandidate,
+			allowBrowserApplication, callback) {
+		helper.typedCall("CursorTargetIsAndroid", [
+			{ "type": "i", "value": Number(processId) }
+		], function(androidProcess) {
+			helper.typedCall("CredentialProcessApplication", [
+				{ "type": "i", "value": Number(processId) }
+			], function(processApplicationId) {
+				processApplicationId = futoHandler.normalizedApplicationId(
+				        processApplicationId)
+				futoHandler.credentialDebug("process pid=" + Number(processId)
+				        + " android=" + Boolean(androidProcess)
+				        + " application=" + processApplicationId)
+				if (androidProcess) {
+					futoHandler.nativeBrowserCredentialContext = ({})
+					if (processApplicationId !== "") {
+						futoHandler.resolveAndroidCredentialOrigin(processApplicationId,
+						        allowBrowserApplication, callback)
+					} else {
+						// AppSupport may expose only its shared host bridge pid.
+						// Recover the current package, never reuse a different app's
+						// retained appShown signal after a keyboard restart.
+						helper.typedCall("CurrentAndroidApplication", [], function(packageId) {
+							futoHandler.resolveAndroidCredentialOrigin(String(packageId || ""),
+							        allowBrowserApplication, callback)
+						}, function() { callback("") })
+					}
+				} else if (processApplicationId !== "") {
+					if (futoHandler.browserApplicationId(processApplicationId))
+						futoHandler.resolveBrowserCredentialOrigin(
+						        processApplicationId, allowBrowserApplication,
+						        callback)
+					else {
+						futoHandler.nativeBrowserCredentialContext = ({})
+						futoHandler.androidSurfaceAwaitingIdentity = false
+						callback("app://" + processApplicationId)
+					}
+				} else {
+					futoHandler.resolveAndroidCredentialOrigin(
+					        retainedAndroidCandidate, allowBrowserApplication,
+					        callback)
+				}
+			}, function() {
+				futoHandler.resolveAndroidCredentialOrigin(
+				        retainedAndroidCandidate, allowBrowserApplication, callback)
+			})
+		}, function() {
+			futoHandler.resolveAndroidCredentialOrigin(
+			        retainedAndroidCandidate, allowBrowserApplication, callback)
+		})
+	}
+
+	function resolveApplicationCredentialOrigin(callback, allowBrowserApplication) {
+		var metadataCandidate = applicationIdFromMetadata()
+		var androidCandidate = normalizedApplicationId(activeAndroidComponent)
+		if (metadataCandidate !== "" && !browserApplicationId(metadataCandidate)) {
+			nativeBrowserCredentialContext = ({})
 			androidSurfaceAwaitingIdentity = false
-			callback("app://" + candidate)
+			callback("app://" + metadataCandidate)
 			return
 		}
 		applicationCompositor.typedCall(
 				"privateTopmostWindowPolicyApplicationId", [], function(applicationId) {
 				var policyId = futoHandler.normalizedApplicationId(applicationId)
 				futoHandler.activePolicyApplicationId = policyId
-				// Android AppSupport exposes a transient hexadecimal surface id
-				// here. Its stable package arrives through com.jolla.apkd instead.
-				if (/^[0-9a-f]+$/.test(policyId)) {
-					futoHandler.androidSurfaceAwaitingIdentity = true
-					callback("")
-				} else if (policyId === "" || futoHandler.browserApplicationId(policyId)) {
-					futoHandler.androidSurfaceAwaitingIdentity = false
-					callback("")
-				} else {
-					futoHandler.androidSurfaceAwaitingIdentity = false
-					callback("app://" + policyId)
+				if (policyId !== "" && !/^[0-9a-f]+$/.test(policyId)) {
+					if (futoHandler.browserApplicationId(policyId))
+						futoHandler.resolveBrowserCredentialOrigin(
+						        policyId, allowBrowserApplication, callback)
+					else {
+						futoHandler.nativeBrowserCredentialContext = ({})
+						futoHandler.androidSurfaceAwaitingIdentity = false
+						callback("app://" + policyId)
+					}
+					return
 				}
+
+				// Lipstick assigns hexadecimal policy ids to both native and
+				// Android surfaces. Resolve the owning process before consulting the
+				// retained AppSupport package, which may belong to a previous app.
+				applicationCompositor.typedCall(
+						"privateTopmostWindowProcessId", [], function(processId) {
+					futoHandler.resolveProcessCredentialOrigin(
+					        processId, androidCandidate, allowBrowserApplication,
+					        callback)
+				}, function() {
+					futoHandler.resolveAndroidCredentialOrigin(
+					        androidCandidate, allowBrowserApplication, callback)
+				})
 			}, function() {
-				futoHandler.androidSurfaceAwaitingIdentity = false
-				callback("")
+				futoHandler.resolveAndroidCredentialOrigin(
+				        androidCandidate, allowBrowserApplication, callback)
 			})
 	}
 
 	function emailContentTypeActive() {
 		return typeof Maliit.EmailContentType !== "undefined"
 		        && MInputMethodQuick.contentType === Maliit.EmailContentType
+	}
+
+	function numericInputMetadata(value) {
+		if (typeof value === "number")
+			return Number(value)
+		var text = String(value === undefined || value === null ? "" : value).trim()
+		if (/^0x[0-9a-f]+$/i.test(text))
+			return parseInt(text.substring(2), 16)
+		if (/^[0-9]+$/.test(text))
+			return Number(text)
+		return -1
+	}
+
+	function enabledFieldMetadata(value) {
+		if (value === undefined || value === null || value === false)
+			return false
+		var text = String(value).trim().toLowerCase()
+		return text !== "" && text !== "false" && text !== "0"
+		        && text !== "off" && text !== "no"
+	}
+
+	function passwordMetadataAvailable() {
+		var extensions = MInputMethodQuick.extensions || {}
+		for (var key in extensions) {
+			var lowerKey = String(key).toLowerCase()
+			var value = extensions[key]
+			var valueText = String(value === undefined || value === null
+			                       ? "" : value).toLowerCase()
+			// Native applications and web views use several different names for
+			// the same semantic hint. Do not include one-time-code fields: an OTP
+			// is private input, but it is not a reusable saved password.
+			var fieldMetadata = lowerKey.indexOf("hint") >= 0
+			        || lowerKey.indexOf("purpose") >= 0
+			        || lowerKey.indexOf("autofill") >= 0
+			        || lowerKey.indexOf("field") >= 0
+			        || lowerKey.indexOf("name") >= 0
+			        || lowerKey.indexOf("contenttype") >= 0
+			        || lowerKey.indexOf("inputtype") >= 0
+			if (fieldMetadata
+			        && !/one[-_ ]?time|otp|verification/.test(valueText)
+			        && /password|passcode|passwd|current-password|new-password/.test(
+			            valueText))
+				return true
+			if (/password|passcode|passwd/.test(lowerKey)
+			        && !/one[-_ ]?time|otp|verification/.test(lowerKey)
+			        && enabledFieldMetadata(value))
+				return true
+
+			var numericValue = numericInputMetadata(value)
+			if ((lowerKey === "inputmethodhints" || lowerKey === "inputhints"
+			        || lowerKey === "hints") && numericValue >= 0) {
+				var privateHints = Number(Qt.ImhHiddenText)
+				        | Number(Qt.ImhSensitiveData)
+				if ((numericValue & privateHints) !== 0)
+					return true
+			}
+			if (lowerKey === "androidinputtype" && numericValue >= 0) {
+				var inputClass = numericValue & 0x0f
+				var variation = numericValue & 0xff0
+				// Android TYPE_TEXT_VARIATION_PASSWORD,
+				// VISIBLE_PASSWORD and WEB_PASSWORD, plus numeric passwords.
+				if ((inputClass === 0x01
+				        && (variation === 0x80 || variation === 0x90
+				            || variation === 0xe0))
+				        || (inputClass === 0x02 && variation === 0x10))
+					return true
+			}
+		}
+		return false
 	}
 
 	function usernameMetadataAvailable() {
@@ -537,14 +805,14 @@ InputHandler {
 			        && /user(name)?|e-?mail|login|account|identifier/.test(valueText))
 				return true
 			if (/username|user-name|loginname|login-name|emailfield|accountname/.test(
-			        lowerKey) && (value === true || Number(value) > 0
-			                     || valueText !== ""))
+			        lowerKey) && enabledFieldMetadata(value))
 				return true
 			// Android email and web-email text variations. A plain username
 			// normally arrives with predictions disabled and is covered by the
 			// conservative fallback in credentialUsernameField.
-			if (lowerKey === "androidinputtype" && typeof value === "number") {
-				var variation = Number(value) & 0xff0
+			if (lowerKey === "androidinputtype") {
+				var androidInputType = numericInputMetadata(value)
+				var variation = androidInputType & 0xff0
 				if (variation === 0x20 || variation === 0xd0)
 					return true
 			}
@@ -556,6 +824,11 @@ InputHandler {
 		origin = String(origin || "").trim()
 		if (origin === "" || serial !== credentialMatchSerial)
 			return
+		credentialOriginResolutionPending = false
+		credentialOriginAvailable = true
+		credentialOriginUpdateInProgress = true
+		rememberCredentialOrigin(origin)
+		credentialOriginUpdateInProgress = false
 		credentialDebug("lookup serial=" + serial + " origin=" + origin)
 		helper.typedCall("CredentialMatchCount", [
 			{ "type": "s", "value": origin }
@@ -571,8 +844,9 @@ InputHandler {
 			                            + futoHandler.passwordVaultPanelOpen)
 			if (serial === futoHandler.credentialMatchSerial
 					&& futoHandler.credentialFieldCandidate) {
-				futoHandler.lastCredentialOrigin = origin
 				futoHandler.credentialMatchAvailable = Number(count) > 0
+				if (Number(count) > 0)
+					futoHandler.credentialAnyAvailable = true
 			}
 		}, function() {
 			if (serial === futoHandler.credentialMatchSerial)
@@ -580,9 +854,45 @@ InputHandler {
 		})
 	}
 
+	function refreshCredentialAvailability() {
+		helper.typedCall("CredentialSavedCount", [], function(count) {
+			futoHandler.credentialAnyAvailable = Number(count) > 0
+		}, function() {
+			futoHandler.credentialAnyAvailable = false
+		})
+	}
+
 	function refreshCredentialMatch() {
+		if (passwordVaultBusy || passwordVaultPanelOpen) {
+			credentialMatchTimer.stop()
+			++credentialMatchSerial
+			return
+		}
+		// Input connections publish focus and field metadata separately. Resolve
+		// the settled editor once, rather than letting an intermediate state
+		// invalidate the result for the actual username/password field.
+		++credentialMatchSerial
+		credentialMatchAvailable = false
+		credentialOriginAvailable = false
+		credentialOriginResolutionPending = true
+		credentialMatchTimer.restart()
+	}
+
+	Timer {
+		id: credentialMatchTimer
+		interval: 160
+		repeat: false
+		onTriggered: futoHandler.resolveCredentialMatch()
+	}
+
+	function resolveCredentialMatch() {
+		if (passwordVaultBusy || passwordVaultPanelOpen)
+			return
 		var serial = ++credentialMatchSerial
 		credentialMatchAvailable = false
+		credentialOriginAvailable = false
+		credentialOriginResolutionPending = false
+		refreshCredentialAvailability()
 		if (!credentialFieldCandidate || !keyboardSettings.passwordSavingEnabled
 				|| credentialLookupPrivateBlocked) {
 			credentialDebug("skip candidate=" + credentialFieldCandidate
@@ -596,6 +906,7 @@ InputHandler {
 			requestCredentialMatch(origin, serial)
 			return
 		}
+		credentialOriginResolutionPending = true
 		resolveApplicationCredentialOrigin(function(applicationOrigin) {
 			if (serial !== futoHandler.credentialMatchSerial)
 				return
@@ -608,45 +919,11 @@ InputHandler {
 				futoHandler.credentialDebug("waiting-for-android-package")
 				return
 			}
-			// Browser identities are deliberately excluded from application
-			// origins. Only there may the URL remembered across the username and
-			// password fields be reused.
-			if (futoHandler.lastCredentialOrigin !== "") {
-				futoHandler.credentialDebug("remembered-origin="
-				                            + futoHandler.lastCredentialOrigin)
-				futoHandler.requestCredentialMatch(
-				        futoHandler.lastCredentialOrigin, serial)
-				return
-			}
-			futoHandler.credentialDebug("recent-url-fallback")
-			futoHandler.requestRecentWebsiteCredentialMatch(serial)
-		})
-	}
-
-	function requestRecentWebsiteCredentialMatch(serial) {
-		// Browser password editors do not consistently expose their page URL.
-		// Reuse only the newest URL observed during the current working session;
-		// never open or advertise a generic all-sites vault.
-		helper.typedCall("ListURLs", [], function(resultJson) {
-			if (serial !== futoHandler.credentialMatchSerial)
-				return
-			var entries = []
-			try { entries = JSON.parse(String(resultJson)) } catch (error) {}
-			if (entries.length < 1) {
-				futoHandler.credentialDebug("recent-url empty")
-				return
-			}
-			var newest = entries[0]
-			var ageSeconds = Math.floor(Date.now() / 1000)
-					- Number(newest.lastUsed || 0)
-			var candidate = String(newest.text || "")
-			futoHandler.credentialDebug("recent-url age=" + ageSeconds
-			                            + " candidate=" + candidate)
-			if (ageSeconds >= 0
-					&& ageSeconds <= futoHandler.credentialOriginFallbackSeconds
-					&& futoHandler.looksLikeUrlCandidate(candidate))
-				futoHandler.requestCredentialMatch(candidate, serial)
-		}, function() {})
+			futoHandler.credentialOriginResolutionPending = false
+			// A remembered URL may belong to a different tab or application.
+			// Never use it when the current origin cannot be verified.
+			futoHandler.credentialDebug("origin-unavailable")
+		}, false)
 	}
 
     function finalizeCredentialCapture() {
@@ -658,6 +935,12 @@ InputHandler {
     }
 
     function captureCredentialKey(key) {
+		// A user edit starts a new login attempt. Programmatic autofill commits
+		// do not pass through this key handler.
+		if (key && (key.text || key.key === Qt.Key_Backspace)) {
+			if (credentialFilledOrigin !== "") credentialDebug("filled-reset user-edit")
+			credentialFilledOrigin = ""
+		}
         if (!passwordField || !keyboardSettings.passwordSavingEnabled
                 || credentialSavingPrivateBlocked || credentialCaptureSuppressed
                 || !key)
@@ -689,7 +972,9 @@ InputHandler {
         credentialPendingUsername = ""
         credentialPendingOrigin = ""
         lastCredentialUsername = ""
+		lastCredentialUsernameOrigin = ""
         lastCredentialOrigin = ""
+		refreshCredentialAvailability()
     }
 
     function publishCredentialOffer() {
@@ -697,7 +982,9 @@ InputHandler {
             finishCredentialOffer()
             return
         }
-        helper.typedCall("OfferCredentialSave", [
+		helper.typedCall("OfferCredentialSaveWithLabel", [
+			{ "type": "s", "value": credentialOriginDisplayName(
+			        credentialPendingOrigin) },
             { "type": "s", "value": credentialPendingOrigin },
             { "type": "s", "value": credentialPendingUsername },
             { "type": "s", "value": credentialPendingPassword }
@@ -709,6 +996,14 @@ InputHandler {
     }
 
 	function resolveCredentialOriginAndOffer() {
+		// The origin captured while the password editor was active is the most
+		// reliable one. Submitting a form may redirect the browser, close an app,
+		// or move focus before this asynchronous save flow runs; resolving again at
+		// that point could attach the password to the destination page or next app.
+		if (credentialPendingOrigin !== "") {
+			publishCredentialOffer()
+			return
+		}
 		var metadataOrigin = credentialOriginFromMetadata()
 		if (metadataOrigin !== "") {
 			credentialPendingOrigin = metadataOrigin
@@ -729,33 +1024,21 @@ InputHandler {
 				futoHandler.publishCredentialOffer()
 				return
 			}
-			if (futoHandler.credentialPendingOrigin !== "") {
+			if (futoHandler.credentialPendingOrigin !== ""
+					&& String(futoHandler.credentialPendingOrigin).toLocaleLowerCase(
+					       ).indexOf("app://") !== 0) {
+				// A browser that cannot expose its selected tab may still preserve
+				// the URL explicitly typed or selected during this same editor
+				// session. That URL is safe to use; global history is not.
 				futoHandler.publishCredentialOffer()
 				return
 			}
-			futoHandler.resolveRecentWebsiteAndOffer()
-		})
+			// Never guess a credential website from global URL history. A stale
+			// history entry could bind a password to the wrong site. Browsers with
+			// no exact current origin simply skip the save prompt.
+			futoHandler.finishCredentialOffer()
+		}, true)
 	}
-
-	function resolveRecentWebsiteAndOffer() {
-		helper.typedCall("ListURLs", [], function(resultJson) {
-            var entries = []
-            try { entries = JSON.parse(String(resultJson)) } catch (error) {}
-            if (entries.length > 0) {
-                var newest = entries[0]
-                var ageSeconds = Math.floor(Date.now() / 1000)
-                        - Number(newest.lastUsed || 0)
-                var candidate = String(newest.text || "")
-				if (ageSeconds >= 0
-						&& ageSeconds <= futoHandler.credentialOriginFallbackSeconds
-                        && futoHandler.looksLikeUrlCandidate(candidate))
-                    futoHandler.credentialPendingOrigin = candidate
-            }
-            futoHandler.publishCredentialOffer()
-        }, function() {
-            futoHandler.finishCredentialOffer()
-        })
-    }
 
     function offerCapturedCredential() {
         if (credentialSaveInProgress || credentialCapturePassword === "")
@@ -852,8 +1135,10 @@ InputHandler {
 		var credentialCandidate = String(editorTypedBuffer || "").trim()
 		if (credentialCandidate !== "" && credentialCandidate.length <= 320
 				&& credentialCandidate.indexOf(" ") < 0
-				&& !looksLikeUrlCandidate(credentialCandidate))
+				&& !looksLikeUrlCandidate(credentialCandidate)) {
 			lastCredentialUsername = credentialCandidate
+			lastCredentialUsernameOrigin = lastCredentialOrigin
+		}
         if (keyboardSettings.urlHistoryEnabled)
             urlSuggestionTimer.restart()
     }
@@ -863,8 +1148,9 @@ InputHandler {
 
 	function credentialOriginKey(value) {
 		value = String(value || "").trim().toLocaleLowerCase()
+		var application = value.indexOf("app://") === 0
 		value = value.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "")
-		return value.split(/[\/?#]/)[0]
+		return (application ? "app://" : "") + value.split(/[\/?#]/)[0]
 	}
 
 	function credentialDebug(message) {
@@ -872,7 +1158,74 @@ InputHandler {
 			console.warn("FUTO_CREDENTIAL " + String(message))
 	}
 
+	function credentialDebugContext(reason) {
+		if (!keyboardSettings.debugInputContext)
+			return
+		var extensions = MInputMethodQuick.extensions || {}
+		var metadata = []
+		for (var key in extensions) {
+			var value = extensions[key]
+			// Diagnostics must never record an editor's text, saved account,
+			// password, or a revealed password in surroundingText.
+			if (/text|password|username|value/i.test(String(key)))
+				continue
+			var printable = typeof value === "string"
+			        || typeof value === "number" || typeof value === "boolean"
+			metadata.push(String(key) + "=" + (printable ? String(value) : "[value]"))
+		}
+		credentialDebug("context reason=" + reason
+		                + " contentType=" + MInputMethodQuick.contentType
+		                + " hidden=" + MInputMethodQuick.hiddenText
+		                + " prediction=" + MInputMethodQuick.predictionEnabled
+		                + " password=" + passwordField
+		                + " username=" + credentialUsernameField
+		                + " extensions={" + metadata.join(",") + "}")
+	}
+
+	onEditorSessionActiveChanged: {
+		if (editorSessionActive)
+			credentialFilledResetTimer.stop()
+		else
+			credentialFilledResetTimer.restart()
+	}
+
+	Timer {
+		id: credentialFilledResetTimer
+		interval: 450
+		repeat: false
+		onTriggered: {
+			// Form autofill can briefly renew the input session while focusing
+			// the password field. Only a settled dismissal ends this login attempt.
+			if (!futoHandler.editorSessionActive) {
+				futoHandler.credentialDebug("filled-reset settled-dismissal")
+				futoHandler.credentialFilledOrigin = ""
+			}
+		}
+	}
+
+	function noteCredentialFilled(origin) {
+		credentialFilledOrigin = String(origin || "").toLowerCase()
+		credentialOfferDismissedForFocus = true
+		credentialDebug("filled-complete origin=" + credentialFilledOrigin)
+	}
+
+	function credentialLookupPrivacyCancelsFill() {
+		return credentialLookupPrivateBlocked
+		        && (!passwordVaultNativeFillPending || keyboardSettings.incognitoMode
+		            || (keyboardSettings.incognitoOnPrivacySwitch && privacySwitchActive))
+	}
+
 	function resetPasswordVault(lockVault) {
+		passwordVaultNativeFillPending = false
+		if (passwordVaultAuthRequestId !== "") {
+			helper.typedCall("CancelVaultUnlock", [
+				{ "type": "s", "value": passwordVaultAuthRequestId }
+			], function() {}, function() {})
+			passwordVaultAuthRequestId = ""
+		}
+		credentialDebug("vault-reset busy=" + passwordVaultBusy
+		                + " panel=" + passwordVaultPanelOpen
+		                + " serial=" + passwordVaultSelectionSerial)
 		passwordVaultSelectionSerial++
 		passwordVaultPanelOpen = false
 		passwordVaultBusy = false
@@ -886,18 +1239,80 @@ InputHandler {
 			], function() {}, function() {})
 		passwordVaultToken = ""
 		passwordVaultRequestedOrigin = ""
+		passwordVaultRequestedUnscoped = false
+		passwordVaultNativeContext = ({})
 	}
 
 	function cancelSavedCredentialChooser() {
 		credentialOfferDismissedForFocus = true
+		if (androidAutofillRequestId !== "") {
+			completeAndroidKeyboardAutofill("", false)
+			return
+		}
 		resetPasswordVault(true)
+	}
+
+	function refreshAndroidKeyboardAutofill() {
+		if (!editorSessionActive || !credentialPlatformKnown || !credentialPlatformAndroid
+		        || androidAutofillRequestLoading
+		        || androidAutofillRequestId !== "" || passwordVaultBusy)
+			return
+		androidAutofillRequestLoading = true
+		helper.typedCall("PendingAndroidKeyboardAutofill", [], function(json) {
+			androidAutofillRequestLoading = false
+			var request = {}
+			try { request = JSON.parse(String(json)) } catch (error) {}
+			if (!request.id || !futoHandler.editorSessionActive) return
+			futoHandler.androidAutofillRequestId = String(request.id)
+			futoHandler.androidAutofillRequestOrigin = String(request.origin)
+			futoHandler.openPasswordVault()
+		}, function() { androidAutofillRequestLoading = false })
+	}
+
+	function refreshCredentialPlatform() {
+		var serial = ++credentialPlatformSerial
+		credentialPlatformKnown = false
+		applicationCompositor.typedCall("privateTopmostWindowProcessId", [], function(pid) {
+			helper.typedCall("CursorTargetIsAndroid", [{"type":"i", "value":Number(pid)}], function(android) {
+				if (serial !== futoHandler.credentialPlatformSerial || !futoHandler.editorSessionActive) return
+				futoHandler.credentialPlatformAndroid = Boolean(android)
+				futoHandler.credentialPlatformKnown = true
+				if (android) futoHandler.refreshAndroidKeyboardAutofill()
+				else if (futoHandler.credentialFieldCandidate && !futoHandler.passwordVaultBusy
+				        && !futoHandler.passwordVaultPanelOpen) futoHandler.refreshCredentialMatch()
+			}, function() {})
+		}, function() {})
+	}
+
+	function completeAndroidKeyboardAutofill(account, approved) {
+		var id = androidAutofillRequestId
+		var filledOrigin = androidAutofillRequestOrigin
+		if (id === "") return
+		passwordVaultBusy = true
+		helper.typedCall("CompleteAndroidAutofill", [
+			{"type":"s", "value":passwordVaultToken}, {"type":"s", "value":id},
+			{"type":"s", "value":String(account)}, {"type":"b", "value":approved}
+		], function(success) {
+			if (futoHandler.androidAutofillRequestId !== id) return
+			if (approved && success) futoHandler.noteCredentialFilled(filledOrigin)
+			futoHandler.androidAutofillRequestId = ""
+			futoHandler.androidAutofillRequestOrigin = ""
+			futoHandler.resetPasswordVault(true)
+			if (approved && !success) futoHandler.passwordVaultMessage = qsTr("Could not fill this login form")
+		}, function() {
+			if (futoHandler.androidAutofillRequestId !== id) return
+			futoHandler.androidAutofillRequestId = ""
+			futoHandler.androidAutofillRequestOrigin = ""
+			futoHandler.resetPasswordVault(true)
+		})
 	}
 
 	function loadPasswordCredentials(requestSerial) {
 		var requestedToken = passwordVaultToken
-		helper.typedCall("ListCredentials", [
-			{ "type": "s", "value": requestedToken }
-		], function(resultJson) {
+		var companion = androidAutofillRequestId !== ""
+		var arguments = [{ "type": "s", "value": requestedToken }]
+		if (companion) arguments.push({ "type": "s", "value": androidAutofillRequestId })
+		helper.typedCall(companion ? "ListAndroidAutofillAccounts" : "ListCredentials", arguments, function(resultJson) {
 			if (requestSerial !== futoHandler.passwordVaultSelectionSerial
 					|| requestedToken === ""
 					|| requestedToken !== futoHandler.passwordVaultToken)
@@ -915,20 +1330,37 @@ InputHandler {
 			// Always show every account for this exact website. The user may
 			// deliberately want to replace an already typed username with a
 			// different saved account.
-			var visibleEntries = preferred
+			// If a browser or application does not expose an origin, a recognized
+			// password editor still gets a useful authenticated chooser. Prefer an
+			// exact site/app match, but let the user select from every saved account
+			// when no exact match exists instead of presenting an empty panel.
+			var visibleEntries = preferred.length > 0
+			        ? preferred
+			        : (futoHandler.passwordVaultRequestedUnscoped ? entries : [])
+			var unscopedEntries = preferred.length === 0
+			        && futoHandler.passwordVaultRequestedUnscoped
 			passwordCredentialModel.clear()
 			for (var j = 0; j < visibleEntries.length; ++j) {
 				var entry = visibleEntries[j]
 				var username = String(entry.username || "")
+				var entryText = username !== "" ? username : qsTr("Password only")
+				if (unscopedEntries) {
+					var originLabel = credentialOriginDisplayName(entry.origin)
+					if (originLabel !== "")
+						entryText = username !== ""
+						        ? username + " · " + originLabel : originLabel
+				}
 				passwordCredentialModel.append({
 					"entryId": String(entry.id),
-					"entryText": username !== "" ? username : qsTr("Password only"),
+					"entryText": entryText,
 					"entryUsername": username,
 					"entryOrigin": String(entry.origin || "")
 				})
 			}
 			passwordVaultBusy = false
 			passwordVaultPanelOpen = visibleEntries.length > 0
+			futoHandler.credentialDebug("chooser-loaded count=" + visibleEntries.length
+			        + " active=" + MInputMethodQuick.active)
 			passwordVaultMessage = visibleEntries.length === 0
 			        ? qsTr("No saved logins") : ""
 			if (passwordVaultPanelOpen && keyboard.layout
@@ -946,9 +1378,151 @@ InputHandler {
 		})
 	}
 
+	function resumePasswordVault(requestSerial) {
+		if (requestSerial !== passwordVaultSelectionSerial)
+			return
+		if (androidAutofillRequestId !== "") {
+			if (editorSessionActive) loadPasswordCredentials(requestSerial)
+			else if (passwordVaultResumeAttempts++ < 8) passwordVaultResumeTimer.restart()
+			else completeAndroidKeyboardAutofill("", false)
+			return
+		}
+		if (passwordVaultNativeContext.available) {
+			if (passwordVaultNativeContext.restored) {
+				if (editorSessionActive) loadPasswordCredentials(requestSerial)
+				else if (passwordVaultResumeAttempts++ < 8) passwordVaultResumeTimer.restart()
+				else resetPasswordVault(true)
+				return
+			}
+			var nativeContext = passwordVaultNativeContext
+			helper.typedCall("RestoreNativeCredentialField", [
+				{ "type": "s", "value": passwordVaultToken },
+				{ "type": "i", "value": Number(nativeContext.processId) },
+				{ "type": "s", "value": String(nativeContext.origin) },
+				{ "type": "s", "value": String(nativeContext.field) }
+			], function(restored) {
+				if (requestSerial !== futoHandler.passwordVaultSelectionSerial) return
+				if (restored) {
+					var resumed = {}
+					for (var key in nativeContext) resumed[key] = nativeContext[key]
+					resumed.restored = true
+					futoHandler.passwordVaultNativeContext = resumed
+					passwordVaultResumeTimer.restart()
+				}
+				else if (futoHandler.passwordVaultResumeAttempts++ < 8)
+					passwordVaultResumeTimer.restart()
+				else futoHandler.resetPasswordVault(true)
+			}, function() {
+				if (requestSerial === futoHandler.passwordVaultSelectionSerial)
+					futoHandler.resetPasswordVault(true)
+			})
+			return
+		}
+		if (MInputMethodQuick.active) {
+			loadPasswordCredentials(requestSerial)
+			return
+		}
+		// Native editors retain their focus while the authorization overlay is
+		// open, but do not always renew the input connection afterwards. A
+		// bounded focus round trip restores it without another application window.
+		var requestedOrigin = credentialOriginKey(passwordVaultRequestedOrigin)
+		resolveApplicationCredentialOrigin(function(origin) {
+			if (requestSerial !== futoHandler.passwordVaultSelectionSerial)
+				return
+			if (futoHandler.internalCredentialApplication(
+					String(origin).replace(/^app:\/\//i, ""))
+					&& futoHandler.passwordVaultResumeAttempts++ < 8) {
+				passwordVaultResumeTimer.restart()
+				return
+			}
+			if (requestedOrigin === ""
+					|| futoHandler.credentialOriginKey(origin) !== requestedOrigin) {
+				futoHandler.resetPasswordVault(true)
+				return
+			}
+			helper.typedCall("FocusCredentialField", [
+				{ "type": "s", "value": "restore" }
+			], function() {
+				if (requestSerial === futoHandler.passwordVaultSelectionSerial) {
+					futoHandler.loadPasswordCredentials(requestSerial)
+				}
+			}, function() {
+				if (requestSerial === futoHandler.passwordVaultSelectionSerial)
+					futoHandler.resetPasswordVault(true)
+			})
+		}, false)
+	}
+
+	Timer {
+		id: passwordVaultResumeTimer
+		interval: 400
+		repeat: false
+		onTriggered: futoHandler.resumePasswordVault(futoHandler.passwordVaultResumeSerial)
+	}
+
+	Timer {
+		id: nativeCredentialFocusRestore
+		property var captured: ({})
+		property int selectionSerial: 0
+		property int attempts: 0
+		interval: 400
+		repeat: false
+		onTriggered: {
+			if (selectionSerial !== futoHandler.passwordVaultSelectionSerial || !captured.available) return
+			helper.typedCall("RestoreNativeCredentialFocus", [
+				{ "type": "i", "value": Number(captured.processId) },
+				{ "type": "s", "value": String(captured.origin) },
+				{ "type": "s", "value": String(captured.field) }
+			], function(restored) {
+				if (!restored && nativeCredentialFocusRestore.selectionSerial
+				        === futoHandler.passwordVaultSelectionSerial
+				        && nativeCredentialFocusRestore.attempts++ < 4)
+					nativeCredentialFocusRestore.restart()
+			}, function() {})
+		}
+	}
+
+	function completePasswordVaultAuthorization(requestId, token) {
+		token = String(token || "")
+		if (requestId !== passwordVaultAuthRequestId
+		        || passwordVaultAuthSerial !== passwordVaultSelectionSerial) {
+			if (token !== "") helper.typedCall("LockVault", [
+				{ "type": "s", "value": token }
+			], function() {}, function() {})
+			return
+		}
+		passwordVaultAuthRequestId = ""
+		passwordVaultToken = token
+		if (token !== "") {
+			passwordVaultResumeSerial = passwordVaultAuthSerial
+			passwordVaultResumeAttempts = 0
+			passwordVaultResumeTimer.restart()
+		} else if (androidAutofillRequestId !== "") {
+			completeAndroidKeyboardAutofill("", false)
+		} else {
+			var captured = passwordVaultNativeContext
+			resetPasswordVault(false)
+			if (captured.available) {
+				nativeCredentialFocusRestore.captured = captured
+				nativeCredentialFocusRestore.selectionSerial = passwordVaultSelectionSerial
+				nativeCredentialFocusRestore.attempts = 0
+				nativeCredentialFocusRestore.restart()
+			}
+		}
+	}
+
 	function openPasswordVault() {
+		credentialDebug("vault-open busy=" + passwordVaultBusy)
 		if (passwordVaultBusy)
 			return
+		// Every new use needs fresh identity verification, including when Settings
+		// has already opened the encrypted vault or an earlier chooser left a token.
+		if (passwordVaultToken !== "") {
+			helper.typedCall("LockVault", [
+				{ "type": "s", "value": passwordVaultToken }
+			], function() {}, function() {})
+			passwordVaultToken = ""
+		}
 		// The credential chooser owns the keyboard surface. Invalidate every
 		// outstanding prediction request before device authentication so an old
 		// delegate cannot flash over the chooser during its height transition.
@@ -956,29 +1530,34 @@ InputHandler {
 		var requestSerial = ++passwordVaultSelectionSerial
 		passwordVaultBusy = true
 		passwordVaultRequestedFromPassword = passwordField
+		passwordVaultRequestedUnscoped = unscopedCredentialField
+		        && !credentialOriginAvailable
+		        && !credentialOriginResolutionPending
 		// Authentication temporarily changes focus and may hide the originating
 		// app surface. Bind this chooser transaction to the exact origin that the
 		// user tapped, never to whatever focus reports after authentication.
-		passwordVaultRequestedOrigin = lastCredentialOrigin
+		passwordVaultRequestedOrigin = androidAutofillRequestId !== ""
+		        ? androidAutofillRequestOrigin : lastCredentialOrigin
+		passwordVaultRequestedUnscoped = androidAutofillRequestId === "" && passwordVaultRequestedUnscoped
+		passwordVaultNativeContext = androidAutofillRequestId === "" && nativeBrowserCredentialContext.available
+		        && credentialOriginKey(nativeBrowserCredentialContext.origin)
+		           === credentialOriginKey(lastCredentialOrigin)
+		        ? nativeBrowserCredentialContext : ({})
 		passwordVaultMessage = qsTr("Authenticating…")
 		helper.typedCall("VaultStatus", [], function(status) {
 			if (requestSerial !== futoHandler.passwordVaultSelectionSerial)
 				return
 			status = String(status)
-			if (status === "unlocked" && passwordVaultToken !== "") {
-				loadPasswordCredentials(requestSerial)
-			} else if (status === "locked" || status === "unlocked") {
-				helper.typedCall("UnlockVault", [], function(token) {
-					if (requestSerial !== futoHandler.passwordVaultSelectionSerial)
-						return
-					passwordVaultToken = String(token)
-					if (passwordVaultToken !== "")
-						loadPasswordCredentials(requestSerial)
+			if (status === "locked" || status === "unlocked") {
+				var authRequest = String(Date.now()) + "-" + requestSerial
+				passwordVaultAuthRequestId = authRequest
+				passwordVaultAuthSerial = requestSerial
+				helper.typedCall("BeginVaultUnlock", [
+					{ "type": "s", "value": authRequest }
+				], function(accepted) {
+					if (!accepted) futoHandler.completePasswordVaultAuthorization(authRequest, "")
 				}, function() {
-					if (requestSerial === futoHandler.passwordVaultSelectionSerial) {
-						passwordVaultBusy = false
-						passwordVaultMessage = qsTr("Authentication canceled")
-					}
+					futoHandler.completePasswordVaultAuthorization(authRequest, "")
 				})
 			} else {
 				passwordVaultBusy = false
@@ -997,7 +1576,48 @@ InputHandler {
 			return
 		passwordVaultBusy = true
 		var selectionSerial = ++passwordVaultSelectionSerial
+		// Once an account is chosen, the chooser no longer owns the surface.
+		// Browser/Android filling renews the input session when focusing the
+		// password field; an open chooser would treat that as user cancellation
+		// and invalidate the successful fill reply.
+		passwordVaultPanelOpen = false
+		if (keyboard.layout && keyboard.layout.hideSavedCredentialChooser)
+			keyboard.layout.hideSavedCredentialChooser()
 		var startedFromPassword = passwordVaultRequestedFromPassword
+		var requestedOrigin = passwordVaultRequestedOrigin
+		var requestedApplication = normalizedApplicationId(activeAndroidComponent)
+		        || normalizedApplicationId(activePolicyApplicationId)
+		if (androidAutofillRequestId !== "") {
+			completeAndroidKeyboardAutofill(entryId, true)
+			return
+		}
+		if (passwordVaultNativeContext.available) {
+			var filledOrigin = String(passwordVaultNativeContext.origin)
+			passwordVaultNativeFillPending = true
+			credentialOfferDismissedForFocus = true
+			credentialCaptureSuppressed = true
+			helper.typedCall("AutofillNativeCredential", [
+				{ "type": "s", "value": passwordVaultToken },
+				{ "type": "s", "value": String(entryId) },
+				{ "type": "i", "value": Number(passwordVaultNativeContext.processId) },
+				{ "type": "s", "value": String(passwordVaultNativeContext.origin) },
+				{ "type": "s", "value": String(passwordVaultNativeContext.field) }
+			], function(filled) {
+				futoHandler.credentialDebug("native-filled=" + filled
+				        + " serial=" + selectionSerial + "/" + futoHandler.passwordVaultSelectionSerial)
+				if (selectionSerial !== futoHandler.passwordVaultSelectionSerial) return
+				if (filled) futoHandler.noteCredentialFilled(filledOrigin)
+				futoHandler.resetPasswordVault(true)
+				futoHandler.credentialCaptureSuppressed = false
+				if (!filled) futoHandler.passwordVaultMessage = qsTr("Could not fill this login form")
+			}, function() {
+				if (selectionSerial !== futoHandler.passwordVaultSelectionSerial) return
+				futoHandler.resetPasswordVault(true)
+				futoHandler.credentialCaptureSuppressed = false
+				futoHandler.passwordVaultMessage = qsTr("Could not fill this login form")
+			})
+			return
+		}
 		helper.typedCall("CredentialSecret", [
 			{ "type": "s", "value": passwordVaultToken },
 			{ "type": "s", "value": String(entryId) },
@@ -1015,7 +1635,8 @@ InputHandler {
 			// the short-lived autofill transaction.
 			resetPasswordVault(true)
 			beginCredentialAutofill(selectedUsername, password,
-			                            startedFromPassword)
+			                            startedFromPassword, requestedOrigin,
+			                            requestedApplication)
 		}, function() {
 			if (selectionSerial === futoHandler.passwordVaultSelectionSerial)
 				resetPasswordVault(true)
@@ -1034,29 +1655,76 @@ InputHandler {
 		}
 	}
 
-	function replaceCredentialEditorText(value, replacingPassword) {
+	function replaceCredentialEditorText(value, replacingPassword, completed) {
 		value = String(value || "")
-		var currentLength = 0
-		var cursor = 0
-		if (MInputMethodQuick.surroundingTextValid) {
-			currentLength = String(MInputMethodQuick.surroundingText).length
-			cursor = Math.max(0, Math.min(Number(MInputMethodQuick.cursorPosition),
-			                              currentLength))
-		} else if (replacingPassword) {
-			currentLength = String(credentialCapturePassword || "").length
-			cursor = currentLength
-		} else {
-			currentLength = String(editorTypedBuffer || "").length
-			cursor = currentLength
+		var serial = credentialAutofillSerial
+		credentialAutofillWritePending = true
+		credentialSelectionTimer.attempts = 0
+		credentialSelectionTimer.completed = function replaceWhenReady() {
+			if (serial !== futoHandler.credentialAutofillSerial)
+				return
+			futoHandler.credentialAutofillContextCurrent(function() {
+				if (replacingPassword !== futoHandler.passwordField
+						|| !MInputMethodQuick.surroundingTextValid) {
+					// Field role and surrounding range arrive as separate Maliit
+					// updates after focus traversal. Wait briefly for both, without
+					// ever guessing a range or writing into the previous field.
+					futoHandler.retryCredentialSelection(replaceWhenReady)
+					return
+				}
+				if (futoHandler.urlField) {
+					futoHandler.cancelCredentialAutofill(true)
+					return
+				}
+				futoHandler.credentialDebug("replace-selection password=" + replacingPassword
+				        + " selected=" + MInputMethodQuick.hasSelection
+				        + " surrounding-valid=" + MInputMethodQuick.surroundingTextValid
+				        + " cursor=" + MInputMethodQuick.cursorPosition
+				        + " anchor=" + MInputMethodQuick.anchorPosition)
+				var existing = String(MInputMethodQuick.surroundingText || "")
+				var cursor = Number(MInputMethodQuick.cursorPosition)
+				if (!MInputMethodQuick.surroundingTextValid || cursor < 0
+						|| cursor > existing.length) {
+					futoHandler.cancelCredentialAutofill(true)
+					return
+				}
+				MInputMethodQuick.sendCommit(value, -cursor, existing.length)
+				preedit = ""
+				preeditAlreadyCommitted = false
+				if (replacingPassword) {
+					credentialCapturePassword = ""
+				} else {
+					editorTypedBuffer = value
+					lastCredentialUsername = value
+					lastCredentialUsernameOrigin = credentialAutofillOrigin
+				}
+				credentialAutofillWritePending = false
+				completed()
+			})
 		}
-		MInputMethodQuick.sendCommit(value, -cursor, currentLength)
-		preedit = ""
-		preeditAlreadyCommitted = false
-		if (replacingPassword) {
-			credentialCapturePassword = ""
-		} else {
-			editorTypedBuffer = value
-			lastCredentialUsername = value
+		credentialSelectionTimer.restart()
+	}
+
+	function retryCredentialSelection(callback) {
+		if (++credentialSelectionTimer.attempts > 6) {
+			cancelCredentialAutofill(true)
+			return
+		}
+		credentialSelectionTimer.completed = callback
+		credentialSelectionTimer.restart()
+	}
+
+	Timer {
+		id: credentialSelectionTimer
+		interval: 150
+		repeat: false
+		property var completed: null
+		property int attempts: 0
+		onTriggered: {
+			var callback = completed
+			completed = null
+			if (callback)
+				callback()
 		}
 	}
 
@@ -1081,6 +1749,7 @@ InputHandler {
 	}
 
 	function sendCredentialFocusStep(backward) {
+		var serial = credentialAutofillSerial
 		var attempt = credentialAutofillFocusAttempts++
 		credentialDebug("focus-step stage=" + credentialAutofillStage
 		                + " backward=" + backward
@@ -1090,20 +1759,49 @@ InputHandler {
 		helper.typedCall("FocusCredentialField", [
 			{ "type": "s", "value": direction }
 		], function(moved) {
-			if (futoHandler.credentialAutofillStage === 0)
+			if (futoHandler.credentialAutofillStage === 0
+					|| serial !== futoHandler.credentialAutofillSerial)
 				return
 			if (!moved)
 				futoHandler.sendLegacyCredentialFocusStep(backward, attempt)
 			credentialAutofillStepTimer.restart()
 		}, function() {
-			if (futoHandler.credentialAutofillStage === 0)
+			if (futoHandler.credentialAutofillStage === 0
+					|| serial !== futoHandler.credentialAutofillSerial)
 				return
 			futoHandler.sendLegacyCredentialFocusStep(backward, attempt)
 			credentialAutofillStepTimer.restart()
 		})
 	}
 
-	function beginCredentialAutofill(username, password, startedFromPassword) {
+	function credentialAutofillContextCurrent(callback) {
+		var serial = credentialAutofillSerial
+		var expectedOrigin = credentialOriginKey(credentialAutofillOrigin)
+		resolveApplicationCredentialOrigin(function(origin) {
+			if (serial !== futoHandler.credentialAutofillSerial
+					|| futoHandler.credentialAutofillStage === 0)
+				return
+			var application = futoHandler.normalizedApplicationId(
+			        futoHandler.activeAndroidComponent)
+			        || futoHandler.normalizedApplicationId(futoHandler.activePolicyApplicationId)
+			var matches = expectedOrigin !== ""
+			        ? futoHandler.credentialOriginKey(origin) === expectedOrigin
+			        : (futoHandler.credentialAutofillApplication !== ""
+			           && application === futoHandler.credentialAutofillApplication)
+			if (!matches) {
+				futoHandler.cancelCredentialAutofill(true)
+				return
+			}
+			callback()
+		}, false)
+	}
+
+	function beginCredentialAutofill(username, password, startedFromPassword,
+			origin, application) {
+		credentialDebug("autofill-start active=" + active
+		                + " session=" + editorSessionActive
+		                + " password=" + passwordField
+		                + " private=" + credentialLookupPrivateBlocked)
 		cancelCredentialAutofill(false)
 		// Closing the chooser exposes the suggestion strip again before the
 		// editor has changed focus. Keep the saved-login offer dismissed for the
@@ -1114,51 +1812,82 @@ InputHandler {
 		credentialCaptureSuppressed = true
 		credentialAutofillUsername = String(username || "")
 		credentialAutofillPassword = String(password || "")
+		credentialAutofillOrigin = String(origin || "")
+		credentialAutofillApplication = String(application || "")
 		credentialAutofillStepAttempts = 0
 		credentialAutofillFocusAttempts = 0
 		credentialAutofillTimeout.restart()
+		credentialAutofillStage = startedFromPassword || passwordField ? 1 : 2
+		credentialAutofillContextCurrent(function() {
 		if (credentialAutofillUsername === "" && passwordField) {
 			// Password-only apps and pages have no previous username editor.
 			// The editor is already focused, so no focus traversal is necessary.
-			// Do not send the password as a text commit here.
-			credentialOfferDismissedForFocus = true
-			cancelCredentialAutofill(false)
+			replaceCredentialEditorText(credentialAutofillPassword, true, function() {
+				noteCredentialFilled(credentialAutofillOrigin)
+				cancelCredentialAutofill(false)
+			})
 			return
 		}
 		if (startedFromPassword || passwordField) {
 			credentialAutofillStage = 1
 			credentialAutofillStartTimer.restart()
 		} else {
-			replaceCredentialEditorText(credentialAutofillUsername, false)
-			credentialAutofillStage = 2
-			credentialAutofillStartTimer.restart()
+			replaceCredentialEditorText(credentialAutofillUsername, false, function() {
+				credentialAutofillStage = 2
+				credentialAutofillStartTimer.restart()
+			})
 		}
+		})
 	}
 
 	function advanceCredentialAutofill() {
-		if (credentialAutofillStage === 0)
+		if (credentialAutofillStage === 0 || credentialAutofillValidationPending
+				|| credentialAutofillWritePending)
 			return
+		credentialAutofillValidationPending = true
+		credentialAutofillContextCurrent(function() {
+			futoHandler.credentialAutofillValidationPending = false
+			futoHandler.advanceCredentialAutofillConfirmed()
+		})
+	}
+
+	function advanceCredentialAutofillConfirmed() {
 		credentialAutofillStepAttempts++
 		credentialDebug("advance stage=" + credentialAutofillStage
 		                + " step=" + credentialAutofillStepAttempts
 		                + " password=" + passwordField
 		                + " username=" + credentialUsernameField)
 		if (credentialAutofillStage === 1 && !passwordField && !urlField) {
-			replaceCredentialEditorText(credentialAutofillUsername, false)
+			replaceCredentialEditorText(credentialAutofillUsername, false, function() {
 			credentialAutofillStage = 2
 			credentialAutofillStepAttempts = 0
 			credentialAutofillFocusAttempts = 0
 			// Give the editor time to apply the username commit before moving
 			// forward and inserting the password.
 			credentialAutofillStartTimer.restart()
+			})
 			return
 		}
 		if (credentialAutofillStage === 2 && passwordField) {
-			// Reaching the password editor completes the handoff. Applications and
-			// browsers can populate it as part of their normal credential flow; an
-			// extra text commit here would duplicate the password.
-			credentialOfferDismissedForFocus = true
-			cancelCredentialAutofill(false)
+			// Reaching the password editor is not itself autofill. FUTO selected the
+			// secret, so FUTO must replace the editor contents explicitly. The old
+			// handoff-only behavior filled the username and then silently discarded
+			// the password.
+			replaceCredentialEditorText(credentialAutofillPassword, true, function() {
+				noteCredentialFilled(credentialAutofillOrigin)
+				cancelCredentialAutofill(false)
+			})
+			return
+		}
+		if (credentialAutofillStage === 1 && passwordField
+				&& credentialAutofillStepAttempts >= 18) {
+			// Some editors do not implement reverse Tab traversal. The user already
+			// selected an account while focused in a password field; after bounded
+			// retries, fill that field instead of leaving the transaction hanging.
+			replaceCredentialEditorText(credentialAutofillPassword, true, function() {
+				credentialOfferDismissedForFocus = true
+				cancelCredentialAutofill(false)
+			})
 			return
 		}
 		// Browsers may update their input context a few frames after Tab. Keep
@@ -1173,14 +1902,24 @@ InputHandler {
 	}
 
 	function cancelCredentialAutofill(clearOffer) {
+		if (credentialAutofillStage > 0)
+			credentialDebug("autofill-stop stage=" + credentialAutofillStage
+			                + " active=" + active + " session=" + editorSessionActive)
 		credentialAutofillStartTimer.stop()
 		credentialAutofillStepTimer.stop()
 		credentialAutofillTimeout.stop()
+		credentialSelectionTimer.stop()
+		credentialSelectionTimer.completed = null
 		credentialAutofillUsername = ""
 		credentialAutofillPassword = ""
 		credentialAutofillStage = 0
 		credentialAutofillStepAttempts = 0
 		credentialAutofillFocusAttempts = 0
+		credentialAutofillOrigin = ""
+		credentialAutofillApplication = ""
+		credentialAutofillValidationPending = false
+		credentialAutofillWritePending = false
+		credentialAutofillSerial++
 		credentialCaptureSuppressed = false
 		if (clearOffer)
 			credentialOfferDismissedForFocus = true
@@ -1191,10 +1930,12 @@ InputHandler {
 		interval: 240
 		repeat: false
 		onTriggered: {
-			if (futoHandler.credentialAutofillStage === 1)
-				futoHandler.sendCredentialFocusStep(true)
-			else if (futoHandler.credentialAutofillStage === 2)
-				futoHandler.sendCredentialFocusStep(false)
+			futoHandler.credentialAutofillContextCurrent(function() {
+				if (futoHandler.credentialAutofillStage === 1)
+					futoHandler.sendCredentialFocusStep(true)
+				else if (futoHandler.credentialAutofillStage === 2)
+					futoHandler.sendCredentialFocusStep(false)
+			})
 		}
 	}
 
@@ -1363,7 +2104,7 @@ InputHandler {
         if (showUrlSuggestions) {
             var acceptedUrl = String(text)
             urlAcceptedThisFocus = acceptedUrl
-            lastCredentialOrigin = acceptedUrl
+			rememberCredentialOrigin(acceptedUrl)
             ++requestSerial
             ++urlRequestSerial
             predictionTimer.stop()
@@ -1421,6 +2162,17 @@ InputHandler {
             var pasted = String(Clipboard.text)
             editorTypedBuffer = /\s/.test(pasted) ? ""
                     : (editorTypedBuffer + pasted).slice(-2048)
+			// Pasting an email/username is just as common as typing it. Keep the
+			// credential context in sync so a following password field can offer
+			// to save the complete account instead of a password-only entry.
+			var pastedCredential = String(editorTypedBuffer || "").trim()
+			if (credentialUsernameField && pastedCredential !== ""
+					&& pastedCredential.length <= 320
+					&& pastedCredential.indexOf(" ") < 0
+					&& !looksLikeUrlCandidate(pastedCredential)) {
+				lastCredentialUsername = pastedCredential
+				lastCredentialUsernameOrigin = lastCredentialOrigin
+			}
         }
         commit(preedit)
         MInputMethodQuick.sendCommit(Clipboard.text)
@@ -1434,6 +2186,10 @@ InputHandler {
         iface: "org.hb.FutoKeyboard1"
 		signalsEnabled: true
         watchServiceStatus: true
+		function androidAutofillRequested() { futoHandler.refreshAndroidKeyboardAutofill() }
+		function vaultUnlockCompleted(request, token) {
+			futoHandler.completePasswordVaultAuthorization(String(request), String(token))
+		}
 
 		function contentChanged(packId, state) {
 			futoHandler.contentRevision++
@@ -1494,6 +2250,12 @@ InputHandler {
 	}
 
 	onActiveAndroidComponentChanged: {
+		var newPackage = normalizedApplicationId(activeAndroidComponent)
+		if (credentialContextAndroidPackage !== ""
+				&& newPackage !== credentialContextAndroidPackage)
+			clearCredentialCapture(true)
+		credentialContextAndroidPackage = newPackage
+		activePolicyApplicationId = ""
 		refreshAndroidApplicationDisplayName()
 		// The input field can gain focus before AppSupport announces the owning
 		// package. Retry the exact-origin lookup as soon as that identity arrives;
@@ -1571,6 +2333,8 @@ InputHandler {
         property bool personalLearningEnabled: true
         property bool urlHistoryEnabled: false
         property bool passwordSavingEnabled: true
+        property bool androidAutofillEnabled: false
+        property bool androidAutofillActive: false
 		property bool debugInputContext: false
         property bool autoSpaceAfterSuggestion: true
         property bool showTypedWord: true
@@ -2681,6 +3445,17 @@ InputHandler {
         TopItem {
             id: topStrip
 			clip: true
+			onHeightChanged: stripGeometryRefresh.restart()
+			Timer {
+				id: stripGeometryRefresh
+				// Column positioning finishes after its child-height notification.
+				// The stock show animation skips intermediate area updates, so
+				// renew the touch region once the complete header is positioned.
+				interval: 50
+				onTriggered: {
+					if (MInputMethodQuick.active) canvas.updateIMArea()
+				}
+			}
 
             readonly property bool cursorStatusVisible: futoHandler.cursorMoveMode
 			readonly property bool modifierStatusVisible:
@@ -2729,9 +3504,17 @@ InputHandler {
 			        && !modifierStatusVisible
 			        && !futoHandler.credentialLookupPrivateBlocked
 			        && futoHandler.credentialFieldCandidate
-			        && futoHandler.credentialMatchAvailable
+			        // A known origin gets its exact saved accounts. A recognized
+			        // password field without an exposed origin still offers the
+			        // authenticated all-accounts chooser.
+			        && (futoHandler.credentialMatchAvailable
+			            || (futoHandler.credentialAnyAvailable
+			                && futoHandler.unscopedCredentialField
+			                && !futoHandler.credentialOriginAvailable
+			                && !futoHandler.credentialOriginResolutionPending))
 			        && futoHandler.credentialAutofillStage === 0
 			        && !futoHandler.credentialOfferDismissedForFocus
+			        && !futoHandler.credentialFilledForCurrentOrigin
 			        && !futoHandler.passwordVaultPanelOpen
 			        && !emojiTabsVisible && !emojiSearchVisible && !symbolTabsVisible
 			        && !controlsVisible
@@ -3066,14 +3849,16 @@ InputHandler {
 
 					Label {
 						readonly property string credentialTarget:
-						        futoHandler.credentialOriginDisplayName(
-						            futoHandler.lastCredentialOrigin)
+						        futoHandler.credentialMatchAvailable
+						        ? futoHandler.credentialOriginDisplayName(
+						              futoHandler.lastCredentialOrigin)
+						        : ""
 						anchors.verticalCenter: parent.verticalCenter
 						text: futoHandler.passwordVaultMessage !== ""
 						      ? futoHandler.passwordVaultMessage
 						      : credentialTarget !== ""
 						        ? qsTr("Use saved login for %1?").arg(credentialTarget)
-						        : qsTr("Use a saved login?")
+						        : qsTr("Saved passwords")
 						color: parent.parent.highlighted
 						       ? Theme.highlightColor : Theme.primaryColor
 					}
@@ -4012,7 +4797,10 @@ InputHandler {
 			cancelSwipeSession()
 			clearDesktopModifiers()
 			cancelCredentialAutofill(false)
-			resetPasswordVault(true)
+			// Device authorization legitimately hides a native app's keyboard.
+			// Do not cancel the very vault request that opened that authorization.
+			if (!passwordVaultBusy)
+				resetPasswordVault(true)
 			credentialOfferDismissedForFocus = false
             requestSerial++
             predictionTimer.stop()
@@ -4027,6 +4815,7 @@ InputHandler {
             urlSuggestionTimer.stop()
             editorTypedBuffer = ""
         } else if (active) {
+			refreshAndroidKeyboardAutofill()
             urlAcceptedThisFocus = ""
             editorTypedBuffer = ""
             editorContextTimer.restart()
@@ -4053,8 +4842,12 @@ InputHandler {
 			// Password and non-predictive username fields automatically use
 			// Incognito behavior, but saved-login filling is still allowed there.
 			// Cancel only for an explicitly private/manual context.
-			if (credentialLookupPrivateBlocked) {
-				cancelCredentialAutofill(true)
+			if (credentialLookupPrivacyCancelsFill()) {
+				// The private-state binding already hides the offer. A transient
+				// role update while the native adapter is filling must not cancel its
+				// reply. The adapter checks the live browser's private-tab state;
+				// explicit Incognito or Privacy Switch still cancels immediately.
+				cancelCredentialAutofill(false)
 				resetPasswordVault(true)
 			}
 		} else if (active && keyboardSettings.urlHistoryEnabled)
@@ -4090,7 +4883,7 @@ InputHandler {
 				credentialCaptureOrigin = lastCredentialOrigin
 			}
 			refreshCredentialMatch()
-		} else {
+		} else if (!passwordVaultBusy && !passwordVaultPanelOpen) {
 			finalizeCredentialCapture()
 			offerCapturedCredential()
 			credentialMatchAvailable = false
@@ -4106,7 +4899,7 @@ InputHandler {
 		} else if (credentialUsernameField) {
 			credentialOfferDismissedForFocus = false
 			refreshCredentialMatch()
-		} else if (!passwordField) {
+		} else if (!passwordField && !passwordVaultBusy && !passwordVaultPanelOpen) {
 			credentialMatchAvailable = false
 			credentialMatchSerial++
 			resetPasswordVault(true)
@@ -4114,13 +4907,15 @@ InputHandler {
 	}
 
 	onLastCredentialOriginChanged: {
-		if (credentialFieldCandidate)
+		if (credentialFieldCandidate && !credentialOriginUpdateInProgress)
 			refreshCredentialMatch()
 	}
 
     Connections {
         target: MInputMethodQuick
         onActiveChanged: {
+			if (MInputMethodQuick.active) futoHandler.refreshCredentialPlatform()
+			if (MInputMethodQuick.active) futoHandler.refreshAndroidKeyboardAutofill()
             if (!MInputMethodQuick.active) {
 				futoHandler.endForcedAppSupportSession()
 				if (futoHandler.passwordField) {
@@ -4137,6 +4932,7 @@ InputHandler {
         onFocusTargetChanged: {
 			futoHandler.cancelSwipeSession()
 			futoHandler.clearCommittedSpace()
+			futoHandler.activePolicyApplicationId = ""
 			// A changed focus target starts a new editor lifetime. Reset the old
 			// latch immediately, then sample the new editor after Maliit has
 			// finished publishing its hidden/sensitive metadata.
@@ -4154,6 +4950,7 @@ InputHandler {
 			        + " actionLabel=" + MInputMethodQuick.actionKeyOverride.label
 			        + " actionIcon=" + MInputMethodQuick.actionKeyOverride.icon
 			        + " actionEnabled=" + MInputMethodQuick.actionKeyOverride.enabled)
+			futoHandler.credentialDebugContext("focus")
 			if (futoHandler.credentialAutofillStage > 0)
 				credentialAutofillStepTimer.restart()
 			else
@@ -4173,6 +4970,8 @@ InputHandler {
             futoHandler.trackSurroundings = activeEditor
             futoHandler.resetSuggestionDisplay()
             if (activeEditor) {
+				futoHandler.refreshCredentialPlatform()
+				futoHandler.refreshAndroidKeyboardAutofill()
 				futoHandler.rememberCredentialContext()
                 futoHandler.urlAcceptedThisFocus = ""
                 editorContextTimer.restart()
@@ -4219,6 +5018,7 @@ InputHandler {
             }
         }
         onContentTypeChanged: {
+			futoHandler.credentialDebugContext("content-type")
             futoHandler.resetSuggestionDisplay()
 			futoHandler.refreshApplicationSuggestions()
             editorContextTimer.restart()
@@ -4228,6 +5028,7 @@ InputHandler {
 				futoHandler.refreshCredentialMatch()
         }
         onExtensionsChanged: {
+			futoHandler.credentialDebugContext("extensions")
             futoHandler.resetSuggestionDisplay()
 			futoHandler.refreshApplicationSuggestions()
             editorContextTimer.restart()
@@ -4499,7 +5300,7 @@ InputHandler {
         if (candidate === "" || candidate === urlAcceptedThisFocus)
             return
         urlAcceptedThisFocus = candidate
-        lastCredentialOrigin = candidate
+		rememberCredentialOrigin(candidate)
         helper.typedCall("RecordURL", [
             { "type": "s", "value": candidate }
         ], function() {}, function() {})

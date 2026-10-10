@@ -163,9 +163,9 @@
       "name": "FUTO Swipe",
       "version": "0.4.0-1",
       "archive": "futo-content-swipe-universal-0.4.0-1.tar.gz",
-      "sha256": "3d909c460cf94dd16b8cf8500bffecde3197c743af63e9782149e9d5edd1ae6e",
-      "downloadBytes": 9437966,
-      "installedBytes": 10445480,
+      "sha256": "e76f759c4e2c234318bae628af5008966b073f4a5a375deb34b6cdfa02a27d36",
+      "downloadBytes": 9438556,
+      "installedBytes": 10445405,
       "paths": [
         "swipe/models"
       ]

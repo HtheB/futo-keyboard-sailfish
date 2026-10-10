@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application android:label="FUTO Autofill" android:allowBackup="false"
+        android:icon="@drawable/futo_keyboard_icon"
+        android:networkSecurityConfig="@xml/network_security"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <activity android:name=".ConfigureActivity" android:exported="true"
+            android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="org.htheb.futo.autofill.CONFIGURE" />
+                <action android:name="org.htheb.futo.autofill.ENABLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".AuthenticationActivity" android:exported="false"
+            android:excludeFromRecents="true" android:theme="@style/KeyboardAutofill"
+            android:windowSoftInputMode="stateAlwaysVisible|adjustNothing" />
+        <activity android:name=".SaveConfirmationActivity" android:exported="false"
+            android:excludeFromRecents="true" android:theme="@style/KeyboardAutofill"
+            android:windowSoftInputMode="stateAlwaysHidden" />
+        <service android:name=".FutoAutofillService" android:exported="true"
+            android:icon="@drawable/futo_keyboard_icon"
+            android:permission="android.permission.BIND_AUTOFILL_SERVICE">
+            <intent-filter><action android:name="android.service.autofill.AutofillService" /></intent-filter>
+            <meta-data android:name="android.autofill" android:resource="@xml/autofill_service" />
+        </service>
+    </application>
+</manifest>

@@ -172,6 +172,22 @@ Page {
         }, function() {})
     }
 
+    property string androidAutofillRequestShown: ""
+    function openPendingAndroidAutofill() {
+        if (pageStack.currentPage !== page) return
+        helper.typedCall("PendingAndroidAutofill", [], function(json) {
+            var request = JSON.parse(String(json))
+            if (!request.id || page.androidAutofillRequestShown === request.id || pageStack.currentPage !== page) return
+            if (pageStack.busy) { pendingVaultTimer.restart(); return }
+            page.androidAutofillRequestShown = request.id
+            pageStack.push(Qt.resolvedUrl("FutoAndroidCredentialPage.qml"), {
+                "requestId": request.id, "mode": request.mode,
+                "origin": request.origin, "displayName": request.label || "", "username": request.username || ""
+            })
+        }, function() {})
+    }
+    onStatusChanged: if (status === PageStatus.Active) pendingVaultTimer.restart()
+
     ConfigurationGroup {
         id: settings
         path: "/sailfish/text_input/futo_keyboard"
@@ -266,13 +282,18 @@ Page {
         path: "/org/hb/FutoKeyboard1"
         iface: "org.hb.FutoKeyboard1"
         watchServiceStatus: true
+        signalsEnabled: true
+        function androidAutofillRequested() { pendingVaultTimer.restart() }
     }
 
     Timer {
         id: pendingVaultTimer
         interval: 250
         repeat: false
-        onTriggered: page.openPendingVaultAuthentication()
+        onTriggered: {
+            page.openPendingVaultAuthentication()
+            page.openPendingAndroidAutofill()
+        }
     }
 
     FutoSettingsTestPanel {

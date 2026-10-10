@@ -5,6 +5,12 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 ENGINE="$ROOT/build/futo-dictionary-compiler"
 
 bash "$ROOT/scripts/test-textinput-settings-hook.sh"
+node "$ROOT/scripts/check-credential-context.js"
+node "$ROOT/scripts/check-browser-credentials.js"
+node "$ROOT/scripts/check-content-manifest.js"
+cc -std=c11 -Wall -Wextra -Werror "$ROOT/vault/test-browser-origin.c" \
+    -ldl -o "$ROOT/build/test-browser-origin"
+"$ROOT/build/test-browser-origin"
 if grep -Eq '^Requires:[[:space:]]+patch([[:space:]]|$)' \
         "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"; then
     echo "Text input integration must remain available to offline installations" >&2
@@ -292,8 +298,10 @@ grep -Fq 'keyboard.layout.languageSwitchCount' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'org.hb.futo.keyboard.saved-login' \
     "$ROOT/packaging/polkit/org.hb.futo.keyboard.policy"
-grep -Fq '"--allow-user-interaction"' \
+grep -Fq 'vaultDeviceAuthenticationCommand(ctx, actionID)' \
     "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+grep -Fq 'Authenticator.SecurityCode | Authenticator.Fingerprint' \
+    "$ROOT/vault/futo-keyboard-device-auth.cpp"
 ! grep -Fq '"system_settings/system/futo_keyboard"' \
     "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
 grep -Fq 'futoParentPid(pid)' "$ROOT/packaging/polkit/49-futo-keyboard-secrets.rules"
@@ -852,6 +860,33 @@ grep -Fq 'futoHandler.passwordFocusProtected = false' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'if (futoHandler.platformPasswordField)' \
     "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq '|| passwordMetadataAvailable()' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'variation === 0xe0' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'replaceCredentialEditorText(credentialAutofillPassword, true, function()' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq '|| futoHandler.passwordField)' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'helper.typedCall("NativeBrowserCredentialContext"' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'helper.typedCall("RestoreNativeCredentialField"' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'func (service *service) CurrentBrowserOrigin' \
+    "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+test -s "$ROOT/vault/futo-keyboard-browser-origin.c"
+grep -Fq 'futo-keyboard-browser-origin' "$ROOT/scripts/build.sh"
+grep -Fq 'futo-keyboard-browser-origin' "$ROOT/packaging/Makefile"
+grep -Fq '%{_libexecdir}/futo-keyboard-browser-origin' \
+    "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"
+grep -Fq '%attr(4755,root,root) %{_libexecdir}/futo-keyboard-browser-origin' \
+    "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"
+grep -Fq 'CurrentAndroidBrowserOrigin' \
+    "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+grep -Fq 'CurrentAndroidBrowserOrigin' "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'OfferCredentialSaveWithLabel' \
+    "$ROOT/helper/cmd/futo-keyboard-helper/main.go"
+grep -Fq 'OfferCredentialSaveWithLabel' "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'futoHandler.incognitoMode || passwordField || urlField' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'id: passwordClipboardPasteButton' \

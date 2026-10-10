@@ -8,6 +8,7 @@ const path = require("path");
 const projectRoot = path.resolve(__dirname, "..");
 const outputDirectory = path.resolve(process.argv[2] || path.join(projectRoot, "build/content-packs"));
 const manifestPath = path.resolve(process.argv[3] || path.join(projectRoot, "content/manifest.json"));
+const publishedPacks = require("../content/published-packs.json");
 const packVersion = "0.4.0-1";
 // Packs whose content changed after the release their base URL points at.
 // Only these carry a new version and filename; every other archive already
@@ -120,14 +121,22 @@ function archiveInfo(filename) {
 }
 
 function item(id, kind, name, archive, installedSource, installedPath, extra) {
+    const published = publishedPacks[id];
+    // A published URL identifies immutable bytes. Rebuilding a license or
+    // changing tar metadata must not rewrite the download contract. Changed
+    // content needs a new pack version and archive filename.
+    const pinned = published && published.version === versionFor(id)
+        && published.archive === archive ? published : null;
     return Object.assign({
         id,
         kind,
         name,
         version: versionFor(id),
         archive,
-        ...archiveInfo(archive),
-        installedBytes: recursiveSize(installedSource),
+        ...(pinned ? {
+            sha256: pinned.sha256, downloadBytes: pinned.downloadBytes
+        } : archiveInfo(archive)),
+        installedBytes: pinned ? pinned.installedBytes : recursiveSize(installedSource),
         paths: [installedPath]
     }, extra || {});
 }

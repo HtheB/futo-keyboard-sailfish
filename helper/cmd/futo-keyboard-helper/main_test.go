@@ -187,17 +187,24 @@ func TestCredentialMatchIndexIsEncryptedAndExact(t *testing.T) {
 	entries := []credentialMetadata{
 		{Origin: "https://example.com/login"},
 		{Origin: "example.com/another-page"},
+		{Origin: "http://example.com/legacy-login"},
 		{Origin: "https://other.example/"},
 		{Origin: ""},
 	}
 	if err := index.replace(entries); err != nil {
 		t.Fatal(err)
 	}
-	if got := index.count("https://example.com/account"); got != 2 {
-		t.Fatalf("example.com match count = %d, want 2", got)
+	if got := index.count("https://example.com/account"); got != 3 {
+		t.Fatalf("example.com HTTPS match count = %d, want 3", got)
+	}
+	if got := index.count("http://example.com/account"); got != 3 {
+		t.Fatalf("example.com HTTP match count = %d, want 3", got)
 	}
 	if got := index.count("https://unknown.example/"); got != 0 {
 		t.Fatalf("unknown-site match count = %d, want 0", got)
+	}
+	if got := index.total(); got != 4 {
+		t.Fatalf("credential total = %d, want 4", got)
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -225,6 +232,59 @@ func TestCredentialOriginsSupportWebsitesAndApplications(t *testing.T) {
 	}
 	if got := credentialDisplayOrigin("app://com.example.login"); got != "com.example.login" {
 		t.Fatalf("credentialDisplayOrigin(app) = %q", got)
+	}
+}
+
+func TestAndroidBrowserOriginAllowsOnlyKnownFirefoxPackages(t *testing.T) {
+	for _, packageID := range []string{
+		"org.mozilla.firefox", "ORG.MOZILLA.FIREFOX_BETA",
+		"org.mozilla.fenix.nightly", "org.mozilla.focus", "org.mozilla.klar",
+		"org.mozilla.fennec_fdroid", "io.github.forkmaintainers.iceraven",
+		"net.waterfox.android.release", "org.torproject.torbrowser",
+	} {
+		if !androidFirefoxPackage(packageID) {
+			t.Errorf("known Firefox package %q was rejected", packageID)
+		}
+	}
+	for _, packageID := range []string{
+		"", "org.mozilla.firefox.attacker", "com.android.chrome",
+		"com.example.browser", "../org.mozilla.firefox",
+	} {
+		if androidFirefoxPackage(packageID) {
+			t.Errorf("unsupported package %q was accepted", packageID)
+		}
+	}
+}
+
+func TestCredentialProcessApplicationIdentifiesNativeProcess(t *testing.T) {
+	if got := processApplicationID(int32(os.Getpid())); got == "" {
+		t.Fatal("native test process did not produce an application id")
+	}
+}
+
+func TestNormalizedProcessApplicationCandidate(t *testing.T) {
+	nativeCases := map[string]string{
+		"/usr/bin/harbour-notes":  "harbour-notes",
+		"org.example.App.desktop": "org.example.app",
+		"--type=silica-qt5":       "",
+		"invoker":                 "",
+	}
+	for input, want := range nativeCases {
+		if got := normalizedProcessApplicationCandidate(input, false); got != want {
+			t.Errorf("native candidate %q = %q, want %q", input, got, want)
+		}
+	}
+	androidCases := map[string]string{
+		"org.mozilla.firefox":       "org.mozilla.firefox",
+		"org.mozilla.firefox:tab":   "org.mozilla.firefox",
+		"/system/bin/app_process64": "",
+		"surfaceflinger":            "",
+		"com.Example.Login":         "com.example.login",
+	}
+	for input, want := range androidCases {
+		if got := normalizedProcessApplicationCandidate(input, true); got != want {
+			t.Errorf("Android candidate %q = %q, want %q", input, got, want)
+		}
 	}
 }
 
@@ -1376,8 +1436,8 @@ func TestRemoveKeyboardUserFilesClearsOnlyFutoData(t *testing.T) {
 
 func TestKeyboardModeSignalIsIntrospected(t *testing.T) {
 	iface := helperIntrospectionInterface(&service{})
-	if len(iface.Signals) != 5 {
-		t.Fatalf("signal count = %d, want 5", len(iface.Signals))
+	if len(iface.Signals) != 7 {
+		t.Fatalf("signal count = %d, want 7", len(iface.Signals))
 	}
 	signal := iface.Signals[0]
 	if signal.Name != keyboardModeChangedSignal {

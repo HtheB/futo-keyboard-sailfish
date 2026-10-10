@@ -5,7 +5,7 @@
  * text-input protocol.  A short-lived uinput device makes the same navigation
  * request through the hardware-keyboard path.  This set-user-ID helper accepts
  * only the packaged FUTO helper as its immediate parent and can emit only one
- * Tab or Shift+Tab gesture.
+ * Tab, Shift+Tab, or a Tab/Shift+Tab round trip to restore editor focus.
  */
 #define _GNU_SOURCE
 
@@ -106,8 +106,10 @@ int main(int argc, char **argv)
         return 77;
     }
     if (argc != 2 || (strcmp(argv[1], "next") != 0
-            && strcmp(argv[1], "previous") != 0)) {
-        fputs("Usage: futo-keyboard-focus next|previous\n", stderr);
+            && strcmp(argv[1], "previous") != 0
+            && strcmp(argv[1], "restore") != 0
+            && strcmp(argv[1], "select-all") != 0)) {
+        fputs("Usage: futo-keyboard-focus next|previous|restore|select-all\n", stderr);
         return 64;
     }
 
@@ -119,7 +121,9 @@ int main(int argc, char **argv)
     int created = 0;
     int ok = ioctl(descriptor, UI_SET_EVBIT, EV_KEY) == 0
             && ioctl(descriptor, UI_SET_KEYBIT, KEY_TAB) == 0
-            && ioctl(descriptor, UI_SET_KEYBIT, KEY_LEFTSHIFT) == 0;
+            && ioctl(descriptor, UI_SET_KEYBIT, KEY_LEFTSHIFT) == 0
+            && ioctl(descriptor, UI_SET_KEYBIT, KEY_LEFTCTRL) == 0
+            && ioctl(descriptor, UI_SET_KEYBIT, KEY_A) == 0;
     struct uinput_user_dev device;
     memset(&device, 0, sizeof(device));
     snprintf(device.name, UINPUT_MAX_NAME_SIZE, "FUTO Autofill Focus");
@@ -141,15 +145,34 @@ int main(int argc, char **argv)
     if (ok) {
         /* Allow Lipstick to bind the device before emitting the one gesture. */
         short_pause(350000000L);
-        if (strcmp(argv[1], "previous") == 0)
+        const int selecting = strcmp(argv[1], "select-all") == 0;
+        const unsigned short key = selecting ? KEY_A : KEY_TAB;
+        if (selecting)
+            ok = emit_key(descriptor, KEY_LEFTCTRL, 1);
+        else if (strcmp(argv[1], "previous") == 0)
             ok = emit_key(descriptor, KEY_LEFTSHIFT, 1);
         if (ok)
-            ok = emit_key(descriptor, KEY_TAB, 1);
+            ok = emit_key(descriptor, key, 1);
         short_pause(30000000L);
         if (ok)
-            ok = emit_key(descriptor, KEY_TAB, 0);
+            ok = emit_key(descriptor, key, 0);
+        if (selecting && ok)
+            ok = emit_key(descriptor, KEY_LEFTCTRL, 0);
         if (strcmp(argv[1], "previous") == 0) {
             short_pause(15000000L);
+            if (ok)
+                ok = emit_key(descriptor, KEY_LEFTSHIFT, 0);
+        }
+        if (ok && strcmp(argv[1], "restore") == 0) {
+            /* Authorization can leave Qt's existing editor focused without
+             * renewing its input connection. Return to the same tab stop;
+             * never emit text or submit the form. */
+            short_pause(80000000L);
+            ok = emit_key(descriptor, KEY_LEFTSHIFT, 1)
+                    && emit_key(descriptor, KEY_TAB, 1);
+            short_pause(30000000L);
+            if (ok)
+                ok = emit_key(descriptor, KEY_TAB, 0);
             if (ok)
                 ok = emit_key(descriptor, KEY_LEFTSHIFT, 0);
         }
@@ -158,5 +181,7 @@ int main(int argc, char **argv)
     if (created)
         ioctl(descriptor, UI_DEV_DESTROY);
     close(descriptor);
+    if (created)
+        short_pause(150000000L);
     return ok ? 0 : 2;
 }

@@ -171,6 +171,8 @@ Native Sailfish build dependencies:
 
 - Qt Base 5.6.3: https://github.com/qt/qtbase at
   `e6f8b072d2bf15f8b82bede48ff29ce8ac8dbd9a`
+- Qt Declarative 5.6.3: https://github.com/qt/qtdeclarative at
+  `bb01612a8809efd268903e41b9e3a17cff48f1c0`
 - Sailfish Secrets 0.2.44: https://github.com/sailfishos/sailfish-secrets at
   `5a8d33e2eda2fe10a64acc42912dd3bedc736495`
 - Target Qt, xkbcommon and Sailfish Secrets libraries/configuration headers are

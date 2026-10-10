@@ -6,6 +6,7 @@ ARCH=${FUTO_ARCH:-aarch64}
 BUILD=${FUTO_BUILD_DIR:-$ROOT/build/$ARCH}
 DEPS_ROOT=${FUTO_DEPS_ROOT:-$ROOT/build/dependencies}
 QT_SOURCE=${FUTO_QT_SOURCE:-$DEPS_ROOT/sources/qtbase-5.6.3}
+QML_SOURCE=${FUTO_QML_SOURCE:-$DEPS_ROOT/sources/qtdeclarative-5.6.3}
 QT_CONFIG_ROOT=${FUTO_QT_CONFIG_ROOT:-$DEPS_ROOT/$ARCH/qt-config}
 TARGET_LIB_ROOT=${FUTO_TARGET_LIB_ROOT:-${FUTO_PHONE_LIB_ROOT:-$DEPS_ROOT/$ARCH/lib}}
 TARGET_SYSROOT=${FUTO_TARGET_SYSROOT:-}
@@ -49,6 +50,8 @@ SOURCE=$QT_SOURCE/src/plugins/platforminputcontexts/compose
 WRAPPER_SOURCE=$ROOT/hardware/compose/futo_maliit_compose_wrapper.cpp
 OUTPUT=$BUILD/qt-compose-plugin
 HEADER_ROOT=$BUILD/qt-compose-includes
+QML_HEADER_ROOT=$BUILD/qt-qml-includes
+QML_INCLUDE=${FUTO_QML_INCLUDE_ROOT:-$QML_HEADER_ROOT/include}
 INCLUDE=${FUTO_QT_INCLUDE_ROOT:-$HEADER_ROOT/include}
 
 if command -v "$CXX" >/dev/null 2>&1; then
@@ -72,12 +75,20 @@ for required in \
     "$SOURCE/qcomposeplatforminputcontext.cpp" \
     "$SOURCE/generator/qtablegenerator.cpp" \
     "$WRAPPER_SOURCE" \
+    "$QML_SOURCE/src/qml/jsapi/qjsengine.h" \
     "$ROOT/hardware/compose/futo-maliit-compose-wrapper.json" \
     "$TARGET_LIB_ROOT/libQt5Core.so.5.6.3" \
     "$TARGET_LIB_ROOT/libQt5Gui.so.5.6.3" \
+    "$TARGET_LIB_ROOT/libQt5Qml.so.5.6.3" \
     "$TARGET_LIB_ROOT/libxkbcommon.so.0.0.0"; do
     test -s "$required"
 done
+
+if [ -z "${FUTO_QML_INCLUDE_ROOT:-}" ] && [ ! -s "$QML_INCLUDE/QtQml/QJSEngine" ]; then
+    mkdir -p "$QML_HEADER_ROOT"
+    perl "$QT_SOURCE/bin/syncqt.pl" "$QML_SOURCE" \
+        -outdir "$QML_HEADER_ROOT" -version 5.6.3 -copy -quiet
+fi
 
 if [ -z "${FUTO_QT_INCLUDE_ROOT:-}" ] && \
         [ ! -s "$INCLUDE/QtGui/5.6.3/QtGui/qpa/qplatforminputcontextplugin_p.h" ]; then
@@ -95,6 +106,10 @@ fi
 
 rm -rf "$OUTPUT"
 mkdir -p "$OUTPUT"
+node "$ROOT/scripts/generate-credential-script.js" "$OUTPUT/futo_browser_script.h"
+"$HOST_MOC" -I"$INCLUDE" -I"$INCLUDE/QtCore" -I"$QML_INCLUDE" -I"$QML_INCLUDE/QtQml" \
+    "$ROOT/hardware/compose/futo_credential_editor.h" \
+    -o "$OUTPUT/moc_futo_credential_editor.cpp"
 "$HOST_MOC" -DQT_PLUGIN -DQT_SHARED \
     -I"$INCLUDE" \
     -I"$INCLUDE/QtCore" \
@@ -131,8 +146,12 @@ compile() {
     source_file=$1
     object_file=$2
     "$CXX" $TARGET_TOOLCHAIN_OPTION $TARGET_SYSROOT_OPTION -std=c++11 -O2 -DNDEBUG -fPIC \
+        "-ffile-prefix-map=$ROOT=." "-fmacro-prefix-map=$ROOT=." \
+        "-ffile-prefix-map=$QT_SOURCE=qtbase" "-fmacro-prefix-map=$QT_SOURCE=qtbase" \
+        "-ffile-prefix-map=$QML_SOURCE=qtdeclarative" "-fmacro-prefix-map=$QML_SOURCE=qtdeclarative" \
         -DQT_PLUGIN -DQT_SHARED -DQT_NO_DEBUG '-DX11_PREFIX="/usr"' \
         -I"$OUTPUT" \
+        -I"$ROOT/hardware/compose" -I"$QML_INCLUDE" -I"$QML_INCLUDE/QtQml" \
         -I"$SOURCE" -I"$SOURCE/generator" \
         -I"$INCLUDE" \
         -I"$INCLUDE/QtCore" \
@@ -155,6 +174,8 @@ compile "$OUTPUT/moc_qcomposeplatforminputcontext.cpp" \
 compile "$SOURCE/generator/qtablegenerator.cpp" \
     "$OUTPUT/qtablegenerator.o"
 compile "$WRAPPER_SOURCE" "$OUTPUT/futo_maliit_compose_wrapper.o"
+compile "$ROOT/hardware/compose/futo_credential_editor.cpp" "$OUTPUT/futo_credential_editor.o"
+compile "$OUTPUT/moc_futo_credential_editor.cpp" "$OUTPUT/moc_futo_credential_editor.o"
 
 "$CXX" $TARGET_TOOLCHAIN_OPTION $TARGET_SYSROOT_OPTION -shared \
     -Wl,-soname,libcomposeplatforminputcontextplugin.so \
@@ -175,9 +196,11 @@ compile "$WRAPPER_SOURCE" "$OUTPUT/futo_maliit_compose_wrapper.o"
     -Wl,-soname,libafutomaliitcomposewrapper.so \
     -Wl,--allow-shlib-undefined \
     "$OUTPUT/futo_maliit_compose_wrapper.o" \
+    "$OUTPUT/futo_credential_editor.o" "$OUTPUT/moc_futo_credential_editor.o" \
     -L"$TARGET_LIB_ROOT" \
     -l:libQt5Gui.so.5.6.3 \
     -l:libQt5Core.so.5.6.3 \
+    -l:libQt5Qml.so.5.6.3 \
     -lpthread -ldl \
     -o "$BUILD/libafutomaliitcomposewrapper.so"
 "$STRIP" "$BUILD/libafutomaliitcomposewrapper.so"

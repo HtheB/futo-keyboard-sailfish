@@ -15,6 +15,9 @@ TOOL_PREFIX=${FUTO_TOOL_PREFIX:-}
 QT_ARCHIVE_URL=https://codeload.github.com/qt/qtbase/tar.gz/e6f8b072d2bf15f8b82bede48ff29ce8ac8dbd9a
 QT_COMMIT=e6f8b072d2bf15f8b82bede48ff29ce8ac8dbd9a
 QT_ARCHIVE_SHA256=2379f234259c87ac87b7518243cc75c0bb6b8430d6c9f20d36052f4ad33bef1a
+QML_COMMIT=bb01612a8809efd268903e41b9e3a17cff48f1c0
+QML_ARCHIVE_URL=https://codeload.github.com/qt/qtdeclarative/tar.gz/$QML_COMMIT
+QML_ARCHIVE_SHA256=474a9c5d784a3edc8d8f8b63fe4c61ee9ed710c49c2ca617f9992b9a93b788f6
 SECRETS_ARCHIVE_URL=https://codeload.github.com/sailfishos/sailfish-secrets/tar.gz/5a8d33e2eda2fe10a64acc42912dd3bedc736495
 SECRETS_COMMIT=5a8d33e2eda2fe10a64acc42912dd3bedc736495
 SECRETS_ARCHIVE_SHA256=aa1c07b1e8af5a692616160a48ac35114272e5efa2c3d106127ee3714c41ffe1
@@ -191,6 +194,8 @@ extract_pinned() {
 echo "Preparing pinned source dependencies..."
 extract_pinned "$QT_ARCHIVE_URL" "$QT_COMMIT" "$QT_ARCHIVE_SHA256" \
     qtbase-5.6.3.tar.gz "$SOURCE_ROOT/qtbase-5.6.3" "Qt 5.6.3"
+extract_pinned "$QML_ARCHIVE_URL" "$QML_COMMIT" "$QML_ARCHIVE_SHA256" \
+    qtdeclarative-5.6.3.tar.gz "$SOURCE_ROOT/qtdeclarative-5.6.3" "Qt Declarative 5.6.3"
 extract_pinned "$SECRETS_ARCHIVE_URL" "$SECRETS_COMMIT" "$SECRETS_ARCHIVE_SHA256" \
     sailfish-secrets-0.2.44.tar.gz \
     "$SOURCE_ROOT/sailfish-secrets-0.2.44" "Sailfish Secrets 0.2.44"
@@ -215,6 +220,8 @@ REQUIRED_LIBRARIES=(
     libQt5Core.so.5.6.3
     libQt5DBus.so.5.6.3
     libQt5Gui.so.5.6.3
+    libQt5Qml.so.5.6.3
+    libQt5Quick.so.5.6.3
     libQt5WaylandClient.so.5.6.3
     libsailfishsecrets.so.0.2.44
     libxkbcommon.so.0.0.0

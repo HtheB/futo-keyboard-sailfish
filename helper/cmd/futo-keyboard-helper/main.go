@@ -56,6 +56,7 @@ const (
 	keyringPath               = "/usr/libexec/futo-keyboard-keyring"
 	focusPath                 = "/usr/libexec/futo-keyboard-focus"
 	appSupportKeyboardPath    = "/usr/libexec/futo-keyboard-appsupport"
+	browserOriginPath         = "/usr/libexec/futo-keyboard-browser-origin"
 	forcedAppSupportDconfPath = "/sailfish/text_input/futo_keyboard/forcedAppSupportKeyEvents"
 	vaultAuthAction           = "org.hb.futo.keyboard.saved-login"
 	vaultSaveAuthAction       = "org.hb.futo.keyboard.save-login"
@@ -2066,7 +2067,25 @@ func (index *credentialMatchIndex) count(origin string) int {
 	}
 	index.mu.Lock()
 	defer index.mu.Unlock()
-	return index.origins[origin]
+	if strings.HasPrefix(origin, "app://") {
+		return index.origins[origin]
+	}
+	// A page may redirect between HTTP and HTTPS before its login form gains
+	// focus. Website identity is the normalized host (and explicit port), not
+	// the transport used for that one navigation. Older vault entries retain
+	// their stored scheme, so check both without requiring a data migration.
+	host := strings.TrimPrefix(strings.TrimPrefix(origin, "https://"), "http://")
+	return index.origins["https://"+host] + index.origins["http://"+host]
+}
+
+func (index *credentialMatchIndex) total() int {
+	index.mu.Lock()
+	defer index.mu.Unlock()
+	total := 0
+	for _, count := range index.origins {
+		total += count
+	}
+	return total
 }
 
 const vaultUnlockDuration = 2 * time.Minute
@@ -2989,6 +3008,7 @@ type service struct {
 	swipeEngine              swipeProcess
 	predictionEngine         predictionProcess
 	androidCursor            androidCursorProcess
+	androidAutofill          *androidAutofillBridge
 	codec                    *secureFileCodec
 	learned                  *learnedStore
 	history                  *historyStore
@@ -3002,6 +3022,9 @@ type service struct {
 	vaultSessionMu           sync.Mutex
 	vaultSessions            map[dbus.Sender]vaultSession
 	vaultAuthRunMu           sync.Mutex
+	vaultUnlockMu            sync.Mutex
+	vaultUnlockRequests      map[dbus.Sender]*vaultUnlockRequest
+	credentialFocusMu        sync.Mutex
 	vaultAuthMu              sync.Mutex
 	vaultAuthPending         *vaultAuthenticationRequest
 	clipboardGuardMu         sync.Mutex
@@ -3325,11 +3348,8 @@ func (service *service) authenticateVault(sender dbus.Sender) error {
 		return errors.New("Settings must use its in-page device authentication flow")
 	}
 
-	// Ask Sailfish's registered graphical authentication agent directly for the
-	// Maliit process that made this trusted D-Bus call.  This produces the stock
-	// phone-code/fingerprint overlay above the current app; the former Settings
-	// broker opened an unrelated application window before showing the same
-	// challenge and broke the login flow's visual continuity.
+	// Verify the trusted keyboard caller, then require fresh device identity
+	// authentication. A Polkit authorization button is not an identity check.
 	callerPID, err := service.connectionPID(string(sender))
 	if err != nil || callerPID == 0 {
 		return errors.New("could not identify the keyboard for device authentication")
@@ -3352,6 +3372,10 @@ const (
 )
 
 func (service *service) authenticateVaultPIDForAction(callerPID uint32, actionID string) error {
+	return service.authenticateVaultPIDForActionContext(context.Background(), callerPID, actionID)
+}
+
+func (service *service) authenticateVaultPIDForActionContext(parent context.Context, callerPID uint32, actionID string) error {
 	if callerPID == 0 {
 		return errors.New("could not identify the keyboard for device authentication")
 	}
@@ -3362,12 +3386,15 @@ func (service *service) authenticateVaultPIDForAction(callerPID uint32, actionID
 	service.vaultAuthRunMu.Lock()
 	defer service.vaultAuthRunMu.Unlock()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 135*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 135*time.Second)
 	defer cancel()
-	command := exec.CommandContext(ctx, "/usr/bin/pkcheck",
-		"--action-id", actionID,
-		"--process", fmt.Sprintf("%d", callerPID),
-		"--allow-user-interaction")
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	command, err := vaultDeviceAuthenticationCommand(ctx, actionID)
+	if err != nil {
+		return err
+	}
 	if err := command.Run(); err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return errors.New("device authentication timed out")
@@ -5587,6 +5614,16 @@ func (service *service) ensureVaultOpen(create bool) error {
 	if service.vault.status() == "unlocked" {
 		return nil
 	}
+	// The password vault and its origin index are wrapped by the same
+	// device-bound key as learned data. On a fresh installation that key does
+	// not exist until the first protected feature is used. A confirmed vault
+	// save/unlock is already device-authenticated, so initialize the key here
+	// instead of requiring the user to visit Manage learned data first.
+	if !service.codec.hasKey() {
+		if err := service.activateLearnedEncryption("ensure", true); err != nil {
+			return fmt.Errorf("could not initialize encrypted keyboard storage: %w", err)
+		}
+	}
 	opened, err := service.openVaultFromWrappedKey(create)
 	if err != nil || opened {
 		return err
@@ -5705,7 +5742,8 @@ func internalCredentialOrigin(origin string) bool {
 	}
 	applicationID := strings.TrimPrefix(origin, "app://")
 	switch applicationID {
-	case "jolla-settings", "com.jolla.settings", "org.sailfishos.settings":
+	case "jolla-settings", "com.jolla.settings", "org.sailfishos.settings",
+		"lipstick-security-ui", "lipstick":
 		return true
 	default:
 		return false
@@ -5722,15 +5760,16 @@ func (service *service) lockVaultWhenNoSessions() {
 	}
 }
 
-// OfferCredentialSave uses Sailfish's native modal authorization surface as
-// the save confirmation itself.  There is no notification and no deferred
+// offerCredentialSave uses Sailfish's native modal authorization surface as
+// the save confirmation itself. There is no notification and no deferred
 // keyboard prompt; canceling the modal discards the candidate immediately.
-func (service *service) OfferCredentialSave(sender dbus.Sender, origin, username,
-	password string) (bool, *dbus.Error) {
+func (service *service) offerCredentialSave(sender dbus.Sender, label, origin,
+	username, password string) (bool, *dbus.Error) {
 	if !service.trustedNamedVaultCaller(sender, "com.jolla.keyboard") {
 		return false, dbus.MakeFailedError(errors.New("trusted keyboard access required"))
 	}
 	origin = normalizeCredentialOrigin(origin)
+	label = cleanCredentialText(label, 200)
 	username = cleanCredentialText(username, 512)
 	if origin == "" || internalCredentialOrigin(origin) || password == "" || len(password) > 4096 ||
 		strings.IndexFunc(password, unicode.IsControl) >= 0 {
@@ -5746,8 +5785,10 @@ func (service *service) OfferCredentialSave(sender dbus.Sender, origin, username
 	if err := service.ensureVaultOpen(true); err != nil {
 		return false, dbus.MakeFailedError(err)
 	}
-	saved, err := service.vault.upsert(credentialDisplayOrigin(origin), origin,
-		username, password)
+	if label == "" {
+		label = credentialDisplayOrigin(origin)
+	}
+	saved, err := service.vault.upsert(label, origin, username, password)
 	if err != nil {
 		service.lockVaultWhenNoSessions()
 		return false, dbus.MakeFailedError(err)
@@ -5759,6 +5800,19 @@ func (service *service) OfferCredentialSave(sender dbus.Sender, origin, username
 	}
 	service.lockVaultWhenNoSessions()
 	return saved, nil
+}
+
+// OfferCredentialSave remains available for installed keyboard code briefly
+// surviving an RPM upgrade. New keyboards pass the resolved application label
+// as well, so Android/native app entries use a human-facing name in Settings.
+func (service *service) OfferCredentialSave(sender dbus.Sender, origin, username,
+	password string) (bool, *dbus.Error) {
+	return service.offerCredentialSave(sender, "", origin, username, password)
+}
+
+func (service *service) OfferCredentialSaveWithLabel(sender dbus.Sender, label,
+	origin, username, password string) (bool, *dbus.Error) {
+	return service.offerCredentialSave(sender, label, origin, username, password)
 }
 
 // CredentialMatchCount never opens the password vault.  It reads only the
@@ -5777,6 +5831,86 @@ func (service *service) CredentialMatchCount(sender dbus.Sender, origin string) 
 		count = math.MaxInt32
 	}
 	return int32(count), nil
+}
+
+// CredentialSavedCount exposes only whether the encrypted vault has entries.
+// It lets the keyboard avoid a generic Saved passwords affordance when there
+// is nothing to choose, without unlocking the vault or revealing metadata.
+func (service *service) CredentialSavedCount(sender dbus.Sender) (int32, *dbus.Error) {
+	if !service.trustedVaultCaller(sender) || service.credentialIndex == nil {
+		return 0, nil
+	}
+	count := service.credentialIndex.total()
+	if count > math.MaxInt32 {
+		count = math.MaxInt32
+	}
+	return int32(count), nil
+}
+
+// CurrentBrowserOrigin returns only the normalized origin of Sailfish
+// Browser's active non-private tab. Sailfish Browser does not expose this in
+// its D-Bus API, so the packaged read-only resolver queries the tab database.
+func (service *service) CurrentBrowserOrigin(sender dbus.Sender) (string, *dbus.Error) {
+	if !service.trustedNamedVaultCaller(sender, "com.jolla.keyboard") {
+		return "", dbus.MakeFailedError(errors.New("trusted keyboard access required"))
+	}
+	context, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+	defer cancel()
+	output, err := exec.CommandContext(context, browserOriginPath).Output()
+	if err != nil {
+		return "", nil
+	}
+	origin := normalizeCredentialOrigin(strings.TrimSpace(string(output)))
+	if origin == "" || strings.HasPrefix(origin, "app://") {
+		return "", nil
+	}
+	return origin, nil
+}
+
+func androidFirefoxPackage(value string) bool {
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case "org.mozilla.firefox", "org.mozilla.firefox_beta",
+		"org.mozilla.fenix", "org.mozilla.fenix.nightly",
+		"org.mozilla.focus", "org.mozilla.focus.beta",
+		"org.mozilla.klar", "org.mozilla.klar.beta",
+		"org.mozilla.fennec_fdroid", "us.spotco.fennec_dos",
+		"io.github.forkmaintainers.iceraven",
+		"net.waterfox.android.release", "org.torproject.torbrowser",
+		"org.torproject.torbrowser_alpha":
+		return true
+	default:
+		return false
+	}
+}
+
+// CurrentAndroidBrowserOrigin returns Firefox for Android's selected tab
+// origin. The restricted resolver accepts only known Firefox-family package
+// names and emits only one http(s) URL from AppSupport's session state.
+func (service *service) CurrentAndroidBrowserOrigin(sender dbus.Sender,
+	packageID string) (string, *dbus.Error) {
+	if !service.trustedNamedVaultCaller(sender, "com.jolla.keyboard") {
+		return "", dbus.MakeFailedError(errors.New("trusted keyboard access required"))
+	}
+	packageID = strings.TrimSpace(strings.ToLower(packageID))
+	if !androidFirefoxPackage(packageID) {
+		return "", nil
+	}
+	context, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	for attempt := 0; attempt < 2; attempt++ {
+		output, err := exec.CommandContext(context, browserOriginPath,
+			"--android", packageID).Output()
+		if err == nil {
+			origin := normalizeCredentialOrigin(strings.TrimSpace(string(output)))
+			if origin != "" && !strings.HasPrefix(origin, "app://") {
+				return origin, nil
+			}
+		}
+		if attempt == 0 {
+			time.Sleep(40 * time.Millisecond)
+		}
+	}
+	return "", nil
 }
 
 func (service *service) ListCredentials(sender dbus.Sender, token string) (string, *dbus.Error) {
@@ -6545,6 +6679,73 @@ func processLooksAndroid(pid int32) bool {
 	return false
 }
 
+var applicationIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]+$`)
+var androidPackagePattern = regexp.MustCompile(
+	`^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+$`)
+
+func normalizedProcessApplicationCandidate(value string, android bool) string {
+	candidate := strings.ToLower(filepath.Base(strings.TrimSpace(value)))
+	candidate = strings.TrimSuffix(candidate, ".desktop")
+	if android {
+		// Android process names are normally the package id, optionally followed
+		// by a private process suffix (for example Firefox's content process).
+		// Keeping only a strict Java-package-shaped id prevents generic host-side
+		// AppSupport executables from becoming a shared credential origin.
+		candidate = strings.SplitN(candidate, ":", 2)[0]
+		if len(candidate) <= 240 && androidPackagePattern.MatchString(candidate) {
+			return candidate
+		}
+		return ""
+	}
+	if candidate == "" || strings.HasPrefix(candidate, "-") {
+		return ""
+	}
+	switch candidate {
+	case "invoker", "sailjail", "firejail", "booster-silica-qt5",
+		"booster-generic", "booster-browser":
+		return ""
+	}
+	if len(candidate) <= 240 && applicationIDPattern.MatchString(candidate) {
+		return candidate
+	}
+	return ""
+}
+
+func processApplicationID(pid int32) string {
+	if pid <= 0 {
+		return ""
+	}
+	procRoot := filepath.Join("/proc", strconv.FormatInt(int64(pid), 10))
+	android := processLooksAndroid(pid)
+	if commandLine, err := os.ReadFile(filepath.Join(procRoot, "cmdline")); err == nil {
+		for _, argument := range bytes.Split(commandLine, []byte{0}) {
+			if candidate := normalizedProcessApplicationCandidate(
+				string(argument), android); candidate != "" {
+				return candidate
+			}
+		}
+	}
+	for _, name := range []string{"comm", "exe"} {
+		var identity string
+		var err error
+		if name == "exe" {
+			identity, err = os.Readlink(filepath.Join(procRoot, name))
+		} else if data, readErr := os.ReadFile(filepath.Join(procRoot, name)); readErr == nil {
+			identity = string(data)
+		} else {
+			err = readErr
+		}
+		if err != nil {
+			continue
+		}
+		candidate := normalizedProcessApplicationCandidate(identity, android)
+		if candidate != "" {
+			return candidate
+		}
+	}
+	return ""
+}
+
 // CursorTargetIsAndroid classifies the compositor-owned client process rather
 // than its policy id. Lipstick may assign hexadecimal policy ids to both native
 // and Android surfaces, whereas AppSupport clients live under /system or the
@@ -6555,6 +6756,34 @@ func (service *service) CursorTargetIsAndroid(sender dbus.Sender,
 		return false, nil
 	}
 	return processLooksAndroid(pid), nil
+}
+
+// CredentialProcessApplication identifies the topmost native application or
+// Android package when Lipstick reports only a transient hexadecimal policy
+// id. The process-derived Android id also covers a Maliit restart while an app
+// was already visible, before AppSupport emits another appShown signal.
+func (service *service) CredentialProcessApplication(sender dbus.Sender,
+	pid int32) (string, *dbus.Error) {
+	if !service.trustedNamedVaultCaller(sender, "com.jolla.keyboard") {
+		return "", nil
+	}
+	return processApplicationID(pid), nil
+}
+
+// CurrentAndroidApplication recovers the foreground package when Lipstick
+// reports the shared apkd-bridge process. It returns only the package id, not
+// activity contents, and is available only to the trusted keyboard process.
+func (service *service) CurrentAndroidApplication(sender dbus.Sender) (string, *dbus.Error) {
+	if !service.trustedNamedVaultCaller(sender, "com.jolla.keyboard") {
+		return "", nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(ctx, browserOriginPath, "--android-application").Output()
+	if err != nil {
+		return "", nil
+	}
+	return normalizedProcessApplicationCandidate(string(output), true), nil
 }
 
 // InjectAndroidCursor provides the cursor-pad equivalent of Maliit's arrow-key
@@ -6806,11 +7035,18 @@ func (service *service) FocusCredentialField(sender dbus.Sender,
 		return false, dbus.MakeFailedError(errors.New("untrusted keyboard caller"))
 	}
 	direction = strings.ToLower(strings.TrimSpace(direction))
-	if direction != "next" && direction != "previous" {
+	if direction != "next" && direction != "previous" && direction != "restore" && direction != "select-all" {
 		return false, dbus.MakeFailedError(errors.New("invalid focus direction"))
 	}
+	service.credentialFocusMu.Lock()
+	defer service.credentialFocusMu.Unlock()
 	context, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
+	marker := filepath.Join(service.dataDirectory, "autofill-focus-active")
+	if err := os.WriteFile(marker, nil, 0600); err != nil {
+		return false, dbus.MakeFailedError(errors.New("could not prepare focus navigation"))
+	}
+	defer os.Remove(marker)
 	command := exec.CommandContext(context, focusPath, direction)
 	command.Stdout = io.Discard
 	command.Stderr = io.Discard
@@ -7074,6 +7310,14 @@ func helperIntrospectionInterface(application interface{}) introspect.Interface 
 					{Name: "message", Type: "s"},
 				},
 			},
+			{Name: androidAutofillSignal},
+			{
+				Name: "VaultUnlockCompleted",
+				Args: []introspect.Arg{
+					{Name: "request", Type: "s"},
+					{Name: "token", Type: "s"},
+				},
+			},
 		},
 	}
 }
@@ -7330,6 +7574,17 @@ func main() {
 	}
 	if reply != dbus.RequestNameReplyPrimaryOwner {
 		log.Fatal("another FUTO Keyboard helper already owns the service")
+	}
+	if bridge, err := newAndroidAutofillBridge(application); err == nil {
+		application.androidAutofill = bridge
+		defer bridge.close()
+		if bridge.state.Enabled {
+			if err := bridge.setEnabled(true); err != nil {
+				log.Printf("Android autofill unavailable: %v", err)
+			}
+		}
+	} else {
+		log.Printf("Android autofill configuration unavailable: %v", err)
 	}
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)

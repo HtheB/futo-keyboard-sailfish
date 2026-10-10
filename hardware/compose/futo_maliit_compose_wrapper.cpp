@@ -11,6 +11,7 @@
 #include <QStringList>
 #include <qpa/qplatforminputcontext.h>
 #include <qpa/qplatforminputcontextplugin_p.h>
+#include "futo_credential_editor.h"
 
 static bool isLipstickCompositor()
 {
@@ -189,13 +190,20 @@ private:
 
     void setFocusObject(QObject *object) override
     {
-        if (m_focusObject == object)
-            return;
-        if (m_focusObject)
-            m_focusObject->removeEventFilter(this);
-        m_focusObject = object;
-        if (m_focusObject && !isLipstickCompositor())
-            m_focusObject->installEventFilter(this);
+        if (m_focusObject != object) {
+            if (m_focusObject)
+                m_focusObject->removeEventFilter(this);
+            m_focusObject = object;
+            if (!m_editor && object && !isLipstickCompositor())
+                m_editor.reset(new FutoCredentialEditor(this));
+            if (m_editor)
+                m_editor->setFocusObject(object);
+            if (m_focusObject && !isLipstickCompositor())
+                m_focusObject->installEventFilter(this);
+        }
+        // A modal authorization can deactivate the input connection while
+        // the same editor keeps Qt focus. Always forward its renewed focus;
+        // skipping identical objects leaves a visible but inactive keyboard.
         if (m_compose)
             m_compose->setFocusObject(object);
         if (m_maliit)
@@ -204,6 +212,7 @@ private:
 
     QScopedPointer<QPlatformInputContext> m_maliit;
     QScopedPointer<QPlatformInputContext> m_compose;
+    QScopedPointer<FutoCredentialEditor> m_editor;
     QPointer<QObject> m_focusObject;
     bool m_waylandComposePending = false;
 };

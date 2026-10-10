@@ -9,9 +9,14 @@ SWIPE_BINARY ?= $(BUILD_DIR)/futo-keyboard-swipe
 PREDICTION_BINARY ?= $(BUILD_DIR)/futo-keyboard-prediction
 HELPER_BINARY ?= $(BUILD_DIR)/futo-keyboard-helper
 SECRETS_BINARY ?= $(BUILD_DIR)/futo-keyboard-secrets
+DEVICE_AUTH_BINARY ?= $(BUILD_DIR)/futo-keyboard-device-auth
+SETUP_TOAST_BINARY ?= $(BUILD_DIR)/futo-keyboard-setup-toast
 KEYRING_BINARY ?= $(BUILD_DIR)/futo-keyboard-keyring
 FOCUS_BINARY ?= $(BUILD_DIR)/futo-keyboard-focus
 APPSUPPORT_BINARY ?= $(BUILD_DIR)/futo-keyboard-appsupport
+BROWSER_ORIGIN_BINARY ?= $(BUILD_DIR)/futo-keyboard-browser-origin
+EDITOR_BINARY ?= $(BUILD_DIR)/futo-keyboard-editor
+ANDROID_AUTOFILL_APK ?= build/android/FutoAutofill.apk
 VOICE_BINARY ?= $(BUILD_DIR)/futo-keyboard-voice
 POLICY_LIBRARY ?= $(BUILD_DIR)/libfuto-maliit-policy.so.1
 COMPOSE_PLUGIN ?= $(BUILD_DIR)/libcomposeplatforminputcontextplugin.so
@@ -82,6 +87,8 @@ SETTINGS_QML := \
 	FutoLanguagesPage.qml \
 	FutoTypingPage.qml \
 	FutoPrivacyPage.qml \
+	FutoAndroidAutofillPage.qml \
+	FutoAndroidCredentialPage.qml \
 	FutoAppearancePage.qml \
 	FutoGesturesPage.qml \
 	FutoVoicePage.qml \
@@ -128,7 +135,7 @@ EMOJI_PREVIEW_CODEPOINTS := 1f600 1f44d 1f389 2764
 EMOJI_TAB_CODEPOINTS := 1f550 1f600 1f44b 1f43b 1f354 1f697 26bd 1f4a1 2764 1f3f3
 SOUND_FILES := $(wildcard assets/sounds/*.wav)
 SOUND_EXPECTED_FILES := 30
-ICON_FILES := assets/icons/icon-m-emoji.svg
+ICON_FILES := assets/icons/icon-m-emoji.svg assets/icons/futo-keyboard-sailfish.png assets/icons/futo-keyboard-sailfish.xpm
 FONT_FILES := \
 	assets/fonts/Amiri-Regular.ttf \
 	assets/fonts/NotoSansTifinagh-Regular.ttf \
@@ -148,9 +155,14 @@ check:
 	@test -s "$(PREDICTION_BINARY)" || { echo "Missing $(ARCH) FUTO prediction worker" >&2; exit 1; }
 	@test -s "$(HELPER_BINARY)" || { echo "Missing $(ARCH) helper" >&2; exit 1; }
 	@test -s "$(SECRETS_BINARY)" || { echo "Missing $(ARCH) Secrets bridge" >&2; exit 1; }
+	@test -s "$(DEVICE_AUTH_BINARY)" || { echo "Missing $(ARCH) device authentication bridge" >&2; exit 1; }
+	@test -s "$(SETUP_TOAST_BINARY)" || { echo "Missing $(ARCH) setup toast" >&2; exit 1; }
 	@test -s "$(KEYRING_BINARY)" || { echo "Missing $(ARCH) device key store" >&2; exit 1; }
 	@test -s "$(FOCUS_BINARY)" || { echo "Missing restricted focus bridge" >&2; exit 1; }
 	@test -s "$(APPSUPPORT_BINARY)" || { echo "Missing AppSupport keyboard bridge" >&2; exit 1; }
+	@test -s "$(BROWSER_ORIGIN_BINARY)" || { echo "Missing browser-origin resolver" >&2; exit 1; }
+	@test -s "$(EDITOR_BINARY)" || { echo "Missing restricted credential editor" >&2; exit 1; }
+	@test -s "$(ANDROID_AUTOFILL_APK)" || { echo "Build the optional Android autofill companion first" >&2; exit 1; }
 	@test -s "$(VOICE_BINARY)" || { echo "Missing $(ARCH) voice worker" >&2; exit 1; }
 	@for file in $(HANDLER_FILES); do test -s "$$file" || exit 1; done
 	@for file in $(SETTINGS_QML); do test -s "qml/$$file" || exit 1; done
@@ -236,14 +248,20 @@ check:
 	@test -s packaging/fontconfig/65-futo-keyboard-symbols.conf || exit 1
 
 install: check
+	install -Dm0644 assets/icons/futo-keyboard-sailfish.png "$(DESTDIR)$(PREFIX)/share/icons/hicolor/128x128/apps/futo-keyboard-sailfish.png"
+	install -Dm0644 "$(ANDROID_AUTOFILL_APK)" "$(PACKAGE_ROOT)/android/FutoAutofill.apk"
 	install -Dm0755 "$(ENGINE_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-engine"
 	install -Dm0755 "$(SWIPE_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-swipe"
 	install -Dm0755 "$(PREDICTION_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-prediction"
 	install -Dm0755 "$(HELPER_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-helper"
 	install -Dm0755 "$(SECRETS_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-secrets"
+	install -Dm0755 "$(DEVICE_AUTH_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-device-auth"
+	install -Dm0755 "$(SETUP_TOAST_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-setup-toast"
 	install -Dm0755 "$(KEYRING_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-keyring"
 	install -Dm0755 "$(FOCUS_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-focus"
 	install -Dm0755 "$(APPSUPPORT_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-appsupport"
+	install -Dm4755 "$(BROWSER_ORIGIN_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-browser-origin"
+	install -Dm4755 "$(EDITOR_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-editor"
 	install -Dm0755 "$(VOICE_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-voice"
 	install -Dm0755 "$(POLICY_LIBRARY)" \
 		"$(DESTDIR)$(LIBDIR)/libfuto-maliit-policy.so.1"

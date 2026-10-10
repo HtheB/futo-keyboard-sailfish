@@ -76,6 +76,8 @@ cp "$ROOT/LICENSES/FUTO-SWIPE-MODEL-WEIGHTS-LICENSE.md" \
     "$ROOT/swipe/models/LICENSE.md"
 archive_directory_as "futo-content-swipe-universal-$PACK_VERSION.tar.gz" \
     "swipe/models" "swipe/models"
+bash "$ROOT/scripts/ensure-published-pack.sh" "$OUTPUT" swipe-universal \
+    "futo-content-swipe-universal-$PACK_VERSION.tar.gz"
 
 dictionary_files=(
     ar cs da de el en_GB en_US es fa fi fr hr hu it lt lv nb nl pl

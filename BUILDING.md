@@ -82,6 +82,36 @@ layout. The generated `environment.sh` records both paths, so no manual
 
 ## Build
 
+Build the bundled Android autofill companion once before packaging any CPU
+architecture. It needs JDK 17, Gradle 8.7 and Android SDK platform 35 with
+Android Gradle Plugin 8.6.1. The APK itself is architecture independent.
+
+On Windows, pass the installed tool directory without recording local paths
+in the source tree:
+
+```powershell
+scripts/build-android-autofill.ps1 -ToolRoot /path/to/android-tools
+```
+
+The script writes `build/android/FutoAutofill.apk`. Its release signing key
+and password are kept outside the repository under the user's local application
+data, with restricted permissions. Back up both signing files: replacing the
+key prevents in-place updates of an already installed companion.
+
+On another build host, provide `FUTO_ANDROID_RELEASE_KEYSTORE` and
+`FUTO_ANDROID_RELEASE_PASSWORD`, set `ANDROID_HOME`, run Gradle's
+`:app:assembleRelease` task in `android-companion/`, and copy the signed APK
+to `build/android/FutoAutofill.apk`. Never commit signing files or include
+Android build caches in a source archive.
+
+The native build also produces `futo-keyboard-device-auth`. The RPM installs it
+as root-owned, set-group-ID `privileged` (mode 2755). It accepts only the packaged
+helper as its parent, clears user-controlled Qt import paths, and requests the
+system's security-code/fingerprint authentication with the normal device-unlock
+component in a system overlay (no app card). It also reuses the optional installed
+Pattern Lock component. Only trusted runtime paths and session endpoints are used.
+Do not replace this authentication with a simple permission confirmation.
+
 Load the generated environment, verify it, and build:
 
 ```sh

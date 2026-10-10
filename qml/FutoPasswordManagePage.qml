@@ -135,7 +135,22 @@ Page {
 			"entryAppName": String(entry.entryAppName)
 		})
 		}
+		// Sort by the name shown in the list, including resolved Android app
+		// names. Keep accounts with the same name in a predictable order.
+		results.sort(compareCredentials)
 		visibleEntries = results
+	}
+
+	function compareCredentials(left, right) {
+		var leftName = String(left.entryAppName || left.entryLabel || left.entryOrigin).trim().toLocaleLowerCase()
+		var rightName = String(right.entryAppName || right.entryLabel || right.entryOrigin).trim().toLocaleLowerCase()
+		var order = leftName.localeCompare(rightName)
+		if (order !== 0) return order
+		order = String(left.entryUsername).toLocaleLowerCase().localeCompare(String(right.entryUsername).toLocaleLowerCase())
+		if (order !== 0) return order
+		order = String(left.entryOrigin).toLocaleLowerCase().localeCompare(String(right.entryOrigin).toLocaleLowerCase())
+		if (order !== 0) return order
+		return String(left.entryId).localeCompare(String(right.entryId))
 	}
 
 	function searchEntries() {

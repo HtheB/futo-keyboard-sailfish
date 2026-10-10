@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 ARCH=${FUTO_ARCH:-aarch64}
-VERSION=0.7.1
+VERSION=0.8.0
 RELEASE=1
 NAME=futo-keyboard-sailfish
 OUTPUT_DIR=${FUTO_RPM_OUTPUT_DIR:-$ROOT/build/rpm}
@@ -23,6 +23,7 @@ if [[ ${FUTO_SKIP_CONTENT_BUILD:-0} != 1 ]]; then
 fi
 
 mkdir -p "$TOPDIR"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
+cp "$ROOT/assets/icons/futo-keyboard-sailfish.xpm" "$TOPDIR/SOURCES/$NAME.xpm"
 mkdir -p "$STAGING/$NAME-$VERSION"
 # Package only repository files; ignored or local-only files never enter the
 # published source payload, even if they sit beside the checked-in sources.
@@ -31,9 +32,11 @@ git -C "$ROOT" ls-files -z \
     | tar -C "$ROOT" --null -T - -cf - \
     | tar -C "$STAGING/$NAME-$VERSION" -xf -
 mkdir -p "$STAGING/$NAME-$VERSION/build/$ARCH"
+mkdir -p "$STAGING/$NAME-$VERSION/build/android"
+cp "$ROOT/build/android/FutoAutofill.apk" "$STAGING/$NAME-$VERSION/build/android/FutoAutofill.apk"
 for file in \
     futo-keyboard-engine futo-keyboard-swipe futo-keyboard-prediction futo-keyboard-helper futo-keyboard-secrets \
-    futo-keyboard-keyring futo-keyboard-focus futo-keyboard-appsupport futo-keyboard-voice \
+    futo-keyboard-keyring futo-keyboard-device-auth futo-keyboard-setup-toast futo-keyboard-focus futo-keyboard-appsupport futo-keyboard-browser-origin futo-keyboard-editor futo-keyboard-voice \
     libfuto-maliit-policy.so.1 libcomposeplatforminputcontextplugin.so \
     libafutomaliitcomposewrapper.so libQt5WaylandClient.so.5.6.3 \
     libQt5WaylandClientFutoOriginal.so.5.6.3 stock-wayland.sha256; do
@@ -74,8 +77,12 @@ chmod 0755 "$STAGING/$NAME-$VERSION/scripts/"*.sh \
     "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-helper" \
     "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-secrets" \
     "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-keyring" \
+    "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-device-auth" \
+    "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-setup-toast" \
     "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-focus" \
     "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-appsupport" \
+	"$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-browser-origin" \
+	"$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-editor" \
     "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-voice" \
     "$STAGING/$NAME-$VERSION/build/$ARCH/libfuto-maliit-policy.so.1" \
     "$STAGING/$NAME-$VERSION/build/$ARCH/libcomposeplatforminputcontextplugin.so" \

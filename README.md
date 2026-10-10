@@ -47,6 +47,7 @@ This project brings the FUTO typing experience to Sailfish OS while adding many 
 - Automatic protection while entering passwords
 - Encrypted learned words and URL history
 - Encrypted password manager protected by your device code or fingerprint
+- Optional Android™ AppSupport autofill for saving and filling logins
 - Password import and export, with optional AES-256 ZIP protection
 - Clipboard history with pinned entries and automatic cleanup
 - No account or online service required for typing, predictions, or voice input
@@ -74,6 +75,10 @@ This release was made and tested on the new Jolla Phone running Sailfish OS 5.2.
 4. Open **Settings → Text input → FUTO Keyboard settings** to choose your languages and customize the keyboard.
 
 You can also open the settings directly from the keyboard by holding the **123** button and selecting **Settings**.
+
+To use Android autofill, open **Privacy and learning → Android™ AppSupport**,
+install the companion, enable Android autofill, and select **FUTO Autofill**
+in Android's autofill settings. Using a saved login requires device authentication.
 
 ## Downloadable content
 

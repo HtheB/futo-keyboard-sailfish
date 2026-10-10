@@ -15,3 +15,11 @@ __pycache__/
 *.py[cod]
 *.swp
 *~
+
+# Optional Android companion build caches; signing material stays outside the repo.
+/android-companion/.gradle/
+/android-companion/local.properties
+/android-companion/app/build/
+*.keystore
+*.jks
+*.p12

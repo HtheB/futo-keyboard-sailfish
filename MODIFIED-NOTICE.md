@@ -137,3 +137,11 @@ Arabic-script preedit direction, a Persian ZWNJ/ZWJ key, common diacritics and
 the conventional long-press placement of Persian Zhe. The joiner and diacritic
 behavior follows the BSD-licensed Persian Keyboard 0.6 Sailfish layout by Ali
 Najafi and Sepehr Noori; the full notice is included under `LICENSES/`.
+
+The 0.8.0 release adds an optional Android Autofill service connected to the
+Sailfish edition's local encrypted vault. It uses Android's framework to identify
+login fields and fill selected accounts, and Sailfish device authentication to
+authorize saved-login use. Native credential integration also checks editor,
+application and website identity before replacing fields. No browser passwords
+or device-specific configuration are included in the sources or installation
+package.

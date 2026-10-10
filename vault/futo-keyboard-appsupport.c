@@ -168,12 +168,13 @@ int main(int argc, char **argv)
         return 77;
     }
     if (argc != 1 && argc != 2 && argc != 3 && argc != 4) {
-        fputs("Usage: futo-keyboard-appsupport [hide|cursorstream|text TEXT|keyevent KEYCODE|keyrepeat KEYCODE COUNT|keycombination KEYCODE_SHIFT_LEFT KEYCODE_DPAD_*]\n",
+        fputs("Usage: futo-keyboard-appsupport [hide|cursorstream|autofill-status|text TEXT|keyevent KEYCODE|keyrepeat KEYCODE COUNT|keycombination KEYCODE_SHIFT_LEFT KEYCODE_DPAD_*]\n",
               stderr);
         return 64;
     }
     if (argc == 2 && strcmp(argv[1], "hide") != 0
-            && strcmp(argv[1], "cursorstream") != 0) {
+            && strcmp(argv[1], "cursorstream") != 0
+            && strcmp(argv[1], "autofill-status") != 0) {
         fputs("futo-keyboard-appsupport: invalid keyboard request\n", stderr);
         return 64;
     }
@@ -205,7 +206,14 @@ int main(int argc, char **argv)
     if (clearenv() != 0 || setenv("PATH", "/usr/bin:/bin", 1) != 0)
         return 2;
 
-    if (argc == 2 && strcmp(argv[1], "cursorstream") == 0) {
+    if (argc == 2 && strcmp(argv[1], "autofill-status") == 0) {
+        // Read only this fixed setting. No caller-supplied key, package or
+        // command is permitted, and no Android setting is changed here.
+        execl(lxc_attach_path, "lxc-attach",
+              "-P", "/tmp/appsupport", "-n", instance, "--",
+              "/system/bin/settings", "get", "secure", "autofill_service",
+              (char *)NULL);
+    } else if (argc == 2 && strcmp(argv[1], "cursorstream") == 0) {
         execl(lxc_attach_path, "lxc-attach",
               "-P", "/tmp/appsupport", "-n", instance, "--",
               "/system/bin/sh", "-c", cursor_stream_script,

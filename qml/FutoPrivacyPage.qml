@@ -310,6 +310,14 @@ Page {
                 onClicked: page.openSavedPasswords()
             }
 
+            FutoSettingsMenuItem {
+                width: parent.width
+                text: qsTr("Android™ AppSupport")
+                iconSource: "image://theme/icon-m-android"
+                enabled: !page.authenticationBusy
+                onClicked: pageStack.push(Qt.resolvedUrl("FutoAndroidAutofillPage.qml"))
+            }
+
             Label {
                 x: Theme.horizontalPageMargin
                 width: parent.width - 2 * x

@@ -5,6 +5,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 ARCH=${FUTO_ARCH:-aarch64}
 DEPS_ROOT=${FUTO_DEPS_ROOT:-$ROOT/build/dependencies}
 QT_SOURCE=${FUTO_QT_SOURCE:-$DEPS_ROOT/sources/qtbase-5.6.3}
+QML_SOURCE=${FUTO_QML_SOURCE:-$DEPS_ROOT/sources/qtdeclarative-5.6.3}
 SECRETS_SOURCE=${FUTO_SECRETS_SOURCE:-$DEPS_ROOT/sources/sailfish-secrets-0.2.44}
 TARGET_LIB_ROOT=${FUTO_TARGET_LIB_ROOT:-${FUTO_PHONE_LIB_ROOT:-$DEPS_ROOT/$ARCH/lib}}
 QT_CONFIG_ROOT=${FUTO_QT_CONFIG_ROOT:-$DEPS_ROOT/$ARCH/qt-config}
@@ -125,6 +126,7 @@ fi
 
 require_file "Qt Compose source" \
     "$QT_SOURCE/src/plugins/platforminputcontexts/compose/qcomposeplatforminputcontext.cpp"
+require_file "Qt Declarative source" "$QML_SOURCE/src/qml/jsapi/qjsengine.h"
 require_file "Sailfish Secrets source" "$SECRETS_SOURCE/lib/Secrets/secretmanager.h"
 require_file "target Qt qconfig.h" "$QT_CONFIG_ROOT/qconfig.h"
 require_file "target Qt qfeatures.h" "$QT_CONFIG_ROOT/qfeatures.h"
@@ -133,6 +135,7 @@ require_file "xkbcommon compose header" \
 require_file "xkbcommon keysym header" \
     "$XKB_INCLUDE_ROOT/xkbcommon/xkbcommon-keysyms.h"
 for library in libQt5Core.so.5.6.3 libQt5DBus.so.5.6.3 libQt5Gui.so.5.6.3 \
+        libQt5Qml.so.5.6.3 libQt5Quick.so.5.6.3 \
         libQt5WaylandClient.so.5.6.3 libsailfishsecrets.so.0.2.44 \
         libxkbcommon.so.0.0.0; do
     require_file "target library" "$TARGET_LIB_ROOT/$library"

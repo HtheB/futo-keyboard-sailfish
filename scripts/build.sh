@@ -339,6 +339,31 @@ done
     -o "$BUILD/futo-keyboard-secrets"
 "$STRIP" "$BUILD/futo-keyboard-secrets"
 
+QML_INCLUDE_ROOT=${FUTO_QML_INCLUDE_ROOT:-$BUILD/qt-qml-includes/include}
+RUNTIME_QT_DIRECTORY=/usr/lib/qt5
+[[ "$ARCH" != aarch64 ]] || RUNTIME_QT_DIRECTORY=/usr/lib64/qt5
+"$CXX" "${TARGET_COMPILE_FLAGS[@]}" -std=c++17 -O2 -DNDEBUG -fPIC \
+    "-DFUTO_QT_DIRECTORY=\"$RUNTIME_QT_DIRECTORY\"" \
+    -I"$QT_INCLUDE_ROOT" -I"$QT_INCLUDE_ROOT/QtCore" \
+    -I"$QT_INCLUDE_ROOT/QtGui" \
+    -I"$QML_INCLUDE_ROOT" -I"$QML_INCLUDE_ROOT/QtQml" \
+    "$ROOT/vault/futo-keyboard-device-auth.cpp" \
+    -L"$TARGET_LIB_ROOT" -Wl,--allow-shlib-undefined \
+    -l:libQt5Qml.so.5.6.3 -l:libQt5Gui.so.5.6.3 -l:libQt5Core.so.5.6.3 \
+    -lpthread -ldl -o "$BUILD/futo-keyboard-device-auth"
+"$STRIP" "$BUILD/futo-keyboard-device-auth"
+
+"$CXX" "${TARGET_COMPILE_FLAGS[@]}" -std=c++17 -O2 -DNDEBUG -fPIC \
+    -I"$QT_INCLUDE_ROOT" -I"$QT_INCLUDE_ROOT/QtCore" -I"$QT_INCLUDE_ROOT/QtGui" \
+    -I"$QT_INCLUDE_ROOT/QtGui/5.6.3" -I"$QT_INCLUDE_ROOT/QtGui/5.6.3/QtGui" \
+    -I"$QML_INCLUDE_ROOT" -I"$QML_INCLUDE_ROOT/QtQml" -I"$QML_INCLUDE_ROOT/QtQuick" \
+    "$ROOT/vault/futo-keyboard-setup-toast.cpp" \
+    -L"$TARGET_LIB_ROOT" -Wl,--allow-shlib-undefined \
+    -l:libQt5Quick.so.5.6.3 -l:libQt5Qml.so.5.6.3 \
+    -l:libQt5Gui.so.5.6.3 -l:libQt5Core.so.5.6.3 \
+    -lpthread -ldl -o "$BUILD/futo-keyboard-setup-toast"
+"$STRIP" "$BUILD/futo-keyboard-setup-toast"
+
 "$CC" "${TARGET_COMPILE_FLAGS[@]}" -std=c11 -O2 -DNDEBUG -fPIE -pie \
     -Wall -Wextra -Werror \
     "$ROOT/vault/futo-keyboard-keyring.c" \
@@ -357,9 +382,22 @@ done
     -o "$BUILD/futo-keyboard-appsupport"
 "$STRIP" "$BUILD/futo-keyboard-appsupport"
 
+"$CC" "${TARGET_COMPILE_FLAGS[@]}" -std=c11 -O2 -DNDEBUG -fPIE -pie \
+    -Wall -Wextra -Werror \
+    "$ROOT/vault/futo-keyboard-browser-origin.c" -ldl \
+    -o "$BUILD/futo-keyboard-browser-origin"
+"$STRIP" "$BUILD/futo-keyboard-browser-origin"
+
+"$CC" "${TARGET_COMPILE_FLAGS[@]}" -std=c11 -O2 -DNDEBUG -fPIE -pie \
+    -Wall -Wextra -Werror "$ROOT/vault/futo-keyboard-editor.c" \
+    -o "$BUILD/futo-keyboard-editor"
+"$STRIP" "$BUILD/futo-keyboard-editor"
+
 file "$BUILD/futo-keyboard-engine" "$BUILD/futo-keyboard-swipe" "$BUILD/futo-keyboard-prediction" "$BUILD/futo-keyboard-helper" \
-    "$BUILD/futo-keyboard-secrets" "$BUILD/futo-keyboard-keyring" \
+    "$BUILD/futo-keyboard-secrets" "$BUILD/futo-keyboard-keyring" "$BUILD/futo-keyboard-device-auth" \
+    "$BUILD/futo-keyboard-setup-toast" \
     "$BUILD/futo-keyboard-focus" "$BUILD/futo-keyboard-appsupport" \
+    "$BUILD/futo-keyboard-browser-origin" "$BUILD/futo-keyboard-editor" \
     "$BUILD/futo-keyboard-voice" \
     "$BUILD/libfuto-maliit-policy.so.1" \
     "$BUILD/libcomposeplatforminputcontextplugin.so" \

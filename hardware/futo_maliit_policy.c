@@ -13,6 +13,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 typedef bool (*is_open_function)(const void *tracker);
@@ -28,8 +30,20 @@ static bool keep_virtual_keyboard(void)
     length = snprintf(marker, sizeof(marker),
                       "%s/.local/share/futo-keyboard-sailfish/keep-virtual-hardware",
                       home);
+    if (length > 0 && (size_t)length < sizeof(marker)
+            && access(marker, F_OK) == 0)
+        return true;
+    /* The tightly restricted focus bridge is not a physical keyboard.
+     * Keep the current on-screen input source during its short gesture. */
+    length = snprintf(marker, sizeof(marker),
+                      "%s/.local/share/futo-keyboard-sailfish/autofill-focus-active",
+                      home);
+    struct stat status;
+    const time_t now = time(NULL);
     return length > 0 && (size_t)length < sizeof(marker)
-           && access(marker, F_OK) == 0;
+           && stat(marker, &status) == 0 && S_ISREG(status.st_mode)
+           && status.st_uid == getuid() && status.st_mtime <= now
+           && now - status.st_mtime <= 3;
 }
 
 extern bool futo_maliit_hardware_keyboard_is_open(const void *tracker)
