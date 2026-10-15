@@ -69,7 +69,7 @@ FunctionKey {
         height: width
         radius: width / 2
         color: Theme.rgba(Theme.highlightColor, 0.28)
-        visible: keyboard.inputHandler && keyboard.inputHandler.voiceRecording
+        visible: Boolean(keyboard.inputHandler && keyboard.inputHandler.voiceRecording)
 
         SequentialAnimation on opacity {
             running: MInputMethodQuick.active && parent.visible
@@ -92,7 +92,7 @@ FunctionKey {
     BusyIndicator {
         anchors.centerIn: parent
         size: BusyIndicatorSize.Small
-        running: keyboard.inputHandler && keyboard.inputHandler.voiceBusy
+        running: Boolean(keyboard.inputHandler && keyboard.inputHandler.voiceBusy)
         visible: running
     }
 

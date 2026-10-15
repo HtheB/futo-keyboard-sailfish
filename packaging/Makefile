@@ -7,6 +7,8 @@ LIBDIR ?= $(PREFIX)/lib64
 ENGINE_BINARY ?= $(BUILD_DIR)/futo-keyboard-engine
 SWIPE_BINARY ?= $(BUILD_DIR)/futo-keyboard-swipe
 PREDICTION_BINARY ?= $(BUILD_DIR)/futo-keyboard-prediction
+MOZC_BINARY ?= $(BUILD_DIR)/futo-keyboard-mozc
+RIME_BINARY ?= $(BUILD_DIR)/futo-keyboard-rime
 HELPER_BINARY ?= $(BUILD_DIR)/futo-keyboard-helper
 SECRETS_BINARY ?= $(BUILD_DIR)/futo-keyboard-secrets
 DEVICE_AUTH_BINARY ?= $(BUILD_DIR)/futo-keyboard-device-auth
@@ -32,6 +34,10 @@ PACKAGE_ROOT := $(DESTDIR)$(PREFIX)/share/futo-keyboard-sailfish
 
 HANDLER_FILES := \
 	qml/FutoInputHandler.qml \
+	qml/FutoCompositionSession.js \
+	qml/FutoCompositionController.qml \
+	qml/FutoConversionStrip.qml \
+	qml/FutoSavedLoginPrompt.qml \
 	qml/FutoHorizontalPredictionListView.qml \
 	qml/FutoVerticalPredictionListView.qml \
 	qml/FutoPasteButton.qml
@@ -61,6 +67,10 @@ LAYOUT_FILES := \
 	layouts/FutoLetterLayouts.js \
 	layouts/FutoLayoutKey.qml \
 	layouts/FutoLetterRow.qml \
+	layouts/FutoJapaneseFlickPanel.qml \
+	layouts/FutoKanaModifierLabel.qml \
+	layouts/FutoKanaPunctuationLabel.qml \
+	layouts/FutoFlickGesture.js \
 	layouts/FutoNumberKey.qml \
 	layouts/FutoGeneratedNumberRow.qml \
 	layouts/FutoLayoutEditor.qml \
@@ -85,6 +95,7 @@ LAYOUT_FILES := \
 SETTINGS_QML := \
 	FutoSettingsPage.qml \
 	FutoLanguagesPage.qml \
+	FutoConversionSettingsPage.qml \
 	FutoTypingPage.qml \
 	FutoPrivacyPage.qml \
 	FutoAndroidAutofillPage.qml \
@@ -135,7 +146,7 @@ EMOJI_PREVIEW_CODEPOINTS := 1f600 1f44d 1f389 2764
 EMOJI_TAB_CODEPOINTS := 1f550 1f600 1f44b 1f43b 1f354 1f697 26bd 1f4a1 2764 1f3f3
 SOUND_FILES := $(wildcard assets/sounds/*.wav)
 SOUND_EXPECTED_FILES := 30
-ICON_FILES := assets/icons/icon-m-emoji.svg assets/icons/futo-keyboard-sailfish.png assets/icons/futo-keyboard-sailfish.xpm
+ICON_FILES := assets/icons/icon-m-emoji.svg assets/icons/icon-m-kana-modifier.svg assets/icons/icon-m-kana-punctuation.svg assets/icons/futo-keyboard-sailfish.png assets/icons/futo-keyboard-sailfish.xpm
 FONT_FILES := \
 	assets/fonts/Amiri-Regular.ttf \
 	assets/fonts/NotoSansTifinagh-Regular.ttf \
@@ -146,6 +157,8 @@ FONT_FILES := \
 	assets/fonts/NotoNaskhArabic-Regular.ttf \
 	assets/fonts/FutoAndroidRiyal-Regular.ttf
 SYSTEM_AMIRI_RIYAL_FONT := assets/fonts/AmiriSailfishCompactRial-Regular.ttf
+COMPOSITION_LICENSE_FILES := $(wildcard LICENSES/MOZC-*.txt LICENSES/RIME-*.txt) \
+	LICENSES/GCC-RUNTIME-EXCEPTION.txt LICENSES/FUTO-COMPOSITION-NOTICE.md
 
 .PHONY: check install
 
@@ -153,6 +166,8 @@ check:
 	@test -s "$(ENGINE_BINARY)" || { echo "Missing $(ARCH) engine" >&2; exit 1; }
 	@test -s "$(SWIPE_BINARY)" || { echo "Missing $(ARCH) FUTO Swipe worker" >&2; exit 1; }
 	@test -s "$(PREDICTION_BINARY)" || { echo "Missing $(ARCH) FUTO prediction worker" >&2; exit 1; }
+	@test -s "$(MOZC_BINARY)" || { echo "Missing $(ARCH) Japanese conversion worker" >&2; exit 1; }
+	@test -s "$(RIME_BINARY)" || { echo "Missing $(ARCH) Chinese conversion worker" >&2; exit 1; }
 	@test -s "$(HELPER_BINARY)" || { echo "Missing $(ARCH) helper" >&2; exit 1; }
 	@test -s "$(SECRETS_BINARY)" || { echo "Missing $(ARCH) Secrets bridge" >&2; exit 1; }
 	@test -s "$(DEVICE_AUTH_BINARY)" || { echo "Missing $(ARCH) device authentication bridge" >&2; exit 1; }
@@ -233,6 +248,7 @@ check:
 	@test -s LICENSES/FUTO-SWIPE-GPL-3.0.txt || exit 1
 	@test -s LICENSES/FUTO-SWIPE-MODEL-WEIGHTS-LICENSE.md || exit 1
 	@test -s LICENSES/FUTO-PREDICTION-NOTICE.md || exit 1
+	@for file in $(COMPOSITION_LICENSE_FILES); do test -s "$$file" || exit 1; done
 	@test -s LICENSES/PROTOBUF-LITE-BSD-LICENSE.txt || exit 1
 	@test -s LICENSES/LIBX11-COMPOSE-LICENSE.txt || exit 1
 	@test -s LICENSES/QT-COMPOSE-NOTICE.md || exit 1
@@ -253,6 +269,8 @@ install: check
 	install -Dm0755 "$(ENGINE_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-engine"
 	install -Dm0755 "$(SWIPE_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-swipe"
 	install -Dm0755 "$(PREDICTION_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-prediction"
+	install -Dm0755 "$(MOZC_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-mozc"
+	install -Dm0755 "$(RIME_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-rime"
 	install -Dm0755 "$(HELPER_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-helper"
 	install -Dm0755 "$(SECRETS_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-secrets"
 	install -Dm0755 "$(DEVICE_AUTH_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-device-auth"
@@ -413,5 +431,8 @@ install: check
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/NOTO-FONTS-OFL.txt"
 	install -Dm0644 LICENSES/YEKA-ZIP-LICENSE.txt \
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/YEKA-ZIP-LICENSE.txt"
+	@for file in $(COMPOSITION_LICENSE_FILES); do \
+		install -Dm0644 "$$file" "$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/$${file##*/}"; \
+	done
 	install -Dm0644 MODIFIED-NOTICE.md \
 		"$(DESTDIR)$(PREFIX)/share/licenses/futo-keyboard-sailfish/MODIFIED-NOTICE.md"

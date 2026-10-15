@@ -3,6 +3,7 @@
  * Modified for the independent FUTO Keyboard Sailfish integration.
  */
 import QtQuick 2.0
+import Sailfish.Silica 1.0 as Silica
 import Nemo.Configuration 1.0
 import com.jolla.keyboard 1.0
 import com.meego.maliitquick 1.0
@@ -18,6 +19,7 @@ FutoKeyboardLayout {
     // header when a tool page needs Quick Settings or category/search tabs.
     splitTopItemRequired: emojiMode || emojiSearchMode
                           || extendedSymbolMode || controlMode
+	                      || compositionHint !== ""
 	                      || credentialMode
 
     FontLoader {
@@ -91,6 +93,31 @@ FutoKeyboardLayout {
 
     readonly property int layoutVariant: LetterLayouts.clampedIndex(
                                              layoutSettings.layoutVariant)
+    readonly property string compositionHint: LetterLayouts.imeHint(layoutVariant)
+    readonly property string compositionLanguage: compositionHint !== ""
+            ? selectedPredictionLanguage(layoutVariant) : ""
+    readonly property string compositionLanguageLabel: compositionLanguage !== ""
+            ? LanguageData.name(compositionLanguage) : ""
+    property bool compositionLatinMode: false
+    readonly property string compositionModeHint: compositionHint === "12key" && compositionLatinMode
+            ? "12key-latin" : compositionHint
+    property bool layoutConfigurationReady: false
+    readonly property int renderedLayoutVariant: compositionLatinMode
+            && compositionLanguage === "JA" && compositionHint !== "12key" || (compositionHint === "12key"
+                && handler && !handler.conversionEnabled) ? 0 : layoutVariant
+    readonly property bool japaneseFlickLayout: LetterLayouts.imeHint(renderedLayoutVariant) === "12key"
+    readonly property real thumbLetterKeyWidth: {
+        if (!thumbMode || japaneseFlickLayout) return 0
+        var columns = 1
+        for (var row = 0; row < LetterLayouts.rowCount(renderedLayoutVariant); ++row)
+            columns = Math.max(columns, Math.ceil(
+                                   LetterLayouts.rowLength(renderedLayoutVariant, row) / 2))
+        return Math.max(1, (keyboardContentWidth - avoidanceWidth) / (2 * columns))
+    }
+    // ABC changes the rendered grid without changing the saved Japanese
+    // layout. Wait for the new cell models/loaders before measuring the rows.
+    onRenderedLayoutVariantChanged: rowRelayoutTimer.restart()
+    onCompositionLanguageChanged: compositionLatinMode = false
     readonly property int symbolNumberLayout: Math.max(0, Math.min(2,
                                                                   layoutSettings.symbolNumberLayout))
     readonly property int emojiStyle: Math.max(0, Math.min(3, layoutSettings.emojiStyle))
@@ -99,9 +126,10 @@ FutoKeyboardLayout {
     readonly property real emojiSizeScale: clampedEmojiSizeScale(
                                                layoutSettings.emojiSizeScale)
     readonly property bool numberRowEnabled: layoutSettings.numberRowEnabled
-	readonly property int letterRowCount: LetterLayouts.rowCount(layoutVariant)
-	readonly property bool effectiveNumberRowEnabled: numberRowEnabled
-			|| LetterLayouts.numberRowRequired(layoutVariant)
+	readonly property int letterRowCount: japaneseFlickLayout ? 3
+            : LetterLayouts.rowCount(renderedLayoutVariant)
+	readonly property bool effectiveNumberRowEnabled: LetterLayouts.numberRowAllowed(renderedLayoutVariant)
+            && (numberRowEnabled || LetterLayouts.numberRowRequired(renderedLayoutVariant))
 	readonly property real numberRowHeightScale: Math.max(0.5, Math.min(1.0,
 			isFinite(Number(layoutSettings.numberRowHeightScale))
 			? Number(layoutSettings.numberRowHeightScale) : 1.0))
@@ -125,17 +153,16 @@ FutoKeyboardLayout {
     readonly property bool languagesShareActiveLayout:
 		layoutSettings.automaticLanguageDetection
 		&& layoutSettings.mergeSameLayoutLanguages
-    readonly property int languageSwitchCount: languagesShareActiveLayout
-            ? enabledLetterLayoutCount : enabledLanguageCount
+    readonly property int languageSwitchCount: languageSwitchEntries().length
     readonly property string currentLetterLayoutName: letterLayoutName(
             layoutVariant, selectedPredictionLanguage(layoutVariant))
     readonly property string currentLetterLayoutMenuName:
             LetterLayouts.menuNameForLanguage(
                 layoutVariant, selectedPredictionLanguage(layoutVariant))
-    readonly property string currentLayoutLanguages: languagesShareActiveLayout
+    readonly property string currentLayoutLanguages: languagesShareActiveLayout && compositionHint === ""
 			? languageNamesForLayout(layoutVariant)
 			: LanguageData.name(selectedPredictionLanguage(layoutVariant))
-    readonly property string currentLayoutLanguageCodes: languagesShareActiveLayout
+    readonly property string currentLayoutLanguageCodes: languagesShareActiveLayout && compositionHint === ""
 			? languagesForLayout(layoutVariant).join("+")
 			: selectedPredictionLanguage(layoutVariant)
     // Raised by the Space key while its language chooser is open, so the
@@ -167,7 +194,7 @@ FutoKeyboardLayout {
         return ""
     }
     readonly property string currentLayoutMenuLanguageLabel: {
-        if (!languagesShareActiveLayout)
+        if (!languagesShareActiveLayout || compositionHint !== "")
             return selectedPredictionLanguage(layoutVariant)
         var languages = languagesForLayout(layoutVariant)
         return languages.length > 2 ? qsTr("MULTI") : languages.join("+")
@@ -365,6 +392,14 @@ FutoKeyboardLayout {
         layoutValue = LetterLayouts.clampedIndex(layoutValue)
         if (compatible.indexOf(layoutValue) < 0)
             return false
+        if (handler && handler.finishConversion)
+            return handler.finishConversion(function() {
+                root.applyLayoutAssignment(languageCode, layoutValue)
+            })
+        return applyLayoutAssignment(languageCode, layoutValue)
+    }
+
+    function applyLayoutAssignment(languageCode, layoutValue) {
         var assignments = layoutAssignments()
         var manualAssignments = manualAssignmentFlags()
         var identities = layoutIdentities()
@@ -657,7 +692,8 @@ FutoKeyboardLayout {
     function applyConfiguredAutocaps() {
         if (keyboard.layout !== root)
             return
-        if (!layoutSettings.autoCapitalizationEnabled) {
+        if (!layoutSettings.autoCapitalizationEnabled
+                || (compositionHint !== "" && !compositionLatinMode)) {
             if (keyboard.autocaps)
                 keyboard.autocaps = false
         } else if (keyboard.applyAutocaps) {
@@ -684,6 +720,7 @@ FutoKeyboardLayout {
     }
 
     function ensureActiveLetterLayout() {
+        if (!layoutConfigurationReady) return
         var enabled = configuredLayoutGroups()
         if (enabled.indexOf(layoutVariant) < 0)
             layoutSettings.layoutVariant = enabled[0]
@@ -691,12 +728,13 @@ FutoKeyboardLayout {
     }
 
     function synchronizeDetectedLanguage() {
+        if (!layoutConfigurationReady) return
         if (!handler || handler.detectedLanguage === undefined)
             return
         var languages = languagesForLayout(layoutVariant)
         if (languages.length < 1)
             return
-        if (!languagesShareActiveLayout) {
+        if (!languagesShareActiveLayout || compositionHint !== "") {
             var selected = selectedPredictionLanguage(layoutVariant)
             if (selected === "")
                 return
@@ -728,6 +766,12 @@ FutoKeyboardLayout {
         var groups = configuredLayoutGroups()
         for (i = 0; i < groups.length; ++i) {
             var codes = languagesForLayout(groups[i])
+            if (LetterLayouts.imeHint(groups[i]) !== "") {
+                for (var j = 0; j < codes.length; ++j)
+                    result.push({ "code": codes[j], "name": LanguageData.name(codes[j]),
+                                  "layout": groups[i] })
+                continue
+            }
             result.push({ "code": codes.length > 0 ? codes[0] : "",
                           "name": languageNamesForLayout(groups[i]),
                           "layout": groups[i] })
@@ -738,7 +782,7 @@ FutoKeyboardLayout {
     function currentLanguageSwitchIndex() {
         var entries = languageSwitchEntries()
         var i
-        if (!languagesShareActiveLayout) {
+        if (!languagesShareActiveLayout || compositionHint !== "") {
             var selected = selectedPredictionLanguage(layoutVariant)
             for (i = 0; i < entries.length; ++i) {
                 if (entries[i].code === selected)
@@ -758,13 +802,22 @@ FutoKeyboardLayout {
         if (index < 0 || index >= entries.length)
             return
         var entry = entries[index]
+        if (handler && handler.finishConversion) {
+            handler.finishConversion(function() { root.applyLanguageSwitchEntry(entry) })
+            return
+        }
+        applyLanguageSwitchEntry(entry)
+    }
+
+    function applyLanguageSwitchEntry(entry) {
         if (handler && handler.cancelSwipeSession)
             handler.cancelSwipeSession()
         if (layoutVariant !== entry.layout) {
             suppressNextLayoutSwipeCancel = true
             layoutSettings.layoutVariant = entry.layout
         }
-        if (!languagesShareActiveLayout && entry.code !== "") {
+        if ((!languagesShareActiveLayout || LetterLayouts.imeHint(entry.layout) !== "")
+                && entry.code !== "") {
             if (String(layoutSettings.manualPredictionLanguage) !== entry.code)
                 suppressNextLanguageSwipeCancel = true
             layoutSettings.manualPredictionLanguage = entry.code
@@ -773,38 +826,9 @@ FutoKeyboardLayout {
     }
 
     function cycleLetterLayout() {
-        if (!languagesShareActiveLayout) {
-            var languages = enabledPredictionLanguages()
-            if (languages.length < 2)
-                return
-            var selected = selectedPredictionLanguage(layoutVariant)
-            var currentLanguage = languages.indexOf(selected)
-            var nextLanguage = languages[(currentLanguage + 1 + languages.length)
-                                         % languages.length]
-            var nextLayout = layoutForLanguage(nextLanguage)
-            if (handler && handler.cancelSwipeSession)
-                handler.cancelSwipeSession()
-            if (layoutVariant !== nextLayout) {
-                suppressNextLayoutSwipeCancel = true
-                layoutSettings.layoutVariant = nextLayout
-            }
-            if (String(layoutSettings.manualPredictionLanguage) !== nextLanguage)
-                suppressNextLanguageSwipeCancel = true
-            layoutSettings.manualPredictionLanguage = nextLanguage
-            synchronizeDetectedLanguage()
-            controlTimeout.restart()
-            return
-        }
-        var enabled = configuredLayoutGroups()
-        if (enabled.length < 2) {
-            return
-        }
-        var current = enabled.indexOf(layoutVariant)
-        if (handler && handler.cancelSwipeSession)
-            handler.cancelSwipeSession()
-        suppressNextLayoutSwipeCancel = true
-        layoutSettings.layoutVariant = enabled[(current + 1 + enabled.length) % enabled.length]
-        synchronizeDetectedLanguage()
+        var entries = languageSwitchEntries()
+        if (entries.length < 2) return
+        applyLanguageSwitchIndex((currentLanguageSwitchIndex() + 1) % entries.length)
         controlTimeout.restart()
     }
 
@@ -1182,7 +1206,7 @@ FutoKeyboardLayout {
     }
 
     Timer {
-        id: numberRowRelayoutTimer
+        id: rowRelayoutTimer
         interval: 0
         repeat: false
         onTriggered: root.updateSizes()
@@ -1272,7 +1296,7 @@ FutoKeyboardLayout {
             root.updateSizes()
             root.synchronizeDetectedLanguage()
         }
-        onEnabledLanguagesChanged: root.ensureLayoutAssignments()
+        onEnabledLanguagesChanged: if (root.layoutConfigurationReady) root.ensureLayoutAssignments()
         onLayoutAssignmentsChanged: root.ensureActiveLetterLayout()
         onLayoutIdsChanged: root.ensureActiveLetterLayout()
         onAutomaticLanguageDetectionChanged: root.synchronizeDetectedLanguage()
@@ -1286,7 +1310,7 @@ FutoKeyboardLayout {
             root.synchronizeDetectedLanguage()
         }
         onNumberRowEnabledChanged: root.updateSizes()
-        onNumberRowHeightScaleChanged: numberRowRelayoutTimer.restart()
+        onNumberRowHeightScaleChanged: rowRelayoutTimer.restart()
         onSymbolNumberLayoutChanged: root.updateSizes()
         onAutoCapitalizationEnabledChanged: root.applyConfiguredAutocaps()
         onExtendedSymbolFavoritesJsonChanged: root.loadExtendedSymbolFavorites()
@@ -1298,15 +1322,25 @@ FutoKeyboardLayout {
 
     Component.onCompleted: {
         loadExtendedSymbolFavorites()
-        ensureLayoutAssignments()
-        synchronizeDetectedLanguage()
-        applyConfiguredAutocaps()
+        initialLayoutConfiguration.start()
+    }
+
+    Timer {
+        id: initialLayoutConfiguration
+        interval: 0
+        onTriggered: {
+            root.layoutConfigurationReady = true
+            root.ensureLayoutAssignments()
+            root.synchronizeDetectedLanguage()
+            root.applyConfiguredAutocaps()
+        }
     }
 
     // At start-up the layout exists before its input handler does, so the
     // call above finds nothing to correct and Space kept showing English on
     // a German keyboard until the first word was typed.
     onHandlerChanged: synchronizeDetectedLanguage()
+    onCompositionLatinModeChanged: applyConfiguredAutocaps()
 
     FutoDesktopToolbar {
         targetLayout: root
@@ -1356,11 +1390,19 @@ FutoKeyboardLayout {
         visible: root.topRowSymbolPage
     }
 
-    FutoLetterRow { targetLayout: root; layoutIndex: root.layoutVariant; rowIndex: 0 }
-    FutoLetterRow { targetLayout: root; layoutIndex: root.layoutVariant; rowIndex: 1 }
-    FutoLetterRow { targetLayout: root; layoutIndex: root.layoutVariant; rowIndex: 2 }
-    FutoLetterRow { targetLayout: root; layoutIndex: root.layoutVariant; rowIndex: 3 }
-    FutoLetterRow { targetLayout: root; layoutIndex: root.layoutVariant; rowIndex: 4 }
+    FutoLetterRow { targetLayout: root; layoutIndex: root.renderedLayoutVariant; rowIndex: 0 }
+    FutoLetterRow { targetLayout: root; layoutIndex: root.renderedLayoutVariant; rowIndex: 1 }
+    FutoLetterRow { targetLayout: root; layoutIndex: root.renderedLayoutVariant; rowIndex: 2 }
+    FutoLetterRow { targetLayout: root; layoutIndex: root.renderedLayoutVariant; rowIndex: 3 }
+    FutoLetterRow { targetLayout: root; layoutIndex: root.renderedLayoutVariant; rowIndex: 4 }
+
+    FutoJapaneseFlickPanel {
+        targetLayout: root
+        visible: root.japaneseFlickLayout && !attributes.inSymView
+                 && !root.emojiMode && !root.extendedSymbolMode
+                 && !root.extraKeysMode && !root.layoutEditorMode
+                 && !root.clipboardMode && !root.credentialMode
+    }
 
     FutoSpacebarRow {
         opacity: root.cursorMoveMode ? 0 : 1
@@ -1369,6 +1411,7 @@ FutoKeyboardLayout {
                  && !root.layoutEditorMode && !root.clipboardMode
 				 && !root.credentialMode
                  && !root.numpadMode && !root.topRowSecondSymbolPage
+                 && !(root.japaneseFlickLayout && !attributes.inSymView)
         targetLayout: root
         symbolNumberLayout: root.symbolNumberLayout
     }
@@ -1416,7 +1459,7 @@ FutoKeyboardLayout {
         z: 100
 
         readonly property real reclaimedTopHeight:
-                root.useTopItem ? Theme.itemSizeSmall : 0
+                root.useTopItem ? Silica.Theme.itemSizeSmall : 0
 
         FutoLayoutEditor {
             x: 0
@@ -1443,11 +1486,19 @@ FutoKeyboardLayout {
 	}
 
     KeyboardRow {
+        id: pickerSpacebarRow
         visible: root.emojiMode || root.extendedSymbolMode
-        splitIndex: 3
+        // Match the ordinary bottom row: continuous in portrait, with one
+        // expanding Space on each side of the landscape thumb-mode gap.
+        property int avoidanceWidth: root.thumbLandscapeMode ? root.avoidanceWidth : 0
+        splitIndex: 2
         FutoEmojiBackKey { targetLayout: root }
         FutoSpacebarKey { languageLabel: "" }
-        FutoSpacebarKey { active: splitActive; languageLabel: "" }
+        FutoSpacebarKey {
+            active: root.thumbLandscapeMode
+            languageLabel: ""
+            hintEligible: false
+        }
         FutoEnterKey { targetLayout: root }
         FutoBackspaceKey {}
     }

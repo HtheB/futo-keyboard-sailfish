@@ -28,6 +28,11 @@ The SDK target needs the Qt 5 base/Wayland development files and Sailfish
 Secrets development files. In particular, it must contain Qt's `qconfig.h`,
 `qfeatures.h` and the runtime libraries checked by the preparation script.
 
+Japanese and Chinese conversion also require a C++20-capable target compiler,
+Bazel 8.2.1 and CMake 3.22 or newer. The pinned upstream sources are prepared by
+`scripts/bootstrap-futo-composition.sh`; see [composition/README.md](composition/README.md)
+for the conversion engines, verified language packs and native tests.
+
 ## Prepare the local dependencies
 
 From a fresh checkout, point the preparation script at the matching Sailfish

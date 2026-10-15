@@ -29,6 +29,11 @@ SpacebarKey {
     property bool incognitoIndicatorVisible: false
     // The second Space of a split landscape row is filler and carries no hint.
     property bool hintEligible: true
+    // Compact kana flick has separate Emoji/language and Space/cursor keys.
+    // Other layouts keep their configured hold action and ordinary Space tap.
+    property int holdActionOverride: -1
+    property bool alternateTapEnabled: false
+    signal alternateTapped()
 
     property bool languageMode
     property bool languageAbandoned
@@ -41,7 +46,8 @@ SpacebarKey {
     // letter page follows the setting, because only it has a language.
     readonly property bool onLetterPage: !attributes.inSymView
     readonly property int holdAction: {
-        var configured = Number(gestureSettings.spacebarHoldAction)
+        var configured = holdActionOverride >= 0 ? Number(holdActionOverride)
+                                                : Number(gestureSettings.spacebarHoldAction)
         if (!isFinite(configured) || configured < 0)
             return gestureSettings.spacebarCursorControlEnabled ? 1 : 0
         return Math.max(0, Math.min(4, Math.round(configured)))
@@ -407,7 +413,8 @@ SpacebarKey {
     MouseArea {
 		id: spaceMouseArea
         anchors.fill: parent
-        enabled: spaceKey.cursorControlOffered || spaceKey.languageSwitchArmed
+        enabled: spaceKey.alternateTapEnabled || spaceKey.cursorControlOffered
+                 || spaceKey.languageSwitchArmed
         preventStealing: true
 
         onPressed: {
@@ -466,11 +473,15 @@ SpacebarKey {
 			spaceKey.finishLanguageMode(!spaceKey.languageAbandoned)
             if (!spaceKey.gestureMoved && keyboard.inputHandler) {
 				if (keyboard.inputHandler.endSpacebarGesture)
-					keyboard.inputHandler.endSpacebarGesture(false)
-                keyboard.inputHandler._handleKeyPress(spaceKey)
-                keyboard.inputHandler._handleKeyClick(spaceKey)
-                keyboard.inputHandler._handleKeyRelease()
-                spaceKey.clicked()
+                    keyboard.inputHandler.endSpacebarGesture(spaceKey.alternateTapEnabled)
+                if (spaceKey.alternateTapEnabled) {
+                    spaceKey.alternateTapped()
+                } else {
+                    keyboard.inputHandler._handleKeyPress(spaceKey)
+                    keyboard.inputHandler._handleKeyClick(spaceKey)
+                    keyboard.inputHandler._handleKeyRelease()
+                    spaceKey.clicked()
+                }
 			} else if (keyboard.inputHandler
 					&& keyboard.inputHandler.endSpacebarGesture) {
 				keyboard.inputHandler.endSpacebarGesture(true)

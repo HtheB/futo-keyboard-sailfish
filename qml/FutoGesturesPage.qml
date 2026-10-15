@@ -95,6 +95,7 @@ Page {
         property bool spacebarCursorControlEnabled: true
         property int spacebarHoldAction: -1
         property bool swipeDeleteEnabled: true
+        property bool progressiveSwipeDeleteEnabled: false
 		property bool swipeTypingEnabled: false
     }
 
@@ -186,6 +187,16 @@ Page {
                 checked: settings.swipeDeleteEnabled
                 text: qsTr("Swipe Backspace to delete words")
                 onClicked: settings.swipeDeleteEnabled = !checked
+            }
+
+            TextSwitch {
+                width: parent.width
+                visible: settings.swipeDeleteEnabled
+                automaticCheck: false
+                checked: settings.progressiveSwipeDeleteEnabled
+                text: qsTr("Drag farther to delete more words")
+                description: qsTr("When off, each Backspace swipe deletes only one word.")
+                onClicked: settings.progressiveSwipeDeleteEnabled = !checked
             }
 
             Label {

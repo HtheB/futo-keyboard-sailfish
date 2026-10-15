@@ -16,7 +16,142 @@ import org.nemomobile.systemsettings 1.0
 InputHandler {
     id: futoHandler
 
+    readonly property bool conversionSelected: keyboard.layout
+            && keyboard.layout.compositionHint !== undefined
+            && keyboard.layout.compositionHint !== ""
+            && (!keyboard.layout.compositionLatinMode || keyboard.layout.compositionHint === "12key")
+    readonly property bool conversionEnabled: conversionSelected
+            && active && MInputMethodQuick.active && !passwordField
+            && !urlField && !emailContentTypeActive()
+            && MInputMethodQuick.contentType === Maliit.FreeTextContentType
+            && !terminalInputApplication() && !hardwareKeyboardSuppressed
+    onConversionEnabledChanged: {
+        clearCommittedPreedit()
+        clearEditingWord()
+        predictionTimer.stop()
+        nextPredictionTimer.stop()
+    }
+    readonly property bool conversionMainPage: conversionEnabled
+            && !keyboard.layout.attributes.inSymView
+            && !keyboard.layout.emojiMode && !keyboard.layout.emojiSearchMode
+            && !keyboard.layout.extendedSymbolMode && !keyboard.layout.extraKeysMode
+            && !keyboard.layout.layoutEditorMode && !keyboard.layout.clipboardMode
+            && !keyboard.layout.credentialMode
+    readonly property bool conversionCandidatesExpanded: conversion.expanded && conversionMainPage
+
+    FutoCompositionController {
+        id: conversion
+        transport: helper
+        enabled: futoHandler.conversionEnabled
+        language: keyboard.layout && keyboard.layout.compositionLanguage !== undefined
+                  ? keyboard.layout.compositionLanguage : ""
+        layoutHint: keyboard.layout && keyboard.layout.compositionModeHint !== undefined
+                    ? keyboard.layout.compositionModeHint : ""
+        privateMode: futoHandler.incognitoMode || !keyboardSettings.personalLearningEnabled
+        options: ({flickOnly: conversionSettings.japaneseFlickOnly,
+                   halfWidthSpace: conversionSettings.japaneseHalfWidthSpace,
+                   pinyinScheme: conversionSettings.chinesePinyinScheme,
+                   outputScript: conversionSettings.chineseOutputScript,
+                   fuzzyPinyin: conversionSettings.chineseFuzzyPinyin,
+                   correction: keyboardSettings.predictionEnabled})
+        onResult: futoHandler.applyConversionResult(state, request)
+    }
+
+    ConfigurationGroup {
+        id: conversionSettings
+        path: "/sailfish/text_input/futo_keyboard"
+        property bool japaneseFlickOnly: false
+        property bool japaneseHalfWidthSpace: false
+        property string chinesePinyinScheme: "FullPinyin"
+        property string chineseOutputScript: "ByLanguage"
+        property string chineseFuzzyPinyin: ""
+    }
+
+    function applyConversionResult(state, request) {
+        // Chinese keeps its phonetic/stroke reading in the candidate strip.
+        // Japanese uses Mozc's real preedit, separate from the already-committed
+        // private query used by ordinary typing.
+        if (conversion.language === "JA") {
+            if (String(state.commit) !== "")
+                MInputMethodQuick.sendCommit(String(state.commit))
+            MInputMethodQuick.sendPreedit(String(state.preedit))
+        } else if (String(state.commit) !== "") {
+            sendEditorCommit(String(state.commit))
+        }
+        if (request && !state.consumed && request.operation === "key") {
+            var keys = { "32": Qt.Key_Space, "65288": Qt.Key_Backspace,
+                         "65293": Qt.Key_Return, "65307": Qt.Key_Escape,
+                         "65361": Qt.Key_Left, "65363": Qt.Key_Right }
+            MInputMethodQuick.sendKey(keys[request.value], 0,
+                    request.value === "32" ? " " : "", Maliit.KeyClick)
+        }
+    }
+
+    function handleConversionKey(key) {
+        if (!conversionEnabled || !key || key.keyType === KeyType.SymbolKey
+                || key.keyType === KeyType.ShiftKey)
+            return false
+        var keys = {}
+        keys[Qt.Key_Space] = "32"
+        keys[Qt.Key_Backspace] = "65288"
+        keys[Qt.Key_Return] = "65293"
+        keys[Qt.Key_Enter] = "65293"
+        keys[Qt.Key_Escape] = "65307"
+        keys[Qt.Key_Left] = "65361"
+        keys[Qt.Key_Right] = "65363"
+        if (keys[key.key] !== undefined) {
+            conversion.submit("key", keys[key.key])
+            return true
+        }
+        var text = String(key.text || "")
+        if (text === "") return false
+        conversion.submit("text", text)
+        conversion.kanaKeyEntered()
+        return true
+    }
+
+    function toggleJapaneseLatinMode() {
+        if (!keyboard.layout || keyboard.layout.compositionLanguage !== "JA") return
+        if (keyboard.layout.compositionLatinMode) {
+            keyboard.layout.compositionLatinMode = false
+        } else {
+            conversion.finish(function() {
+                keyboard.layout.compositionLatinMode = true
+            })
+        }
+    }
+
+    function finishConversion(after) {
+        return conversion.finish(after)
+    }
+
     property int candidateSpaceIndex: -1
+    property bool selectionCaseArmed: false
+    readonly property string selectionCaseSuggestion: {
+        if (!selectionCaseArmed || !keyboardSettings.selectionCaseSuggestionsEnabled
+                || passwordField || conversionEnabled || keyboard.shiftState === ShiftState.NoShift
+                || !MInputMethodQuick.hasSelection || !MInputMethodQuick.surroundingTextValid) return ""
+        var cursor = Number(MInputMethodQuick.cursorPosition), anchor = Number(MInputMethodQuick.anchorPosition)
+        var text = String(MInputMethodQuick.surroundingText)
+        if (Math.min(cursor, anchor) < 0 || Math.max(cursor, anchor) > text.length) return ""
+        var selected = text.substring(Math.min(cursor, anchor), Math.max(cursor, anchor))
+        if (selected.length > 512) return ""
+        return keyboard.shiftState === ShiftState.LockedShift ? selected.toUpperCase()
+             : selected.toLowerCase().replace(/(^|\s)(\S)/g, function(match, gap, letter) { return gap + letter.toUpperCase() })
+    }
+
+    function acceptSelectionCaseSuggestion() {
+        var replacement = selectionCaseSuggestion
+        if (replacement === "") return
+        selectionCaseArmed = false
+        inputActionSerial++
+        clearCommittedPreedit()
+        clearEditingWord()
+        clearUndoCorrection()
+        resetSuggestionDisplay()
+        sendEditorCommit(replacement)
+        if (keyboard.shiftState !== ShiftState.LockedShift) keyboard.shiftState = ShiftState.NoShift
+    }
     property bool committedSpaceArmed: false
     property bool committedSpaceAllowsPeriod: false
     property double committedSpaceTimestamp: 0
@@ -27,6 +162,17 @@ InputHandler {
 	// and so on). Keep the current word here only as FUTO's private prediction
 	// query; unlike a real Maliit preedit it is already part of the document.
 	property bool preeditAlreadyCommitted: false
+    property int committedPreeditStart: -1
+    property int committedPreeditConfirmedCursor: -1
+    property bool committedPreeditSending: false
+    property var pendingEditorStates: []
+    property var lastObservedEditorState: null
+    property bool lastObservedSelection: false
+    property bool lastObservedTextValid: false
+    property int editorContextSerial: 0
+    property int predictionEditorSerial: -1
+    property int predictionActionSerial: -1
+    property int inputActionSerial: 0
     property int requestSerial: 0
     property int urlRequestSerial: 0
     property bool trackSurroundings: false
@@ -57,6 +203,12 @@ InputHandler {
 	property bool swipeKeyWasClicked: false
 	property int swipeSessionSerial: 0
 	property int swipeOutstanding: 0
+    property var swipeRequestQueue: []
+    property int swipeBatchActionSerial: -1
+    property var swipeExpectedEditorState: null
+    property bool swipeExpectedTextValid: false
+    property bool swipeAwaitingEditor: false
+    property double swipeEditorWaitStarted: 0
 	property bool swipeReplacementActive: false
 	property bool swipeAutoSpacePending: false
 	property bool swipePendingForcedInput: false
@@ -1081,6 +1233,8 @@ InputHandler {
         if (!MInputMethodQuick.surroundingTextValid)
             return editorTypedBuffer !== "" ? editorTypedBuffer : String(preedit)
         var surrounding = String(MInputMethodQuick.surroundingText)
+        if (preeditAlreadyCommitted)
+            return surrounding
         var cursor = Math.max(0, Math.min(MInputMethodQuick.cursorPosition,
                                           surrounding.length))
         var before = surrounding.substring(0, cursor)
@@ -1250,6 +1404,14 @@ InputHandler {
 			return
 		}
 		resetPasswordVault(true)
+	}
+
+	function dismissSavedLoginOffer() {
+		// This only hides the offer for this focus. It never deletes an account,
+		// unlocks the vault, or interrupts authentication already in progress.
+		if (passwordVaultBusy || passwordVaultPanelOpen || credentialAutofillStage !== 0)
+			return
+		credentialOfferDismissedForFocus = true
 	}
 
 	function refreshAndroidKeyboardAutofill() {
@@ -1688,7 +1850,7 @@ InputHandler {
 					futoHandler.cancelCredentialAutofill(true)
 					return
 				}
-				MInputMethodQuick.sendCommit(value, -cursor, existing.length)
+				sendEditorCommit(value, -cursor, existing.length)
 				preedit = ""
 				preeditAlreadyCommitted = false
 				if (replacingPassword) {
@@ -1994,10 +2156,14 @@ InputHandler {
         // Application autofill and URL results are separate from word predictions.
         requestSerial++
         if (!urlSuggestionResultsActive) {
+            var editorSerial = predictionEditorSerial
+            var actionSerial = predictionActionSerial
             var visible = []
             for (var i = 0; i < predictionModel.count; ++i)
                 visible.push(String(predictionModel.get(i).text))
             replacePredictionSuggestions(visible, correctionCandidate)
+            predictionEditorSerial = editorSerial
+            predictionActionSerial = actionSerial
             suggestionsUpdated()
         }
         requestSuggestionsSoon()
@@ -2049,6 +2215,8 @@ InputHandler {
     }
 
     function replacePredictionSuggestions(values, primaryValue) {
+        predictionEditorSerial = editorContextSerial
+        predictionActionSerial = inputActionSerial
         var suggestions = wordSuggestions(values)
         var primary = allowedWordSuggestion(primaryValue)
         var configuredLimit = Number(keyboardSettings.suggestionCount)
@@ -2096,6 +2264,9 @@ InputHandler {
     }
 
     function correctedWordForCommit(original) {
+        if (predictionEditorSerial !== editorContextSerial
+                || (preeditAlreadyCommitted && !committedPreeditMatchesEditor()))
+            return original
         var visibleCorrection = visiblePrimaryCorrection()
         if (correctionQuery !== original || visibleCorrection === ""
                 || visibleCorrection.toLocaleLowerCase()
@@ -2132,6 +2303,8 @@ InputHandler {
 
     onSelect: {
         playOptionFeedback()
+        var acceptingAction = inputActionSerial
+        inputActionSerial++
         if (showUrlSuggestions) {
             var acceptedUrl = String(text)
             urlAcceptedThisFocus = acceptedUrl
@@ -2141,7 +2314,7 @@ InputHandler {
             predictionTimer.stop()
             nextPredictionTimer.stop()
             urlSuggestionTimer.stop()
-            MInputMethodQuick.sendCommit(acceptedUrl, -MInputMethodQuick.cursorPosition,
+            sendEditorCommit(acceptedUrl, -MInputMethodQuick.cursorPosition,
                                          MInputMethodQuick.surroundingText.length)
             // The URL editor now owns acceptedUrl.  Keeping the old composing
             // prefix here made Enter commit it once more (for example,
@@ -2161,10 +2334,10 @@ InputHandler {
             urlSuggestionFallbackActive = false
             suggestionsUpdated()
         } else if (showApplicationSuggestions) {
-            MInputMethodQuick.sendCommit(text, -MInputMethodQuick.cursorPosition,
+            sendEditorCommit(text, -MInputMethodQuick.cursorPosition,
                                          MInputMethodQuick.surroundingText.length)
         } else {
-            applyPrediction(text)
+            applyPrediction(text, acceptingAction)
         }
     }
 
@@ -2181,6 +2354,8 @@ InputHandler {
 
     onPaste: {
         playOptionFeedback()
+        inputActionSerial++
+        reconcileCommittedPreedit()
         if (passwordField && keyboardSettings.passwordSavingEnabled
                 && !credentialSavingPrivateBlocked) {
             credentialCapturePassword = (credentialCapturePassword
@@ -2206,7 +2381,7 @@ InputHandler {
 			}
         }
         commit(preedit)
-        MInputMethodQuick.sendCommit(Clipboard.text)
+        sendEditorCommit(Clipboard.text)
     }
 
     DBusInterface {
@@ -2223,6 +2398,7 @@ InputHandler {
 		}
 
 		function contentChanged(packId, state) {
+			if (String(packId).indexOf("composition-") === 0) conversion.clear()
 			futoHandler.contentRevision++
 			futoHandler.requestSuggestionsSoon()
 			if (String(packId) === "swipe-universal")
@@ -2363,6 +2539,7 @@ InputHandler {
         property bool punctuationCorrectionEnabled: false
         property int correctionLevel: 0
         property bool personalLearningEnabled: true
+        property bool selectionCaseSuggestionsEnabled: false
         property bool urlHistoryEnabled: false
         property bool passwordSavingEnabled: true
         property bool androidAutofillEnabled: false
@@ -2873,9 +3050,15 @@ InputHandler {
     }
 
     function pasteClipboardEntry(text) {
+        if (conversionEnabled && conversion.preedit !== "") {
+            conversion.finish(function() { futoHandler.pasteClipboardEntry(text) })
+            return
+        }
+        inputActionSerial++
+        reconcileCommittedPreedit()
         if (preedit !== "")
             commit(preedit)
-        MInputMethodQuick.sendCommit(String(text))
+        sendEditorCommit(String(text))
         if (keyboardSettings.clipboardReturnAfterPaste
                 && keyboard.layout && keyboard.layout.hideClipboardHistory)
             keyboard.layout.hideClipboardHistory()
@@ -3068,6 +3251,8 @@ InputHandler {
 	}
 
 	function prepareDesktopKeyDispatch() {
+		inputActionSerial++
+		reconcileCommittedPreedit()
 		if (preedit !== "") {
 			learn(preedit)
 			commit(preedit)
@@ -3307,7 +3492,7 @@ InputHandler {
 				showVoiceMessage(qsTr("No speech was detected"))
 			return
 		}
-		MInputMethodQuick.sendCommit(text + " ")
+		sendEditorCommit(text + " ")
 		voicePartial = ""
 		if (keyboard.shiftState !== ShiftState.LockedShift)
 			keyboard.shiftState = ShiftState.AutoShift
@@ -3477,7 +3662,7 @@ InputHandler {
     topItem: Component {
         TopItem {
             id: topStrip
-			clip: true
+			clip: !conversion.expanded
 			onHeightChanged: stripGeometryRefresh.restart()
 			Timer {
 				id: stripGeometryRefresh
@@ -3519,20 +3704,22 @@ InputHandler {
 			        && !emojiTabsVisible && !emojiSearchVisible && !symbolTabsVisible
 			        && !controlsVisible && !voiceStatusVisible
 			        && !keyboardLayout.credentialMode
-			// With predictions off there is no strip, and the paste button lives
-			// in it, so text put on the clipboard has nowhere to be pasted from.
-			// Carry the strip for that button alone while something is waiting
-			// there, and let it go once the clipboard is empty again.
+			// Paste belongs to the strip, not its scrolling prediction header.
+			// Keeping it outside the list makes it visible immediately on focus,
+			// with or without predictions, using only the live system clipboard.
 			readonly property bool clipboardOnlyPasteVisible:
+			        (!futoHandler.conversionEnabled || conversion.preedit === "") &&
+                        !selectionCaseVisible &&
 			        !futoHandler.passwordField && Clipboard.hasText
-			        && !futoHandler.ordinaryPredictionStripEnabled
-			        && !futoHandler.urlHistoryStripEnabled
+			        && !futoHandler.conversionCandidatesExpanded
 			        && !cursorStatusVisible && !modifierStatusVisible
 			        && !emojiTabsVisible && !emojiSearchVisible && !symbolTabsVisible
 			        && !controlsVisible && !voiceStatusVisible
 			        && !keyboardLayout.credentialMode
 			readonly property bool passwordVaultVisible:
+                        !selectionCaseVisible &&
 			        keyboardSettings.passwordSavingEnabled
+			        && (!futoHandler.conversionEnabled || conversion.preedit === "")
 			        && !cursorStatusVisible
 			        && !modifierStatusVisible
 			        && !futoHandler.credentialLookupPrivateBlocked
@@ -3558,6 +3745,8 @@ InputHandler {
 					                            + " strip=" + stripRequired)
 			}
             readonly property bool predictionContentAvailable: !layoutEditorVisible
+			        && !selectionCaseVisible
+			        && !futoHandler.conversionEnabled
 			        && !cursorStatusVisible
 			        && !modifierStatusVisible
                     && !futoHandler.passwordField
@@ -3569,8 +3758,16 @@ InputHandler {
                        && futoHandler.activePredictionsAvailable
                        && futoHandler.predictionSuggestionsAvailable)))
 			readonly property bool credentialChooserVisible: keyboardLayout.credentialMode
+            readonly property bool conversionVisible: futoHandler.conversionMainPage
+                    && !controlsVisible && !cursorStatusVisible && !voiceStatusVisible
+                    && !modifierStatusVisible && !passwordVaultVisible
+            readonly property bool selectionCaseVisible: futoHandler.selectionCaseSuggestion !== ""
+                    && !controlsVisible && !cursorStatusVisible && !modifierStatusVisible
+                    && !voiceStatusVisible && !emojiTabsVisible && !symbolTabsVisible
+                    && !layoutEditorVisible && !keyboardLayout.credentialMode
 			readonly property bool stripRequired: !credentialChooserVisible
 			        && (layoutEditorVisible
+			        || conversionVisible || selectionCaseVisible
 			        || cursorStatusVisible || modifierStatusVisible
 			        || emojiTabsVisible || emojiSearchVisible
 			        || symbolTabsVisible
@@ -3582,11 +3779,37 @@ InputHandler {
 					|| clipboardOnlyPasteVisible
 			        || predictionContentAvailable)
             height: !futoHandler.hardwareKeyboardSuppressed && stripRequired
-                    ? Theme.itemSizeSmall : 0
+                    ? (conversionVisible ? conversionStrip.implicitHeight : Theme.itemSizeSmall) : 0
+
+            FutoConversionStrip {
+                id: conversionStrip
+                anchors.fill: parent
+                anchors.leftMargin: passwordClipboardPasteButton.width
+                controller: conversion
+                expandedHeight: keyboardLayout ? keyboardLayout.keyboardPanelHeight : Theme.itemSizeLarge * 3
+                visible: topStrip.conversionVisible
+                z: 100
+            }
+
+            BackgroundItem {
+                anchors.fill: parent
+                visible: topStrip.selectionCaseVisible
+                z: 150
+                onClicked: futoHandler.acceptSelectionCaseSuggestion()
+                Label {
+                    anchors.centerIn: parent
+                    width: parent.width - 2 * Theme.paddingLarge
+                    horizontalAlignment: Text.AlignHCenter
+                    truncationMode: TruncationMode.Fade
+                    text: futoHandler.selectionCaseSuggestion
+                    textFormat: Text.PlainText
+                }
+            }
 
             SilicaListView {
                 id: applicationPredictionList
                 anchors.fill: parent
+                anchors.leftMargin: passwordClipboardPasteButton.width
                 orientation: ListView.Horizontal
                 clip: true
                 visible: !topStrip.layoutEditorVisible
@@ -3600,6 +3823,8 @@ InputHandler {
 						 && !topStrip.credentialSaveVisible
 						 && !topStrip.passwordVaultVisible
                          && futoHandler.showApplicationSuggestions
+                         && !topStrip.conversionVisible
+                         && !topStrip.selectionCaseVisible
                          && applicationSuggestionModel.count > 0
                 model: applicationSuggestionModel
                 delegate: BackgroundItem {
@@ -3629,6 +3854,8 @@ InputHandler {
             FutoHorizontalPredictionListView {
                 id: predictionList
                 anchors.fill: parent
+                anchors.leftMargin: passwordClipboardPasteButton.width
+                showClipboardPaste: false
                 visible: !topStrip.layoutEditorVisible
                          && !topStrip.emojiTabsVisible
                          && !topStrip.cursorStatusVisible
@@ -3663,6 +3890,7 @@ InputHandler {
 				         && (topStrip.passwordClipboardPasteVisible
 				         || topStrip.clipboardOnlyPasteVisible)
 				onPasteRequested: {
+					predictionList.cancelRemoval()
 					futoHandler.paste(Clipboard.text)
 					keyboard.expandedPaste = false
 				}
@@ -3674,7 +3902,9 @@ InputHandler {
                 anchors.rightMargin: Theme.horizontalPageMargin
                 visible: topStrip.stripRequired
                          && !topStrip.layoutEditorVisible
+                         && !topStrip.conversionVisible
                          && !topStrip.cursorStatusVisible
+                         && !topStrip.selectionCaseVisible
 					 && !topStrip.modifierStatusVisible
                          && !topStrip.emojiTabsVisible
                          && !topStrip.emojiSearchVisible
@@ -3847,6 +4077,7 @@ InputHandler {
                 z: 2
                 visible: topStrip.stripRequired
                          && !topStrip.layoutEditorVisible
+                         && !topStrip.conversionVisible
                          && !topStrip.cursorStatusVisible
 					 && !topStrip.modifierStatusVisible
                          && !topStrip.emojiTabsVisible
@@ -3860,42 +4091,29 @@ InputHandler {
                 preventStealing: true
             }
 
-			BackgroundItem {
+			FutoSavedLoginPrompt {
+				id: savedLoginPrompt
 				anchors.fill: parent
-				anchors.leftMargin: topStrip.passwordClipboardPasteVisible
-				        ? passwordClipboardPasteButton.width : 0
+				anchors.leftMargin: passwordClipboardPasteButton.width
 				z: 4
 				visible: !topStrip.layoutEditorVisible
 				         && topStrip.passwordVaultVisible
-				onClicked: futoHandler.openPasswordVault()
-
-				Row {
-					anchors.centerIn: parent
-					spacing: Theme.paddingMedium
-
-					Icon {
-						anchors.verticalCenter: parent.verticalCenter
-						width: Theme.iconSizeSmall
-						height: width
-						source: "image://theme/icon-m-device-lock"
-					}
-
-					Label {
-						readonly property string credentialTarget:
-						        futoHandler.credentialMatchAvailable
-						        ? futoHandler.credentialOriginDisplayName(
-						              futoHandler.lastCredentialOrigin)
-						        : ""
-						anchors.verticalCenter: parent.verticalCenter
-						text: futoHandler.passwordVaultMessage !== ""
-						      ? futoHandler.passwordVaultMessage
-						      : credentialTarget !== ""
-						        ? qsTr("Use saved login for %1?").arg(credentialTarget)
-						        : qsTr("Saved passwords")
-						color: parent.parent.highlighted
-						       ? Theme.highlightColor : Theme.primaryColor
-					}
-				}
+				contextKey: String(futoHandler.lastCredentialOrigin)
+				            + ":" + futoHandler.credentialPlatformSerial
+				            + ":" + futoHandler.passwordField
+				            + ":" + futoHandler.credentialUsernameField
+				dismissible: !futoHandler.passwordVaultBusy
+				             && futoHandler.credentialAutofillStage === 0
+				readonly property string credentialTarget:
+				        futoHandler.credentialMatchAvailable
+				        ? futoHandler.credentialOriginDisplayName(futoHandler.lastCredentialOrigin) : ""
+				text: futoHandler.passwordVaultMessage !== ""
+				      ? futoHandler.passwordVaultMessage
+				      : credentialTarget !== ""
+				        ? qsTr("Use saved login for %1?").arg(credentialTarget)
+				        : qsTr("Saved passwords")
+				onActivated: futoHandler.openPasswordVault()
+				onDismissRequested: futoHandler.dismissSavedLoginOffer()
 			}
 
             Row {
@@ -4743,6 +4961,7 @@ InputHandler {
             // letter page. Keeping it alive on 123 or a tool page caused stale
             // predictions to cover the landscape picker and control surfaces.
             readonly property bool predictionsVisible: activeLayout
+					&& !futoHandler.conversionEnabled
 					&& futoHandler.activeDesktopModifiers === 0
                     && !activeLayout.attributes.inSymView
                     && !activeLayout.attributes.inSymView2
@@ -4963,6 +5182,14 @@ InputHandler {
             }
         }
         onFocusTargetChanged: {
+			conversion.clear()
+			futoHandler.inputActionSerial++
+			futoHandler.editorContextSerial++
+			// A committed prediction query belongs to the previous editor, not
+			// to the newly focused field. Never carry it across the handoff.
+			futoHandler.clearCommittedPreedit()
+			futoHandler.pendingEditorStates = []
+			futoHandler.lastObservedEditorState = null
 			futoHandler.cancelSwipeSession()
 			futoHandler.clearCommittedSpace()
 			futoHandler.activePolicyApplicationId = ""
@@ -5017,6 +5244,7 @@ InputHandler {
 			futoHandler.refreshApplicationSuggestions()
         }
         onCursorPositionChanged: {
+			futoHandler.observeEditorContext()
 			if (futoHandler.preeditAlreadyCommitted)
 				committedPreeditReconcileTimer.restart()
             if (futoHandler.committedSpaceArmed
@@ -5040,6 +5268,7 @@ InputHandler {
             }
         }
         onEditorStateUpdate: {
+			futoHandler.observeEditorContext()
 			if (futoHandler.preeditAlreadyCommitted)
 				committedPreeditReconcileTimer.restart()
             if (futoHandler.trackSurroundings && futoHandler.active
@@ -5051,6 +5280,8 @@ InputHandler {
             }
         }
         onContentTypeChanged: {
+			futoHandler.inputActionSerial++
+			futoHandler.editorContextSerial++
 			futoHandler.credentialDebugContext("content-type")
             futoHandler.resetSuggestionDisplay()
 			futoHandler.refreshApplicationSuggestions()
@@ -5070,6 +5301,7 @@ InputHandler {
 			if (futoHandler.credentialFieldCandidate)
 				futoHandler.refreshCredentialMatch()
         }
+        onHasSelectionChanged: futoHandler.observeEditorContext()
     }
 
 	Timer {
@@ -5077,25 +5309,7 @@ InputHandler {
 		interval: 80
 		repeat: false
 		onTriggered: {
-			if (!futoHandler.preeditAlreadyCommitted
-					|| !MInputMethodQuick.surroundingTextValid)
-				return
-			var surrounding = String(MInputMethodQuick.surroundingText)
-			var cursor = Math.max(0, Math.min(MInputMethodQuick.cursorPosition,
-			                                  surrounding.length))
-			var word = String(futoHandler.preedit)
-			var start = cursor - word.length
-			if (start >= 0 && surrounding.substring(start, cursor) === word)
-				return
-
-			// The host cleared or replaced the field itself, for example after
-			// its Send button was tapped. The word was already committed, so only
-			// discard our private prediction state; never insert it again.
-			futoHandler.preedit = ""
-			futoHandler.preeditAlreadyCommitted = false
-			futoHandler.resetSuggestionDisplay()
-			futoHandler.syncEditorTypedBuffer()
-			futoHandler.requestSuggestionsSoon()
+			futoHandler.reconcileCommittedPreedit()
 		}
 	}
 
@@ -5110,6 +5324,7 @@ InputHandler {
     }
 
     function requestSuggestionsSoon() {
+        if (conversionEnabled) return
         correctionQuery = ""
         correctionCandidate = ""
         nextPredictionTimer.stop()
@@ -5172,6 +5387,203 @@ InputHandler {
         editingWord = ""
         editingWordStart = -1
         editingWordLength = 0
+    }
+
+    function clearCommittedPreedit() {
+        preedit = ""
+        preeditAlreadyCommitted = false
+        committedPreeditStart = -1
+        committedPreeditConfirmedCursor = -1
+    }
+
+    function editorStateSnapshot() {
+        if (!MInputMethodQuick.surroundingTextValid || MInputMethodQuick.hasSelection
+                || passwordField || MInputMethodQuick.hiddenText)
+            return null
+        var text = String(MInputMethodQuick.surroundingText)
+        var cursor = Number(MInputMethodQuick.cursorPosition)
+        if (cursor < 0 || cursor > text.length)
+            return null
+        return { "cursor": cursor, "length": text.length,
+                 "before": text.substring(Math.max(0, cursor - 128), cursor),
+                 "after": text.substring(cursor, cursor + 128) }
+    }
+
+    function sameEditorState(left, right) {
+        return left && right && left.cursor === right.cursor
+                && left.length === right.length && left.before === right.before
+                && left.after === right.after
+    }
+
+    function acknowledgedEditorState(state) {
+        for (var i = pendingEditorStates.length - 1; i >= 0; --i) {
+            if (sameEditorState(state, pendingEditorStates[i]))
+                return i
+        }
+        return -1
+    }
+
+    function editorStateForWrite() {
+        var observed = editorStateSnapshot()
+        if (acknowledgedEditorState(observed) >= 0)
+            return pendingEditorStates[pendingEditorStates.length - 1]
+        pendingEditorStates = []
+        return observed
+    }
+
+    // Keep a small acknowledgement ledger, not a copy of the document. Android
+    // may publish several keystrokes late; the next word must still start at
+    // the position of our last write, rather than at the stale published cursor.
+    function recordEditorMutation(text, offset, length) {
+        var state = editorStateForWrite()
+        if (!state || passwordField || MInputMethodQuick.hiddenText) {
+            pendingEditorStates = []
+            return
+        }
+        var around = state.before + state.after
+        var start = state.before.length + offset
+        if (start < 0 || start + length > around.length) {
+            pendingEditorStates = []
+            return
+        }
+        var next = { "cursor": state.cursor + offset + text.length,
+                     "length": state.length + text.length - length,
+                     "before": (around.substring(0, start) + text).slice(-128),
+                     "after": around.substring(start + length).slice(0, 128) }
+        var pending = pendingEditorStates.slice(0)
+        if (pending.length === 0)
+            pending.push(state)
+        pending.push(next)
+        // Retain the last acknowledged baseline even if many keys arrive
+        // before the editor responds, with a bounded number of recent writes.
+        if (pending.length > 16)
+            pending.splice(1, pending.length - 16)
+        pendingEditorStates = pending
+    }
+
+    function sendEditorCommit(text, offset, length) {
+        text = String(text)
+        offset = Number(offset || 0)
+        length = Number(length || 0)
+        recordEditorMutation(text, offset, length)
+        var sending = committedPreeditSending
+        committedPreeditSending = true
+        try {
+            MInputMethodQuick.sendCommit(text, offset, length)
+        } finally {
+            committedPreeditSending = sending
+        }
+    }
+
+    function sendEditorBackspace() {
+        recordEditorMutation("", -1, 1)
+        var sending = committedPreeditSending
+        committedPreeditSending = true
+        try {
+            MInputMethodQuick.sendKey(Qt.Key_Backspace, 0, "\b", Maliit.KeyClick)
+        } finally {
+            committedPreeditSending = sending
+        }
+    }
+
+    function committedPreeditMatchesEditor() {
+        if (!preeditAlreadyCommitted || preedit === ""
+                || !MInputMethodQuick.surroundingTextValid
+                || MInputMethodQuick.hasSelection || committedPreeditStart < 0)
+            return false
+        var cursor = Number(MInputMethodQuick.cursorPosition)
+        return cursor === committedPreeditStart + preedit.length
+                && String(MInputMethodQuick.surroundingText).substring(
+                       committedPreeditStart, cursor) === preedit
+    }
+
+    function reconcileCommittedPreedit() {
+        if (!preeditAlreadyCommitted || preedit === "" || committedPreeditSending)
+            return true
+        if (!MInputMethodQuick.hasSelection && !MInputMethodQuick.surroundingTextValid)
+            return true // Without surrounding text, no replacement is permitted.
+        var text = String(MInputMethodQuick.surroundingText)
+        var cursor = Number(MInputMethodQuick.cursorPosition)
+        if (!MInputMethodQuick.hasSelection && (cursor < 0 || cursor > text.length))
+            return true // Cursor and text may arrive as separate state updates.
+        var acknowledged = acknowledgedEditorState(editorStateSnapshot())
+        if (acknowledged >= 0) {
+            if (acknowledged < pendingEditorStates.length - 1) {
+                if (acknowledged > 0)
+                    pendingEditorStates = pendingEditorStates.slice(acknowledged)
+                return true
+            }
+            pendingEditorStates = []
+        } else {
+            pendingEditorStates = []
+        }
+        if (!MInputMethodQuick.hasSelection && cursor >= 0 && cursor <= text.length) {
+            if (committedPreeditStart < 0 && cursor >= preedit.length
+                    && text.substring(cursor - preedit.length, cursor) === preedit)
+                committedPreeditStart = cursor - preedit.length
+            var length = cursor - committedPreeditStart
+            // Maliit can publish a commit one event late. Accept only forward
+            // acknowledgements at this word's original position, not a matching
+            // word somewhere else or a cursor moved back into earlier text.
+            if (committedPreeditStart >= 0 && length >= 0 && length <= preedit.length
+                    && cursor >= committedPreeditConfirmedCursor
+                    && text.substring(committedPreeditStart, cursor)
+                       === preedit.substring(0, length)) {
+                committedPreeditConfirmedCursor = cursor
+                return true
+            }
+        }
+        clearCommittedPreedit()
+        resetSuggestionDisplay()
+        syncEditorTypedBuffer()
+        editorContextTimer.restart()
+        return false
+    }
+
+    function observeEditorContext() {
+        var state = editorStateSnapshot()
+        var selected = Boolean(MInputMethodQuick.hasSelection)
+        var valid = Boolean(MInputMethodQuick.surroundingTextValid)
+        if ((sameEditorState(state, lastObservedEditorState)
+                || (!state && !lastObservedEditorState))
+                && selected === lastObservedSelection && valid === lastObservedTextValid)
+            return
+        lastObservedEditorState = state
+        lastObservedSelection = selected
+        lastObservedTextValid = valid
+        editorContextSerial++
+        requestSerial++
+        if (committedPreeditSending)
+            return
+        reconcileCommittedPreedit()
+        if (swipeReplacementActive && editingWordMatchesEditor())
+            predictionEditorSerial = editorContextSerial
+        if (active && preedit !== "")
+            requestSuggestionsSoon()
+    }
+
+    function editingWordMatchesEditor() {
+        var range = wordRangeAtCursor()
+        return range && range.text === editingWord && range.start === editingWordStart
+                && range.length === editingWordLength
+    }
+
+    function appendCommittedWordCharacter(text) {
+        if (preedit === "") {
+            var state = editorStateForWrite()
+            committedPreeditStart = state ? state.cursor : -1
+            committedPreeditConfirmedCursor = committedPreeditStart
+        }
+        preedit += text
+        preeditAlreadyCommitted = true
+        committedPreeditSending = true
+        try {
+            sendEditorCommit(text)
+        } finally {
+            committedPreeditSending = false
+        }
+        reconcileCommittedPreedit()
+        requestSuggestionsSoon()
     }
 
     function wordRangeAtCursor() {
@@ -5384,7 +5796,7 @@ InputHandler {
     }
 
     function requestNextWords() {
-        if (!active || preedit !== "" || passwordField || urlField
+        if (!active || activeSuggestionQuery !== "" || passwordField || urlField
                 || !activePredictionsAvailable
                 || !keyboardSettings.predictionEnabled
                 || !keyboardSettings.nextWordPredictionEnabled) {
@@ -5394,6 +5806,8 @@ InputHandler {
         var context = nextContextOverride !== "" ? nextContextOverride : contextBeforeCursor()
         nextContextOverride = ""
         var serial = ++requestSerial
+        var editorSerial = editorContextSerial
+        var actionSerial = inputActionSerial
         var configuredLimit = Number(keyboardSettings.suggestionCount)
         var suggestionLimit = isFinite(configuredLimit)
                 ? Math.max(3, Math.min(12, Math.round(configuredLimit))) : 12
@@ -5405,7 +5819,11 @@ InputHandler {
             { "type": "b", "value": sentenceStart },
             { "type": "b", "value": keyboardSettings.contextPredictionEnabled }
         ], function(resultJson) {
-            if (serial !== futoHandler.requestSerial || futoHandler.preedit !== "")
+            if (serial !== futoHandler.requestSerial
+                    || editorSerial !== futoHandler.editorContextSerial
+                    || actionSerial !== futoHandler.inputActionSerial
+                    || !futoHandler.active || futoHandler.passwordField
+                    || futoHandler.activeSuggestionQuery !== "")
                 return
             var words = []
             try {
@@ -5431,6 +5849,7 @@ InputHandler {
     }
 
     function requestSuggestions() {
+        reconcileCommittedPreedit()
         var query = activeSuggestionQuery
         if (!active || query === ""
                 || (urlField && !urlSuggestionFallbackActive)
@@ -5440,6 +5859,9 @@ InputHandler {
         var queryStart = editingWordStart
         var queryLength = editingWordLength
         var serial = ++requestSerial
+        var editorSerial = editorContextSerial
+        var actionSerial = inputActionSerial
+        var committedStart = committedPreeditStart
         var configuredLimit = Number(keyboardSettings.suggestionCount)
         var suggestionLimit = isFinite(configuredLimit)
                 ? Math.max(3, Math.min(12, Math.round(configuredLimit))) : 12
@@ -5452,7 +5874,8 @@ InputHandler {
 			            MInputMethodQuick.cursorPosition,
 			            MInputMethodQuick.surroundingText.length))
 			context = MInputMethodQuick.surroundingText.substring(
-			            0, Math.max(0, committedCursor - preedit.length))
+			            0, committedStart >= 0 ? committedStart
+			                                  : Math.max(0, committedCursor - preedit.length))
 		} else if (committedQuery && MInputMethodQuick.surroundingTextValid) {
             context = MInputMethodQuick.surroundingText.substring(0, queryStart)
 		}
@@ -5467,7 +5890,11 @@ InputHandler {
             { "type": "b", "value": keyboardSettings.contextPredictionEnabled }
         ], function(resultJson) {
             if (serial !== futoHandler.requestSerial
+                    || editorSerial !== futoHandler.editorContextSerial
+                    || actionSerial !== futoHandler.inputActionSerial
+                    || !futoHandler.active || futoHandler.passwordField
                     || query !== futoHandler.activeSuggestionQuery
+                    || committedStart !== futoHandler.committedPreeditStart
                     || (futoHandler.urlField
                         && !futoHandler.urlSuggestionFallbackActive)
                     || committedQuery !== (futoHandler.preedit === ""
@@ -5577,7 +6004,7 @@ InputHandler {
 		swipePendingForcedInput = false
 		// Only a following swipe consumes this; a typed letter never would.
 		swipeLeadingSpaceForGesture = false
-		MInputMethodQuick.sendCommit(" ")
+		sendEditorCommit(" ")
 		armCommittedSpace(cursor < 0 ? -1 : cursor + 1)
 		candidateSpaceIndex = cursor < 0 ? -1 : cursor + 1
 		clearSwipeReplacementState()
@@ -5592,6 +6019,10 @@ InputHandler {
 	function acceptPendingSwipeForNextGesture() {
 		if (!swipeAutoSpacePending)
 			return
+		// An already queued gesture owns this separator. A third finger path
+		// must not insert it a second time while that result is still pending.
+		if (swipeOutstanding > 0 || swipeRequestQueue.length > 0)
+			return
 
 		var forcedInput = swipePendingForcedInput
 		swipeAutoSpacePending = false
@@ -5604,14 +6035,31 @@ InputHandler {
 		} else {
 			var cursor = MInputMethodQuick.surroundingTextValid
 			        ? MInputMethodQuick.cursorPosition : -1
-			MInputMethodQuick.sendCommit(" ")
+			sendEditorCommit(" ")
+			if (swipeExpectedTextValid && swipeBatchActionSerial === inputActionSerial) {
+                swipeExpectedEditorState = editorStateForWrite()
+                swipeAwaitingEditor = !swipeEditorUnchanged()
+                swipeEditorWaitStarted = Date.now()
+            }
 			armCommittedSpace(cursor < 0 ? -1 : cursor + 1)
 			candidateSpaceIndex = cursor < 0 ? -1 : cursor + 1
 		}
 		clearSwipeReplacementState()
 	}
 
-	function applyPrediction(replacement) {
+	function applyPrediction(replacement, acceptingAction) {
+        if (acceptingAction === undefined)
+            acceptingAction = inputActionSerial
+        if (predictionEditorSerial !== editorContextSerial
+                || predictionActionSerial !== acceptingAction
+                || MInputMethodQuick.hasSelection
+                || (preeditAlreadyCommitted && !committedPreeditMatchesEditor())
+                || (preedit === "" && editingWord !== "" && !editingWordMatchesEditor())) {
+            reconcileCommittedPreedit()
+            resetSuggestionDisplay()
+            editorContextTimer.restart()
+            return
+        }
         if (preedit === "" && editingWord !== "") {
             var replacingSwipe = swipeReplacementActive
             var previousSwipeWord = swipePreviousWord
@@ -5629,7 +6077,7 @@ InputHandler {
             requestSerial++
             predictionTimer.stop()
             nextPredictionTimer.stop()
-			MInputMethodQuick.sendCommit(replacementText, start - cursor, length)
+			sendEditorCommit(replacementText, start - cursor, length)
             if (addEditingSpace)
                 armCommittedSpace(start + replacementText.length)
 			swipeAutoSpacePending = false
@@ -5701,6 +6149,7 @@ InputHandler {
 	}
 
 	function handleKeyPress() {
+		if (swipePath.length === 0 && !spacebarGestureActive) playAutomaticKeySound(pressedKey)
 		// The first key of a touch has already had its pulse by the time this
 		// runs, so silencing here leaves the rest of that touch quiet however
 		// far it travels, popup cells included.  Leaving it alone is what the
@@ -5755,6 +6204,9 @@ InputHandler {
     }
 
     function handleKeyClick() {
+		if (pressedKey && pressedKey.keyType === KeyType.ShiftKey && MInputMethodQuick.hasSelection)
+			selectionCaseArmed = keyboardSettings.selectionCaseSuggestionsEnabled
+		else if (!pressedKey || pressedKey.keyType !== KeyType.ShiftKey) selectionCaseArmed = false
 		// KeyboardBase clicks a key only when the finger leaves the screen on
 		// it. Crossing into the next key releases without clicking, so this
 		// tells a finished touch apart from one still travelling.
@@ -5763,19 +6215,23 @@ InputHandler {
 			resetSwipePath()
 			return true
 		}
-        // handleKeyClick is the reliable callback for ordinary CharacterKey
-        // instances on the Sailfish keyboard stack used by this phone.
-        // Custom keys marked manualFeedbackOnPress already play on touch-down.
-        playAutomaticKeySound(pressedKey)
+        // Feedback is played on touch-down; release must not play it again.
         typingContinued()
 		if (handleArmedDesktopModifierKey(pressedKey)) {
 			resetSwipePath()
 			return true
 		}
+        if (!(keyboard.layout && keyboard.layout.emojiSearchMode)
+                && handleConversionKey(pressedKey)) {
+            resetSwipePath()
+            return true
+        }
 		captureEditorKey(pressedKey)
 		captureCredentialKey(pressedKey)
 		if (finishSwipeGesture())
 			return true
+		inputActionSerial++
+		reconcileCommittedPreedit()
 		resetSwipePath()
 		// A typed key is not an implicit acceptance of the preceding swiped
 		// word, but a letter does start the next one, and the separator the
@@ -5856,7 +6312,7 @@ InputHandler {
                        && committedSpaceAllowsPeriod
                        && smartPunctuationField()) {
                 nextContextOverride = contextBeforeCursor()
-                MInputMethodQuick.sendCommit(". ", -1, 1)
+                sendEditorCommit(". ", -1, 1)
                 clearCommittedSpace()
                 nextPredictionTimer.restart()
             } else {
@@ -5867,7 +6323,7 @@ InputHandler {
                         ? MInputMethodQuick.surroundingText.charAt(cursorBeforeSpace - 1) : ""
                 var periodAllowed = previousCharacter !== ""
                         && ".?! \n\t".indexOf(previousCharacter) < 0
-                MInputMethodQuick.sendCommit(" ")
+                sendEditorCommit(" ")
                 armCommittedSpace(cursorBeforeSpace < 0 ? -1
                                   : cursorBeforeSpace + 1, periodAllowed)
             }
@@ -5888,10 +6344,17 @@ InputHandler {
                    && undoLastCorrection()) {
             handled = true
         } else if (pressedKey.key === Qt.Key_Backspace && preedit !== "") {
-			MInputMethodQuick.sendKey(Qt.Key_Backspace, 0, "\b", Maliit.KeyClick)
 			preedit = preedit.substr(0, preedit.length - 1)
+			committedPreeditConfirmedCursor = Math.min(committedPreeditConfirmedCursor,
+			        committedPreeditStart + preedit.length)
+			committedPreeditSending = true
+			try {
+				sendEditorBackspace()
+			} finally {
+				committedPreeditSending = false
+			}
 			if (preedit === "")
-				preeditAlreadyCommitted = false
+				clearCommittedPreedit()
             requestSuggestionsSoon()
             if (keyboard.shiftState !== ShiftState.LockedShift) {
                 keyboard.shiftState = preedit.length === 0
@@ -5899,35 +6362,18 @@ InputHandler {
             }
             handled = true
         } else if (pressedKey.key === Qt.Key_Backspace && editingWord !== "") {
-            MInputMethodQuick.sendKey(Qt.Key_Backspace, 0, "\b", Maliit.KeyClick)
+            sendEditorBackspace()
             clearEditingWord()
             editorContextTimer.restart()
             handled = true
         } else if (pressedKey.text.length !== 0) {
             if (isInputCharacter(pressedKey.text)) {
-                if (immediateCommitField) {
-					if (preedit !== "")
-						commit(preedit)
-					MInputMethodQuick.sendCommit(pressedKey.text)
-					clearEditingWord()
-					if (keyboard.shiftState !== ShiftState.LockedShift)
-						keyboard.shiftState = ShiftState.NoShift
-				} else if (editingWord !== "") {
-                    MInputMethodQuick.sendCommit(pressedKey.text)
-                    clearEditingWord()
-                    editorContextTimer.restart()
-                } else {
-					// CharacterKey.text follows the live Shift state. Capture it
-					// before consuming one-shot Shift; reading it again afterwards
-					// turns an AutoShift/LatchedShift character back to lowercase.
-					var inputCharacter = String(pressedKey.text)
-					preedit += inputCharacter
-					preeditAlreadyCommitted = true
-                    if (keyboard.shiftState !== ShiftState.LockedShift)
-                        keyboard.shiftState = ShiftState.NoShift
-					MInputMethodQuick.sendCommit(inputCharacter)
-                    requestSuggestionsSoon()
-                }
+                // CharacterKey.text follows the live Shift state. Capture it
+                // before consuming one-shot Shift, including while editing.
+                var inputCharacter = String(pressedKey.text)
+                if (keyboard.shiftState !== ShiftState.LockedShift)
+                    keyboard.shiftState = ShiftState.NoShift
+                insertWordCharacter(inputCharacter)
                 handled = true
             } else {
                 var trailingSpace = punctuationKey
@@ -5967,11 +6413,11 @@ InputHandler {
                 } else if (keyboardSettings.smartPunctuationEnabled
                            && punctuationKey && smartPunctuationField()
                            && spaceImmediatelyBeforeCursor()) {
-                    MInputMethodQuick.sendCommit(pressedKey.text + " ", -1, 1)
+                    sendEditorCommit(pressedKey.text + " ", -1, 1)
                     preedit = ""
                     clearCommittedSpace()
                 } else {
-                    MInputMethodQuick.sendCommit(pressedKey.text + trailingSpace)
+                    sendEditorCommit(pressedKey.text + trailingSpace)
                     clearCommittedSpace()
                 }
 				preeditAlreadyCommitted = false
@@ -5994,9 +6440,16 @@ InputHandler {
             }
             position++
             var word = MInputMethodQuick.surroundingText.substring(position, position + length)
-            MInputMethodQuick.sendKey(Qt.Key_Backspace, 0, "\b", Maliit.KeyClick)
             preedit = word
             preeditAlreadyCommitted = true
+            committedPreeditStart = position
+            committedPreeditConfirmedCursor = position + length
+            committedPreeditSending = true
+            try {
+                sendEditorBackspace()
+            } finally {
+                committedPreeditSending = false
+            }
             requestSuggestionsSoon()
             handled = true
         }
@@ -6007,6 +6460,8 @@ InputHandler {
         }
         if (correctedSpaceIndex > 0)
             candidateSpaceIndex = correctedSpaceIndex
+        if (!handled && pressedKey.key === Qt.Key_Backspace)
+            recordEditorMutation("", -1, 1)
         return handled
     }
 
@@ -6035,7 +6490,7 @@ InputHandler {
 	}
 
 	function swipeKeyAllowed(key) {
-		if (spacebarGestureActive || activeDesktopModifiers !== 0
+		if (conversionSelected || spacebarGestureActive || activeDesktopModifiers !== 0
 				|| !key || key.swipeTypingKey !== true
 				|| !keyboardSettings.swipeTypingEnabled
 				|| !swipeContentInstalled
@@ -6197,6 +6652,12 @@ InputHandler {
 	function cancelSwipeSession() {
 		swipeSessionSerial++
 		swipeOutstanding = 0
+        swipeRequestQueue = []
+        swipeEditorReadyTimer.stop()
+        swipeAwaitingEditor = false
+        swipeBatchActionSerial = -1
+        swipeExpectedEditorState = null
+        swipeExpectedTextValid = false
 		swipeAutoSpacePending = false
 		swipePendingForcedInput = false
 		swipeLeadingSpaceForGesture = false
@@ -6232,7 +6693,10 @@ InputHandler {
 		if (keyboard.layout && keyboard.layout.controlMode
 				&& keyboard.layout.hideControlStrip)
 			keyboard.layout.hideControlStrip()
-		cursorMoveMode = true
+		conversion.finish(function() {
+			if (futoHandler.spacebarGestureActive)
+				futoHandler.cursorMoveMode = true
+		})
 	}
 
 	function beginCursorSelection() {
@@ -6301,6 +6765,7 @@ InputHandler {
 		if (geometry === "")
 			return false
 
+		reconcileCommittedPreedit()
 		if (preedit !== "") {
 			var typed = preedit
 			learn(typed)
@@ -6310,12 +6775,6 @@ InputHandler {
 			var lastTyped = typed.charAt(typed.length - 1)
 			commit(typed + (isLetterCharacter(lastTyped) ? " " : ""))
 		}
-		var session = swipeSessionSerial
-		var context = contextBeforeCursor()
-		var previousWord = lastWord(context)
-		var configuredLimit = Number(keyboardSettings.suggestionCount)
-		var limit = isFinite(configuredLimit)
-				? Math.max(3, Math.min(12, Math.round(configuredLimit))) : 12
 		// AutoShift means that Sailfish is managing shift automatically; it
 		// does not itself mean that this word should be capitalized.  isShifted
 		// combines a real one-shot/caps-lock shift with the current autocaps
@@ -6324,19 +6783,82 @@ InputHandler {
 		var capitalize = capsLock
 				|| keyboard.shiftState === ShiftState.LatchedShift
 				|| (keyboardSettings.autoCapitalizationEnabled && keyboard.isShifted)
-		swipeOutstanding++
-		helper.typedCall("SwipeSuggestions", [
-			{ "type": "s", "value": enabledLanguages() },
-			{ "type": "s", "value": serializedPath },
-			{ "type": "s", "value": geometry },
+        if (swipeBatchActionSerial !== inputActionSerial)
+            cancelSwipeSession()
+        if (swipeAwaitingEditor && swipeEditorUnchanged())
+            swipeAwaitingEditor = false
+        if (swipeOutstanding === 0 && swipeRequestQueue.length === 0
+                && !swipeAwaitingEditor) {
+            swipeExpectedEditorState = editorStateForWrite()
+            swipeExpectedTextValid = swipeExpectedEditorState !== null
+                    && !keyboardSettings.forcedAppSupportKeyEvents
+            swipeAwaitingEditor = !swipeEditorUnchanged()
+            swipeEditorWaitStarted = Date.now()
+            swipeBatchActionSerial = inputActionSerial
+        }
+        var queued = swipeRequestQueue.slice(0)
+        if (queued.length >= 12)
+            return true
+        queued.push({ "path": serializedPath, "geometry": geometry,
+                      "leadingSpace": leadingSpace, "capsLock": capsLock,
+                      "capitalize": capitalize && (capsLock
+                          || (swipeOutstanding === 0 && queued.length === 0)),
+                      "languages": enabledLanguages(), "actionSerial": inputActionSerial })
+        swipeRequestQueue = queued
+        dispatchNextSwipe()
+        return true
+    }
+
+    function swipeEditorUnchanged() {
+        return !swipeExpectedTextValid
+                || sameEditorState(editorStateSnapshot(), swipeExpectedEditorState)
+    }
+
+    // Decode and commit gestures in order. Later gestures need the preceding
+    // word's context, and a late reply must never be inserted into a new edit.
+    function dispatchNextSwipe() {
+        if (swipeOutstanding > 0 || swipeRequestQueue.length === 0)
+            return
+        if (swipeBatchActionSerial !== inputActionSerial || !active || passwordField) {
+            cancelSwipeSession()
+            return
+        }
+        if (!swipeEditorUnchanged()) {
+            if (swipeAwaitingEditor && Date.now() - swipeEditorWaitStarted < 500)
+                swipeEditorReadyTimer.restart()
+            else
+                cancelSwipeSession()
+            return
+        }
+        swipeAwaitingEditor = false
+        var queued = swipeRequestQueue.slice(0)
+        var request = queued.shift()
+        swipeRequestQueue = queued
+        var session = swipeSessionSerial
+        var actionSerial = request.actionSerial
+        var leadingSpace = request.leadingSpace || swipeAutoSpacePending
+        var capsLock = request.capsLock
+        var context = contextBeforeCursor()
+        var previousWord = lastWord(context)
+        var configuredLimit = Number(keyboardSettings.suggestionCount)
+        var limit = isFinite(configuredLimit)
+                ? Math.max(3, Math.min(12, Math.round(configuredLimit))) : 12
+        swipeOutstanding = 1
+		var dispatched = helper.typedCall("SwipeSuggestions", [
+			{ "type": "s", "value": request.languages },
+			{ "type": "s", "value": request.path },
+			{ "type": "s", "value": request.geometry },
 			{ "type": "s", "value": context },
 			{ "type": "i", "value": limit },
-			{ "type": "b", "value": capitalize }
+			{ "type": "b", "value": request.capitalize }
 		], function(resultJson) {
-			futoHandler.swipeOutstanding = Math.max(0, futoHandler.swipeOutstanding - 1)
-			if (session !== futoHandler.swipeSessionSerial || !futoHandler.active
-					|| futoHandler.passwordField)
+			if (session !== futoHandler.swipeSessionSerial)
 				return
+            if (actionSerial !== futoHandler.inputActionSerial || !futoHandler.active
+                    || futoHandler.passwordField || !futoHandler.swipeEditorUnchanged()) {
+                futoHandler.cancelSwipeSession()
+                return
+            }
 			var result
 			try {
 				result = JSON.parse(String(resultJson))
@@ -6344,8 +6866,11 @@ InputHandler {
 				result = { "suggestions": [], "language": "" }
 			}
 			var suggestions = futoHandler.wordSuggestions(result.suggestions || [])
-			if (suggestions.length < 1)
+			if (suggestions.length < 1) {
+                futoHandler.swipeOutstanding = 0
+                futoHandler.dispatchNextSwipe()
 				return
+            }
 			// The decoder's capitalize flag deliberately means "capitalize the
 			// first letter" so one-shot Shift keeps its normal behaviour. Caps
 			// Lock is different: every candidate, including the word committed to
@@ -6359,13 +6884,17 @@ InputHandler {
 			}
 			var word = suggestions[0]
 			if (keyboardSettings.forcedAppSupportKeyEvents) {
-				helper.typedCall("InjectAndroidSwipe", [
+				var injected = helper.typedCall("InjectAndroidSwipe", [
 					{ "type": "s", "value": word },
 					{ "type": "b", "value": leadingSpace }
 				], function(inserted) {
-					if (!inserted || session !== futoHandler.swipeSessionSerial
-							|| !futoHandler.active || futoHandler.passwordField)
+					if (session !== futoHandler.swipeSessionSerial)
 						return
+                    if (!inserted || actionSerial !== futoHandler.inputActionSerial
+                            || !futoHandler.active || futoHandler.passwordField) {
+                        futoHandler.cancelSwipeSession()
+                        return
+                    }
 					futoHandler.learnWithPrevious(previousWord, word)
 					futoHandler.candidateSpaceIndex = -1
 					futoHandler.swipeReplacementActive = false
@@ -6387,11 +6916,26 @@ InputHandler {
 						keyboard.shiftState = ShiftState.AutoShift
 					}
 					futoHandler.suggestionsUpdated()
-				}, function() {})
+                    futoHandler.swipeOutstanding = 0
+                    futoHandler.dispatchNextSwipe()
+				}, function() {
+                    if (session === futoHandler.swipeSessionSerial)
+                        futoHandler.cancelSwipeSession()
+                })
+                if (injected === false)
+                    futoHandler.cancelSwipeSession()
 				return
 			}
-			var cursor = MInputMethodQuick.cursorPosition
-			MInputMethodQuick.sendCommit(word)
+            var cursor = MInputMethodQuick.cursorPosition
+            var insertion = (leadingSpace ? " " : "") + word
+			sendEditorCommit(insertion)
+            if (futoHandler.swipeExpectedTextValid) {
+                futoHandler.swipeExpectedEditorState = futoHandler.editorStateForWrite()
+                futoHandler.swipeAwaitingEditor = !futoHandler.swipeEditorUnchanged()
+                futoHandler.swipeEditorWaitStarted = Date.now()
+            }
+            if (leadingSpace)
+                cursor++
 			futoHandler.swipePreviousWord = previousWord
 			futoHandler.swipeOriginalWord = word
 			futoHandler.swipeCorrectionLanguage = result.language
@@ -6417,11 +6961,26 @@ InputHandler {
 				keyboard.shiftState = ShiftState.AutoShift
 			}
 			futoHandler.suggestionsUpdated()
+            futoHandler.swipeOutstanding = 0
+            futoHandler.dispatchNextSwipe()
 		}, function() {
-			futoHandler.swipeOutstanding = Math.max(0, futoHandler.swipeOutstanding - 1)
+            if (session === futoHandler.swipeSessionSerial) {
+                futoHandler.swipeOutstanding = 0
+                futoHandler.dispatchNextSwipe()
+            }
 		})
-		return true
+        if (dispatched === false) {
+            swipeOutstanding = 0
+            cancelSwipeSession()
+        }
 	}
+
+    Timer {
+        id: swipeEditorReadyTimer
+        interval: 10
+        repeat: false
+        onTriggered: futoHandler.dispatchNextSwipe()
+    }
 
     function clearCommittedSpace() {
         committedSpaceArmed = false
@@ -6542,9 +7101,14 @@ InputHandler {
         var original = undoOriginalWord
         var restoredSuffix = undoRestoredSuffix
         var restored = original + restoredSuffix
-        MInputMethodQuick.sendCommit(restored, -committed.length, committed.length)
-        preedit = restoredSuffix === "" ? original : ""
-        preeditAlreadyCommitted = preedit !== ""
+        sendEditorCommit(restored, -committed.length, committed.length)
+        clearCommittedPreedit()
+        if (restoredSuffix === "") {
+            preedit = original
+            preeditAlreadyCommitted = true
+            committedPreeditStart = start
+            committedPreeditConfirmedCursor = start + original.length
+        }
         clearUndoCorrection()
         if (preedit !== "")
             requestSuggestionsSoon()
@@ -6598,21 +7162,24 @@ InputHandler {
         text = String(text || "")
         if (text === "")
             return
+        inputActionSerial++
+        reconcileCommittedPreedit()
         clearCommittedSpace()
+        var state = editorStateForWrite()
+        var extendsExistingWord = preedit === "" && state
+                && (isInputCharacter(state.before.slice(-1))
+                    || isInputCharacter(state.after.charAt(0)))
         if (immediateCommitField) {
             if (preedit !== "")
                 commit(preedit)
-            MInputMethodQuick.sendCommit(text)
+            sendEditorCommit(text)
             clearEditingWord()
-        } else if (editingWord !== "") {
-            MInputMethodQuick.sendCommit(text)
+        } else if (editingWord !== "" || extendsExistingWord) {
+            sendEditorCommit(text)
             clearEditingWord()
             editorContextTimer.restart()
         } else {
-            preedit += text
-			preeditAlreadyCommitted = true
-			MInputMethodQuick.sendCommit(text)
-            requestSuggestionsSoon()
+            appendCommittedWordCharacter(text)
         }
     }
 
@@ -6752,6 +7319,8 @@ InputHandler {
             verticalSteps = 0
         if (horizontalSteps === 0 && verticalSteps === 0)
             return
+        inputActionSerial++
+        reconcileCommittedPreedit()
         if (preedit !== "") {
             learn(preedit)
             commit(preedit)
@@ -6797,38 +7366,65 @@ InputHandler {
 	}
 
     function deletePreviousWord() {
+        deletePreviousWords(1)
+    }
+
+    function deletePreviousWords(words) {
+        words = Math.max(1, Math.min(32, Number(words) || 1))
+        if (conversionEnabled && conversion.preedit !== "") {
+            conversion.submit("reset", "")
+            return
+        }
+        inputActionSerial++
+        reconcileCommittedPreedit()
         nextPredictionTimer.stop()
         predictionTimer.stop()
         requestSerial++
         nextWordMode = false
-        if (preedit !== "") {
-			MInputMethodQuick.sendCommit("", -preedit.length, preedit.length)
-            preedit = ""
-			preeditAlreadyCommitted = false
+        if (MInputMethodQuick.hasSelection) {
+            clearCommittedPreedit()
+            sendEditorBackspace()
+            resetSuggestionDisplay()
+            return
+        }
+        var state = editorStateForWrite()
+        var pendingWordMatches = state && preedit !== "" && committedPreeditStart >= 0
+                && state.cursor === committedPreeditStart + preedit.length
+                && state.before.slice(-Math.min(128, preedit.length)) === preedit.slice(-128)
+        if (words === 1 && preedit !== "" && (committedPreeditMatchesEditor() || pendingWordMatches)) {
+			sendEditorCommit("", -preedit.length, preedit.length)
+            clearCommittedPreedit()
             predictionModel.clear()
             suggestionsUpdated()
             return
         }
-        if (!MInputMethodQuick.surroundingTextValid
-                || MInputMethodQuick.cursorPosition <= 0) {
-            MInputMethodQuick.sendKey(Qt.Key_Backspace, 0, "\b", Maliit.KeyClick)
+        clearCommittedPreedit()
+        var position = state ? state.cursor : MInputMethodQuick.cursorPosition
+        if (!MInputMethodQuick.surroundingTextValid || position <= 0) {
+            sendEditorBackspace()
             return
         }
-        var position = MInputMethodQuick.cursorPosition
-        var text = MInputMethodQuick.surroundingText.substring(0, position)
+        var text = state ? state.before
+                         : MInputMethodQuick.surroundingText.substring(0, position)
         var start = text.length
-        while (start > 0 && !isInputCharacter(text.charAt(start - 1)))
-            start--
-        while (start > 0 && isInputCharacter(text.charAt(start - 1)))
-            start--
+        for (var word = 0; word < words && start > 0; ++word) {
+            while (start > 0 && !isInputCharacter(text.charAt(start - 1))) start--
+            while (start > 0 && isInputCharacter(text.charAt(start - 1))) start--
+        }
         var count = text.length - start
         if (count > 0)
-            MInputMethodQuick.sendCommit("", -count, count)
+            sendEditorCommit("", -count, count)
         predictionModel.clear()
         suggestionsUpdated()
     }
 
     function reset() {
+        selectionCaseArmed = false
+        conversion.clear()
+		inputActionSerial++
+		editorContextSerial++
+		pendingEditorStates = []
+		lastObservedEditorState = null
 		cancelSwipeSession()
         clearCommittedSpace()
         requestSerial++
@@ -6841,8 +7437,7 @@ InputHandler {
         urlSuggestionFallbackActive = false
         learnedUrlSuggestions = []
 		refreshApplicationSuggestions()
-        preedit = ""
-		preeditAlreadyCommitted = false
+        clearCommittedPreedit()
         nextWordMode = false
         nextContextOverride = ""
         correctionQuery = ""
@@ -6857,15 +7452,20 @@ InputHandler {
         predictionTimer.stop()
         nextPredictionTimer.stop()
         if (preeditAlreadyCommitted && preedit !== "") {
-			// The exact word is already in the application. Only touch the
-			// document when accepting a correction or appending a separator.
-			if (String(text) !== preedit)
-				MInputMethodQuick.sendCommit(text, -preedit.length, preedit.length)
+			text = String(text)
+			// Ordinary typing is already in the document. Space/punctuation must
+			// only append their suffix, never delete and reinsert a cached word.
+			if (text.indexOf(preedit) === 0) {
+				var suffix = text.substring(preedit.length)
+				if (suffix !== "")
+					sendEditorCommit(suffix)
+			} else if (committedPreeditMatchesEditor()) {
+				sendEditorCommit(text, -preedit.length, preedit.length)
+			}
 		} else {
-			MInputMethodQuick.sendCommit(text)
+			sendEditorCommit(text)
 		}
-        preedit = ""
-		preeditAlreadyCommitted = false
+        clearCommittedPreedit()
         nextWordMode = false
         nextContextOverride = ""
         correctionQuery = ""

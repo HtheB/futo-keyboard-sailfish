@@ -60,7 +60,7 @@ const (
 	forcedAppSupportDconfPath = "/sailfish/text_input/futo_keyboard/forcedAppSupportKeyEvents"
 	vaultAuthAction           = "org.hb.futo.keyboard.saved-login"
 	vaultSaveAuthAction       = "org.hb.futo.keyboard.save-login"
-	version                   = "0.8.0"
+	version                   = "0.9.0"
 )
 
 func zeroBytes(data []byte) {
@@ -3013,6 +3013,7 @@ type service struct {
 	engine                   engineProcess
 	swipeEngine              swipeProcess
 	predictionEngine         predictionProcess
+	composition              compositionSession
 	androidCursor            androidCursorProcess
 	androidAutofill          *androidAutofillBridge
 	codec                    *secureFileCodec
@@ -5484,6 +5485,9 @@ func (service *service) ClearPersonalDictionary() (bool, *dbus.Error) {
 	if err := service.urls.clear(); err != nil {
 		return false, dbus.MakeFailedError(err)
 	}
+	if err := service.composition.clearLearning(service.dataDirectory); err != nil {
+		return false, dbus.MakeFailedError(err)
+	}
 	return true, nil
 }
 
@@ -6421,6 +6425,11 @@ func removeKeyboardUserFiles(path string, options uninstallCleanupOptions) error
 		}
 	}
 	if options.Learned {
+		for _, name := range []string{"mozc-history.enc", "rime-history.enc"} {
+			if err := removeFileAndTemporaryCopies(filepath.Join(path, "composition", name)); err != nil {
+				return err
+			}
+		}
 		for _, name := range []string{
 			"personal-dictionary.json",
 			"prediction-history.json",
@@ -6444,6 +6453,9 @@ func removeKeyboardUserFiles(path string, options uninstallCleanupOptions) error
 		}
 	}
 	if options.Content {
+		if err := os.RemoveAll(filepath.Join(path, "composition", "dictionary-cache")); err != nil {
+			return err
+		}
 		if err := os.RemoveAll(filepath.Join(path, "content")); err != nil {
 			return err
 		}
@@ -6463,6 +6475,7 @@ func removeKeyboardUserFiles(path string, options uninstallCleanupOptions) error
 // RPM was removed. Canceling or failing the system authorization prompt must
 // leave all of the user's data intact.
 func (service *service) removeKeyboardUserState(options uninstallCleanupOptions) error {
+	service.composition.close()
 	_, _ = service.CancelVoiceInput()
 	service.vault.lock()
 	service.codec.clearKey()
@@ -7503,13 +7516,14 @@ func main() {
 		}
 	}
 	application := &service{
-		bus:       connection,
-		codec:     codec,
-		learned:   newLearnedStore(filepath.Join(dataDirectory, "personal-dictionary.json"), codec),
-		history:   newHistoryStore(filepath.Join(dataDirectory, "prediction-history.json"), codec),
-		urls:      newURLHistoryStore(filepath.Join(dataDirectory, "url-history.json"), codec),
-		clipboard: newClipboardStore(filepath.Join(dataDirectory, "clipboard-history.json"), codec),
-		vault:     newVaultStore(filepath.Join(dataDirectory, "password-vault.json")),
+		bus:         connection,
+		codec:       codec,
+		composition: compositionSession{codec: codec},
+		learned:     newLearnedStore(filepath.Join(dataDirectory, "personal-dictionary.json"), codec),
+		history:     newHistoryStore(filepath.Join(dataDirectory, "prediction-history.json"), codec),
+		urls:        newURLHistoryStore(filepath.Join(dataDirectory, "url-history.json"), codec),
+		clipboard:   newClipboardStore(filepath.Join(dataDirectory, "clipboard-history.json"), codec),
+		vault:       newVaultStore(filepath.Join(dataDirectory, "password-vault.json")),
 		credentialIndex: newCredentialMatchIndex(
 			filepath.Join(dataDirectory, "password-vault-index.json"), codec),
 		content:         content,
@@ -7523,7 +7537,36 @@ func main() {
 		documentsDir:    filepath.Join(home, "Documents"),
 	}
 	if application.content != nil {
+		application.content.afterInstall = func(item contentItem, cancelled <-chan struct{}) error {
+			if item.ID != "composition-chinese" {
+				return nil
+			}
+			application.composition.close()
+			application.content.updateJob(item.ID, func(job *contentJob) {
+				job.Message = "Preparing Chinese input"
+			})
+			data := filepath.Join(application.content.root, "composition", "chinese")
+			for _, setting := range []struct {
+				schema     string
+				simplified bool
+			}{{"luna_pinyin_simp", true}, {"luna_pinyin", false}, {"stroke", true}, {"stroke", false}} {
+				if _, err := preparePrivateRimeCacheWithCancel("/usr/libexec", data,
+					application.dataDirectory, setting.schema, setting.simplified, cancelled); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
 		application.content.onChanged = func(item contentItem, state string) {
+			if item.Kind == "composition" && (state == "installed" || state == "removed") {
+				application.composition.close()
+				if item.ID == "composition-chinese" && state == "removed" {
+					if err := os.RemoveAll(filepath.Join(application.dataDirectory,
+						"composition", "dictionary-cache")); err != nil {
+						log.Printf("could not remove conversion dictionary cache: %v", err)
+					}
+				}
+			}
 			if item.Kind == "dictionary" {
 				application.engine.reload()
 				application.swipeEngine.reload()
@@ -7560,6 +7603,7 @@ func main() {
 	defer application.engine.close()
 	defer application.swipeEngine.close()
 	defer application.predictionEngine.close()
+	defer application.composition.close()
 	defer application.androidCursor.close()
 	defer application.CancelVoiceInput()
 
@@ -7584,6 +7628,26 @@ func main() {
 	if reply != dbus.RequestNameReplyPrimaryOwner {
 		log.Fatal("another FUTO Keyboard helper already owns the service")
 	}
+	// Event-driven cleanup, not an idle timer. A crashed keyboard must not
+	// leave a conversion worker or its private learned-data profile behind.
+	if err := connection.AddMatchSignal(dbus.WithMatchInterface("org.freedesktop.DBus"),
+		dbus.WithMatchMember("NameOwnerChanged")); err != nil {
+		log.Fatal("cannot watch conversion session owners")
+	}
+	ownerChanges := make(chan *dbus.Signal, 16)
+	connection.Signal(ownerChanges)
+	defer connection.RemoveSignal(ownerChanges)
+	go func() {
+		for event := range ownerChanges {
+			if len(event.Body) == 3 {
+				name, nameOK := event.Body[0].(string)
+				next, nextOK := event.Body[2].(string)
+				if nameOK && nextOK && strings.HasPrefix(name, ":") && next == "" {
+					application.composition.ownerDisconnected(dbus.Sender(name))
+				}
+			}
+		}
+	}()
 	if bridge, err := newAndroidAutofillBridge(application); err == nil {
 		application.androidAutofill = bridge
 		defer bridge.close()

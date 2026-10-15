@@ -97,7 +97,11 @@
     "nenets",
     "amazigh_basic",
     "amazigh_latin",
-    "ipa_qwerty"
+    "ipa_qwerty",
+    "zh_qwerty",
+    "zh_stroke",
+    "japanese_qwerty",
+    "flick"
   ],
   "pre071Defaults": {
     "SJE": 91,

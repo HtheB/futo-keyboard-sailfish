@@ -34,7 +34,12 @@ FutoCharacterKey {
 			&& targetLayout.usesArabicDigits !== undefined
 			&& targetLayout.usesArabicDigits && contextCaption === ","
 	readonly property string localizedContextCaption:
-			localizedComma ? "،" : contextCaption
+			!attributes.inSymView && targetLayout && !targetLayout.compositionLatinMode
+                && targetLayout.compositionLanguage === "JA" ? "、"
+            : !attributes.inSymView && targetLayout
+                && (targetLayout.compositionLanguage === "ZH"
+                    || targetLayout.compositionLanguage === "ZH_HANT") ? "，"
+            : localizedComma ? "،" : contextCaption
 	readonly property string inputText: attributes.inSymView && symView.length > 0
 			? (attributes.inSymView2 ? symView2Output : symViewOutput)
 			: keyOutput

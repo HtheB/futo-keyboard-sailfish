@@ -37,13 +37,13 @@ function loadLanguageData() {
 const languageData = loadLanguageData();
 assert(generated.upstreamRevision === "fb4dad270790d980c32417b60359104bd0c32c1c",
        "generated layouts do not use the pinned FUTO revision");
-assert(generated.layouts.length === 98, "expected 98 distinct resolved FUTO layouts");
-assert(catalogue.languages.length === 140, "expected 140 eligible FUTO languages");
+assert(generated.layouts.length === 102, "expected 102 distinct resolved FUTO layouts");
+assert(catalogue.languages.length === 143, "expected 143 eligible FUTO languages");
 assert(catalogue.languages.filter(item => item.prediction).length === 73,
        "prediction catalogue must contain exactly 73 dictionary-backed locales");
 assert(catalogue.languages.every(item => item.swipe === item.prediction),
        "swipe must only be offered where a prediction dictionary exists");
-const excluded = ["IW", "ZH", "ZH_HANT", "JA", "KO", "VI", "GA", "HAW",
+const excluded = ["IW", "KO", "VI", "GA", "HAW",
                   "LKT", "KS_LATN", "DZ", "LBJ", "SIP", "XSR", "ZZ"];
 assert(!catalogue.languages.some(item => excluded.includes(item.code)),
        "excluded IME/composition languages leaked into the catalogue");
@@ -96,4 +96,48 @@ for (const code of Object.keys(newlyBacked)) {
            code + " does not expose its verified dictionary pack");
 }
 
-process.stdout.write("Generated layout validation passed: 140 languages, 98 layouts.\n");
+for (const code of ["JA", "ZH", "ZH_HANT"]) {
+    const language = catalogue.languages.find(item => item.code === code);
+    assert(language && language.compositionPack && !language.prediction && !language.swipe,
+           code + " must use its conversion engine, not a direct dictionary or swipe");
+    assert(generated.layouts.find(item => item.id === language.layoutId).imeHint === "qwerty",
+           code + " does not use the canonical QWERTY conversion layout");
+}
+const stroke = generated.layouts.find(item => item.id === "zh_stroke");
+assert(stroke.rows.flat().filter(key => key.kind === "character").map(key => key.output).join("")
+       === "hspnz?!", "Chinese stroke keys lost their RIME key codes");
+assert(stroke.rows.flat().filter(key => key.kind === "spacer").length === 4,
+       "stroke placeholders must not turn into extra space keys");
+const letters = { Generated: generated, Catalogue: catalogue };
+vm.runInNewContext(fs.readFileSync(path.join(root, "layouts/FutoLetterLayouts.js"), "utf8")
+    .replace(/^\.pragma library\s*/m, "").replace(/^\.import .*$/gm, ""), letters);
+const strokeIndex = letters.layouts.findIndex(item => item.id === "zh_stroke");
+const pinyinIndex = letters.layouts.findIndex(item => item.id === "zh_qwerty");
+assert(letters.secondarySymbolForLayout(strokeIndex, 0, 0, false) === ""
+       && letters.secondarySymbolForLayout(strokeIndex, 1, 0, false) === "",
+       "Chinese stroke keys must not gain invented Latin shortcuts");
+assert(letters.secondarySymbolForLayout(pinyinIndex, 1, 0, false) === "？",
+       "Pinyin punctuation hints must use FUTO's explicit alternatives");
+assert(letters.secondarySymbolForLayout(pinyinIndex, 0, 0, true) === "~",
+       "a visible number row must not duplicate the digit in the Pinyin hint");
+const flick = generated.layouts.find(item => item.id === "flick");
+assert(flick.imeHint === "12key" && flick.numberRowMode === "AlwaysDisabled"
+       && flick.rows.length === 4 && flick.rows.every(row => row.length === 5),
+       "Japanese flick must retain all four canonical rows without a number row");
+assert(flick.rows[0][2].choices.down.caption === "こ"
+       && flick.rows[0][2].choices.down.output === "|",
+       "the literal pipe Mozc flick code was incorrectly split");
+assert(flick.rows[3][1].choices.left.output === "["
+       && flick.rows[3][1].choices.right.output === "]",
+       "kana voiced/semi-voiced flick codes changed");
+assert(Array.from(generated.languageLayoutOptions.JA).join(",") === "japanese_qwerty,flick",
+       "Japanese must offer both romaji and kana flick");
+const flickIndex = letters.layouts.findIndex(item => item.id === "flick");
+assert(!letters.numberRowAllowed(flickIndex) && letters.flickRows(flickIndex).length === 4,
+       "flick must not grow an extra fifth number row");
+assert(letters.letter(flickIndex, 0, 1) === "あ",
+       "the kana layout preview must show kana rather than blank keys or engine codes");
+assert(Array.from(generated.languageLayoutOptions.ZH).join(",") === "zh_qwerty,zh_stroke"
+       && Array.from(generated.languageLayoutOptions.ZH_HANT).join(",") === "zh_qwerty,zh_stroke",
+       "both Chinese scripts must offer their non-QWERTY stroke layout");
+process.stdout.write("Generated layout validation passed: 143 languages, 102 layouts.\n");

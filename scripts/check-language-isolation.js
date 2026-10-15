@@ -14,6 +14,7 @@ function qmlFunction(name) {
 const context = {
     layoutSettings: {manualPredictionLanguage: "IS", automaticLanguageDetection: true, mergeSameLayoutLanguages: false},
     handler: {detectedLanguage: "EN"}, layoutVariant: 0,
+    compositionHint: "", layoutConfigurationReady: true,
     languagesForLayout: () => ["EN", "IS"],
     LanguageData: {predictionSupported: () => true}
 };
@@ -38,6 +39,22 @@ context.layoutSettings.mergeSameLayoutLanguages = true;
 assert.strictEqual(context.predictionLanguagesForLayout(0), "EN,IS");
 context.layoutSettings.mergeSameLayoutLanguages = false;
 assert.strictEqual(context.predictionLanguagesForLayout(0), "IS");
+// Pinyin variants share physical keys, not an interchangeable conversion state.
+context.languagesForLayout = () => ["ZH", "ZH_HANT"];
+context.compositionHint = "qwerty";
+context.layoutSettings.mergeSameLayoutLanguages = true;
+context.layoutSettings.manualPredictionLanguage = "ZH_HANT";
+context.handler.detectedLanguage = "ZH";
+context.synchronizeDetectedLanguage();
+assert.strictEqual(context.handler.detectedLanguage, "ZH_HANT");
+assert.strictEqual(context.layoutSettings.manualPredictionLanguage, "ZH_HANT");
+// Defaults arriving before ConfigurationGroup finishes loading cannot overwrite
+// the user's persisted selection during keyboard startup.
+context.layoutConfigurationReady = false;
+context.handler.detectedLanguage = "EN";
+context.synchronizeDetectedLanguage();
+assert.strictEqual(context.handler.detectedLanguage, "EN");
+assert.strictEqual(context.layoutSettings.manualPredictionLanguage, "ZH_HANT");
 assert(source.includes("onMergeSameLayoutLanguagesChanged: root.synchronizeDetectedLanguage()"));
 const handler = fs.readFileSync(path.join(root, "qml/FutoInputHandler.qml"), "utf8");
 assert(/onActivePredictionLanguagesChanged:\s*\{\s*futoHandler.requestSerial\+\+/.test(handler));

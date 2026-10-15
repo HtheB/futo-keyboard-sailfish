@@ -290,14 +290,22 @@ var generatedDisplayNames = {
     // FUTO shares this ç-ending QWERTY layout between Catalan and Portuguese.
     // Keep the Portuguese label as the generic name; Catalan gets its own
     // language-aware label below.
-    "spanish": "Portuguese QWERTY"
+    "spanish": "Portuguese QWERTY",
+    "japanese_qwerty": "Romaji (QWERTY)",
+    "flick": "Kana flick (12-key)",
+    "zh_qwerty": "Pinyin (QWERTY)",
+    "zh_stroke": "Stroke"
 }
 
 var generatedMenuNames = {
     "qwerty": "QWERTY-REG",
     "nordic": "DA",
     "nordic__nb": "NO",
-    "spanish": "PT-QWERTY"
+    "spanish": "PT-QWERTY",
+    "japanese_qwerty": "JA-QWERTY",
+    "flick": "JA-FLICK",
+    "zh_qwerty": "PINYIN",
+    "zh_stroke": "STROKE"
 }
 
 for (var generatedMenuIndex = 0;
@@ -435,6 +443,15 @@ function script(value) {
     return layouts[clampedIndex(value)].script
 }
 
+function imeHint(value) {
+    return String(layouts[clampedIndex(value)].imeHint || "")
+}
+
+function flickRows(value, latinMode) {
+    return imeHint(value) === "12key"
+            ? (latinMode ? Generated.japaneseAlphabetRows : layouts[clampedIndex(value)].rows) : []
+}
+
 function catalogueEntry(languageCode) {
     languageCode = String(languageCode).toUpperCase()
     for (var i = 0; i < Catalogue.languages.length; ++i) {
@@ -532,6 +549,12 @@ function rawKey(value, row, column) {
 
 function letter(value, row, column) {
     var item = rawKey(value, row, column)
+    if (item && item.kind === "flick")
+        return item.choices.primary.caption === "!icon/japanese_key"
+                ? "小゛゜" : String(item.choices.primary.caption)
+    if (item && item.kind === "action")
+        return {undo: "↶", "delete": "⌫", left: "←", right: "→",
+                emoji: "☺", space: "␣", latin: "ABC", enter: "↵"}[item.action] || ""
     return item && item.kind === "character" ? String(item.caption || "") : ""
 }
 
@@ -614,6 +637,10 @@ function numberKey(value, column) {
 function numberRowRequired(value) {
     var mode = String(layouts[clampedIndex(value)].numberRowMode || "Default")
     return numberRow(value).length > 0 && mode === "AlwaysEnabled"
+}
+
+function numberRowAllowed(value) {
+    return layouts[clampedIndex(value)].numberRowMode !== "AlwaysDisabled"
 }
 
 function usesIndependentSizing(value) {
@@ -832,6 +859,35 @@ function generatedSecondaryMap(layoutIndex, numberRowVisible) {
         return generatedSecondaryCache[cacheKey]
 
     var rows = layouts[layoutIndex].rows
+    // Chinese conversion layouts explicitly define their alternatives. Do not
+    // add Latin punctuation shortcuts to the five stroke keys, or replace the
+    // Pinyin layout's Chinese punctuation with the generic hint arrangement.
+    if (layouts[layoutIndex].id === "zh_stroke"
+            || layouts[layoutIndex].id === "zh_qwerty") {
+        var explicitHints = {}
+        for (var explicitRow = 0; explicitRow < rows.length; ++explicitRow) {
+            for (var explicitColumn = 0;
+                    explicitColumn < rows[explicitRow].length; ++explicitColumn) {
+                var explicitKey = key(layoutIndex, explicitRow, explicitColumn)
+                var explicitChoices = explicitKey.more || []
+                for (var explicitIndex = 0;
+                        explicitIndex < explicitChoices.length; ++explicitIndex) {
+                    var explicitChoice = explicitChoices[explicitIndex]
+                    if (explicitChoice.kind !== "character")
+                        continue
+                    var explicitCaption = String(explicitChoice.caption || "")
+                    if (explicitCaption === ""
+                            || (numberRowVisible && /^[0-9]$/.test(explicitCaption)))
+                        continue
+                    explicitHints[String(explicitRow) + ":" + String(explicitColumn)]
+                            = explicitCaption
+                    break
+                }
+            }
+        }
+        generatedSecondaryCache[cacheKey] = explicitHints
+        return explicitHints
+    }
     var firstMainRow = Math.max(0, rows.length - secondarySymbols.length)
     var primaryOutputs = {}
     var preferredSymbols = {}

@@ -1,17 +1,18 @@
-# FUTO Keyboard for Sailfish OS 0.8.0
+# FUTO Keyboard for Sailfish OS 0.9.0
 
 ## New features
 
-- Added optional Android™ AppSupport autofill for saving and filling logins,
-  with device authentication before using a saved login.
-- Saved passwords are now listed in alphabetical order.
-- Added an option to turn off suggestions containing spaces.
+- Added Japanese input with Romaji and 12-key kana flick layouts, kana/kanji conversion, and next-word suggestions.
+- Added Chinese Pinyin and stroke layouts for Simplified and Traditional Chinese, including fuzzy Pinyin and double-Pinyin options.
+- Added downloadable Japanese and Chinese dictionaries, encrypted learning, and an expandable conversion picker.
+- Added an option to change selected text using Shift: initial capitals or ALL CAPS.
+- Added an option to delete more words by dragging farther left from Backspace.
+- Saved-login prompts can now be dismissed by swiping left or right.
 
 ## Fixes
 
-- Improved saved-login detection and filling for websites and applications.
-- Fixed the missing FUTO Keyboard settings entry under Text input on some devices.
-- Fixed the download size-mismatch error when downloading FUTO Swipe.
-- Fixed language layouts changing after an update, including Danish appearing as Welsh.
-- Fixed downloaded dictionaries not being used for predictions and swipe typing in some languages, including Icelandic.
-- Turning off language combining also keeps learned suggestions and next-word predictions separate.
+- Fixed unwanted word replacements and misplaced text when editing sentences or changing text fields.
+- Fixed missed or out-of-order words when swiping quickly.
+- Keypress sounds now play on press instead of release.
+- Paste now appears immediately in a text field, without needing to type first.
+- Improved key sizing and alignment in thumb mode, and removed stray separator lines.

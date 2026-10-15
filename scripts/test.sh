@@ -6,9 +6,20 @@ ENGINE="$ROOT/build/futo-dictionary-compiler"
 
 bash "$ROOT/scripts/test-textinput-settings-hook.sh"
 node "$ROOT/scripts/check-credential-context.js"
+node "$ROOT/scripts/check-saved-login-prompt.js"
 node "$ROOT/scripts/check-browser-credentials.js"
 node "$ROOT/scripts/check-content-manifest.js"
 node "$ROOT/scripts/check-word-suggestions.js"
+node "$ROOT/scripts/check-editor-state.js"
+node "$ROOT/scripts/check-clipboard-strip.js"
+node "$ROOT/scripts/check-composition-session.js"
+node "$ROOT/scripts/check-flick-gesture.js"
+grep -Fq 'import Sailfish.Silica 1.0 as Silica' "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'root.useTopItem ? Silica.Theme.itemSizeSmall : 0' "$ROOT/layouts/FutoQwertyLayout.qml"
+! grep -Fq 'ViewPlaceholder {' "$ROOT/layouts/FutoClipboardPanel.qml"
+grep -Fq 'visible: historyList.count === 0' "$ROOT/layouts/FutoClipboardPanel.qml"
+grep -Fq 'visible: Boolean(keyboard.inputHandler && keyboard.inputHandler.voiceRecording)' "$ROOT/layouts/FutoVoiceKey.qml"
+grep -Fq 'running: Boolean(keyboard.inputHandler && keyboard.inputHandler.voiceBusy)' "$ROOT/layouts/FutoVoiceKey.qml"
 node "$ROOT/scripts/check-language-isolation.js"
 node "$ROOT/scripts/generate-word-character-ranges.js" --check
 node "$ROOT/scripts/check-word-characters.js"
@@ -201,7 +212,7 @@ function assert(condition, message) {
 }
 
 assert(layoutData.legacyLayoutCount === 21, "persisted layout indices changed")
-assert(layoutData.layouts.length === 119, "generated FUTO layouts missing")
+assert(layoutData.layouts.length === 123, "generated FUTO layouts missing")
 assert(layoutData.layouts.some(layout => layout.name === "QWERTY"),
        "the established SwiftKey-style QWERTY entry must exist")
 assert(layoutData.layouts.filter(layout => layout.name === "QWERTY").length >= 2,
@@ -298,7 +309,7 @@ grep -Fq 'property string manualPredictionLanguage: ""' \
     "$ROOT/layouts/FutoQwertyLayout.qml"
 grep -Fq 'property int languageSwitchCount:' \
     "$ROOT/layouts/FutoQwertyLayout.qml"
-grep -Fq 'layoutSettings.manualPredictionLanguage = nextLanguage' \
+grep -Fq 'layoutSettings.manualPredictionLanguage = entry.code' \
     "$ROOT/layouts/FutoQwertyLayout.qml"
 grep -Fq 'keyboard.layout.languageSwitchCount' \
     "$ROOT/qml/FutoInputHandler.qml"
@@ -476,15 +487,15 @@ grep -Fq 'return rightToLeftPreedit && text !== "" ? "\u200f" + text : text' \
 ! grep -Fq 'sendLogicalPreedit(preedit)' "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'property bool preeditAlreadyCommitted: false' \
     "$ROOT/qml/FutoInputHandler.qml"
-grep -Fq 'if (String(text) !== preedit)' \
+grep -Fq 'if (text.indexOf(preedit) === 0)' \
     "$ROOT/qml/FutoInputHandler.qml"
-grep -Fq 'MInputMethodQuick.sendCommit(pressedKey.text)' \
+grep -Fq 'function sendEditorCommit(text, offset, length)' \
     "$ROOT/qml/FutoInputHandler.qml"
 # CharacterKey.text changes as one-shot Shift is consumed, so the committed
 # character must be captured before shiftState returns to NoShift.
 grep -Fq 'var inputCharacter = String(pressedKey.text)' \
     "$ROOT/qml/FutoInputHandler.qml"
-grep -Fq 'MInputMethodQuick.sendCommit(inputCharacter)' \
+grep -Fq 'insertWordCharacter(inputCharacter)' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq '"caption": "\u202a\u00a0\u064c\u202c", "output": "\u064c"' \
     "$ROOT/layouts/FutoPersianJoinerKey.qml"
@@ -800,7 +811,7 @@ grep -Fq 'undoRestoredSuffix = " "' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'undoRestoredSuffix = punctuationSuffix' \
     "$ROOT/qml/FutoInputHandler.qml"
-grep -Fq 'MInputMethodQuick.sendCommit(restored, -committed.length, committed.length)' \
+grep -Fq 'sendEditorCommit(restored, -committed.length, committed.length)' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'var committedWordStart = MInputMethodQuick.surroundingTextValid' \
     "$ROOT/qml/FutoInputHandler.qml"

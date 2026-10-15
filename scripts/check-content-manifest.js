@@ -7,6 +7,9 @@ const path = require("path");
 const vm = require("vm");
 const root = path.resolve(__dirname, "..");
 const pins = require("../content/published-packs.json");
+const compositionPacks = require("../content/composition-packs.json");
+const verifiedPacks = Object.assign({}, pins,
+    Object.fromEntries(compositionPacks.map(item => [item.id, item])));
 const manifest = require("../content/manifest.json");
 const pin = pins["swipe-universal"];
 function check(item) {
@@ -16,7 +19,7 @@ function check(item) {
 }
 check(manifest.items.find(item => item.id === "swipe-universal"));
 for (const item of manifest.items) {
-    const published = pins[item.id];
+    const published = verifiedPacks[item.id];
     assert(published, "Missing published download contract: " + item.id);
     for (const key of ["version", "archive", "sha256", "downloadBytes", "installedBytes"])
         assert.strictEqual(item[key], published[key], item.id + " changed published " + key);
@@ -38,11 +41,12 @@ vm.runInNewContext(fs.readFileSync(path.join(__dirname, "generate-content-manife
     console: { log: () => {} },
     require: name => name === "fs" ? fakeFs : name === "crypto" ? crypto
         : name === "path" ? path : name === "../content/published-packs.json" ? pins
+        : name === "../content/composition-packs.json" ? compositionPacks
         : (() => { throw new Error(`unexpected dependency ${name}`); })()
 });
 check(generated.items.find(item => item.id === "swipe-universal"));
 for (const item of generated.items) {
-    const published = pins[item.id];
+    const published = verifiedPacks[item.id];
     for (const key of ["version", "archive", "sha256", "downloadBytes", "installedBytes"])
         assert.strictEqual(item[key], published[key], item.id + " contract changed after local rebuild");
     assert.strictEqual(item.url || generated.baseUrl + item.archive, published.url,

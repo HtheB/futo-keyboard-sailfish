@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 ARCH=${FUTO_ARCH:-aarch64}
-VERSION=0.8.0
-RELEASE=2
+VERSION=0.9.0
+RELEASE=1
 NAME=futo-keyboard-sailfish
 OUTPUT_DIR=${FUTO_RPM_OUTPUT_DIR:-$ROOT/build/rpm}
 BINARY_DIR=${FUTO_BINARY_DIR:-$ROOT/build/$ARCH}
@@ -35,7 +35,7 @@ mkdir -p "$STAGING/$NAME-$VERSION/build/$ARCH"
 mkdir -p "$STAGING/$NAME-$VERSION/build/android"
 cp "$ROOT/build/android/FutoAutofill.apk" "$STAGING/$NAME-$VERSION/build/android/FutoAutofill.apk"
 for file in \
-    futo-keyboard-engine futo-keyboard-swipe futo-keyboard-prediction futo-keyboard-helper futo-keyboard-secrets \
+    futo-keyboard-engine futo-keyboard-swipe futo-keyboard-prediction futo-keyboard-mozc futo-keyboard-rime futo-keyboard-helper futo-keyboard-secrets \
     futo-keyboard-keyring futo-keyboard-device-auth futo-keyboard-setup-toast futo-keyboard-focus futo-keyboard-appsupport futo-keyboard-browser-origin futo-keyboard-editor futo-keyboard-voice \
     libfuto-maliit-policy.so.1 libcomposeplatforminputcontextplugin.so \
     libafutomaliitcomposewrapper.so libQt5WaylandClient.so.5.6.3 \
@@ -74,6 +74,8 @@ chmod 0755 "$STAGING/$NAME-$VERSION/scripts/"*.sh \
     "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-engine" \
     "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-swipe" \
     "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-prediction" \
+    "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-mozc" \
+    "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-rime" \
     "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-helper" \
     "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-secrets" \
     "$STAGING/$NAME-$VERSION/build/$ARCH/futo-keyboard-keyring" \

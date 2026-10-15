@@ -394,7 +394,14 @@ RUNTIME_QT_DIRECTORY=/usr/lib/qt5
     -o "$BUILD/futo-keyboard-editor"
 "$STRIP" "$BUILD/futo-keyboard-editor"
 
+if [[ ${FUTO_SKIP_COMPOSITION_BUILD:-0} != 1 ]]; then
+    FUTO_ARCH="$ARCH" FUTO_BUILD_DIR="$BUILD" FUTO_DEPS_ROOT="$DEPS_ROOT" \
+    FUTO_CXX="$CXX" FUTO_CC="$CC" FUTO_STRIP="$STRIP" \
+    FUTO_TARGET_SYSROOT="$TARGET_SYSROOT" bash "$ROOT/scripts/build-futo-composition.sh"
+fi
+
 file "$BUILD/futo-keyboard-engine" "$BUILD/futo-keyboard-swipe" "$BUILD/futo-keyboard-prediction" "$BUILD/futo-keyboard-helper" \
+    "$BUILD/futo-keyboard-mozc" "$BUILD/futo-keyboard-rime" \
     "$BUILD/futo-keyboard-secrets" "$BUILD/futo-keyboard-keyring" "$BUILD/futo-keyboard-device-auth" \
     "$BUILD/futo-keyboard-setup-toast" \
     "$BUILD/futo-keyboard-focus" "$BUILD/futo-keyboard-appsupport" \

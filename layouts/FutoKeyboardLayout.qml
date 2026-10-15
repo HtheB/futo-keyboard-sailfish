@@ -271,12 +271,14 @@ Column {
 
     Loader {
         readonly property Item keyboardLayout: keyboardLayout
+		z: keyboardLayout.handler && keyboardLayout.handler.conversionCandidatesExpanded ? 100 : 0
 
         active: useTopItem && (layoutIndex >= 0)
         sourceComponent: active && keyboardLayout.handler ? keyboardLayout.handler.topItem : null
         width: parent.width
         visible: active
-        clip: keyboard.moving || keyboard.hasHorizontalPadding
+        clip: (keyboard.moving || keyboard.hasHorizontalPadding)
+                && !(keyboardLayout.handler && keyboardLayout.handler.conversionCandidatesExpanded)
         asynchronous: false
         opacity: (canvas.activeIndex === keyboardLayout.layoutIndex) ? 1.0 : 0.0
 

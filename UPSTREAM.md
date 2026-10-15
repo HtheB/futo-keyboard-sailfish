@@ -70,6 +70,51 @@ Keyboard layout definitions:
   BSD-licensed Persian Keyboard 0.6 for Sailfish OS. Its notice is included in
   `LICENSES/ALINA-PERSIAN-KEYBOARD-BSD.txt`.
 
+Japanese and Chinese conversion:
+
+- These languages use native conversion engines, not the ordinary spelling or
+  swipe engines. Japanese QWERTY romaji and 12-key kana flick use Mozc; Simplified and
+  Traditional Chinese use RIME Pinyin and stroke schemas.
+- FUTO Mozc wrapper: https://gitlab.futo.org/keyboard/mozc-lib.git,
+  `872ec0754f0ea0aa547f186364931c70870f6873`. Its Mozc gitlink is
+  https://github.com/google/mozc.git,
+  `22ccfeb9fe04ea2b72da0d455e5a5423b0e8554a`.
+- FUTO RIME integration: https://gitlab.futo.org/keyboard/RimeJni.git,
+  `db6a753fd1318a11e216aa4c1fd95385e26cbd08`. Its verified dependency archives
+  are reused: librime 1.16.1, Boost 1.89.0, LevelDB 1.23, yaml-cpp 0.8.0,
+  marisa-trie 0.3.1 and OpenCC 1.1.9.
+- RIME's prediction plugin is pinned separately to
+  https://github.com/rime/librime-predict.git,
+  `920bd41ebf6f9bf6855d14fbe80212e54e749791`. FUTO's build follows this plugin's
+  moving branch; this reproducible pin is not claimed to identify the plugin
+  binary in a particular Android release.
+- The adapters in `composition/` call Mozc SessionHandler and the RIME C API
+  directly. They run in separate worker processes and are rebuilt from source;
+  Android libraries are not loaded into Maliit.
+- Language data comes from FUTO's official catalogue at
+  https://keyboard.futo.tech/dictionaries:
+  - https://dl.keyboard.futo.org/jisho-v25.08.dict, 46,831,685 bytes;
+    SHA-256 `b7d0c92518ee0b00fc944f8572ca818ec66b2bb9e40632498bb9d213a22b24dc`.
+  - https://dl.keyboard.futo.org/zidian-v26.02.dict, 4,615,163 bytes;
+    SHA-256 `cd5f684b8c78991ff211f6f0169ce5186bca3d78346f479a2c406970206038e5`.
+- Adaptive engine history uses FUTO Sailfish's existing device-bound encrypted
+  learned-data storage. Engine profiles are decrypted only into private tmpfs
+  directories and removed when the session ends. Incognito and locked storage
+  use isolated non-learning profiles. Generated Chinese dictionary caches
+  contain only public language data.
+- Japanese kana-flick rows and directional key codes come from `Japanese/flick.yaml`
+  in the same pinned FUTO layout catalogue. The native session uses Mozc's
+  flick or toggle-flick tables and zero-query suggestions. Sailfish owns the
+  touch/popup frontend; ABC uses the same file's `Alphabet1` sub-keyboard and
+  Mozc's corresponding Latin tables. Half-width spaces are configurable.
+- Chinese double-Pinyin schemes and fuzzy derivations follow FUTO's
+  `ChineseIMESettings` and `ChineseIME` implementations at the pinned Android
+  revision. Simplified/Traditional output is independent of the input scheme.
+- Japanese Godan and other composition engines are not exposed by this
+  integration. Japanese/Chinese conversion does not
+  imply support for swiping in these languages.
+- Licenses and data notices: `LICENSES/FUTO-COMPOSITION-NOTICE.md`.
+
 Native script fonts:
 
 - The bundled Amiri 1.003 font used for Arabic ligatures is an unmodified

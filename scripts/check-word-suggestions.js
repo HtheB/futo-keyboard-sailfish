@@ -23,6 +23,8 @@ const context = {
     keyboardSettings: { allowSuggestionsWithSpaces: true, suggestionCount: 3, showTypedWord: true },
     activeSuggestionQuery: "ihave", correctionCandidate: "I have", correctionQuery: "ihave",
     requestSerial: 2, urlSuggestionResultsActive: false,
+    editorContextSerial: 0, inputActionSerial: 0, predictionEditorSerial: -1,
+    predictionActionSerial: -1, preeditAlreadyCommitted: false,
     predictionModel: {
         get count() { return rows.length; },
         get: index => rows[index],
@@ -85,7 +87,7 @@ assert.deepStrictEqual(Array.from(context.wordSuggestions(candidates)), candidat
 // All prediction producers use the same filter, including the swipe commit candidate.
 assert(qmlFunction("requestNextWords").includes("replacePredictionSuggestions(words)"));
 assert(qmlFunction("requestSuggestions").includes("allowedWordSuggestion(result.correction)"));
-const swipe = qmlFunction("finishSwipeGesture");
+const swipe = qmlFunction("dispatchNextSwipe");
 assert(swipe.includes("futoHandler.wordSuggestions(result.suggestions || [])"));
 assert(swipe.indexOf("futoHandler.wordSuggestions(") < swipe.indexOf("var word = suggestions[0]"));
 assert(source.includes("onAllowSuggestionsWithSpacesChanged: futoHandler.refreshWordSuggestionPreference()"));

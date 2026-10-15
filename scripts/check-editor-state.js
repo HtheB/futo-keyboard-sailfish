@@ -1,0 +1,377 @@
+#!/usr/bin/env node
+"use strict";
+
+// Run the production key/commit and asynchronous-reply handlers against an
+// editor whose document and published Maliit state can update independently.
+const assert = require("assert"), fs = require("fs"), path = require("path"), vm = require("vm");
+const source = fs.readFileSync(path.resolve(__dirname, "../qml/FutoInputHandler.qml"), "utf8");
+const noop = () => {};
+function extract(name, signal = false) {
+    const pattern = new RegExp("^([ \\t]*)" + (signal ? name + ": \\{" : "function " + name + "\\("), "m");
+    const match = pattern.exec(source);
+    assert(match, "Missing handler: " + name);
+    for (let end = source.indexOf("}", match.index); end >= 0; end = source.indexOf("}", end + 1)) {
+        let block = source.slice(match.index, end + 1);
+        if (signal) block = block.replace(name + ": {", "function " + name + "() {");
+        try { new vm.Script(block); return block; } catch (error) {
+            if (!(error instanceof SyntaxError)) throw error;
+        }
+    }
+    throw new Error("Missing handler end: " + name);
+}
+function setup(initial = "", position = initial.length, options = {}) {
+    const requests = [], commits = [], keys = [], rows = [];
+    let text = initial, cursor = position, selection = null;
+    const timer = () => ({running: false, stop() { this.running = false; }, restart() { this.running = true; }, start() { this.running = true; }});
+    const context = {
+        active: true, activeEditor: true, passwordField: false, urlField: false, immediateCommitField: false,
+        preedit: "", preeditAlreadyCommitted: false, committedPreeditStart: -1, committedPreeditConfirmedCursor: -1,
+        committedPreeditSending: false, editorContextSerial: 0, predictionEditorSerial: -1, inputActionSerial: 0,
+        predictionActionSerial: -1,
+        pendingEditorStates: [], lastObservedEditorState: null, lastObservedSelection: false, lastObservedTextValid: false,
+        requestSerial: 0, urlRequestSerial: 0, correctionQuery: "", correctionCandidate: "", nextWordMode: false,
+        nextContextOverride: "", editingWord: "", editingWordStart: -1, editingWordLength: 0,
+        urlSuggestionResultsActive: false, urlSuggestionFallbackActive: false, editorTypedBuffer: "",
+        committedSpaceArmed: false, committedSpaceExpectedCursor: -1, candidateSpaceIndex: -1,
+        undoCorrectionAvailable: false, undoOriginalWord: "", undoReplacementWord: "", undoCommittedSuffix: "",
+        undoRestoredSuffix: "", undoCursorPosition: -1, activePredictionsAvailable: true,
+        spacebarGestureActive: false, swipeAutoSpacePending: false, swipeReplacementActive: false,
+        swipePendingForcedInput: false, swipeLeadingSpaceForGesture: false, swipeOutstanding: 0, swipeRequestQueue: [],
+        swipeBatchActionSerial: -1, swipeExpectedEditorState: null, swipeExpectedTextValid: false,
+        swipeAwaitingEditor: false, swipeEditorWaitStarted: 0, swipeSessionSerial: 0, swipePath: [],
+        detectedLanguage: "EN", privacySwitchActive: false, credentialAutofillStage: 0,
+        credentialFieldCandidate: false, credentialUsernameField: false, credentialSavingPrivateBlocked: true,
+        voiceRecording: false, passwordVaultBusy: false, incognitoMode: false,
+        showUrlSuggestions: false, showApplicationSuggestions: false,
+        keyboardSettings: {predictionEnabled: true, autoCorrectionEnabled: false, punctuationCorrectionEnabled: false,
+            doubleSpacePeriodEnabled: false, smartPunctuationEnabled: false, spaceAfterPunctuationEnabled: false,
+            swipeTypingEnabled: false, forcedAppSupportKeyEvents: false, undoCorrectionEnabled: false,
+            autoSpaceAfterSuggestion: true, suggestionCount: 12, showTypedWord: true, correctionLevel: 0,
+            nextWordPredictionEnabled: true, contextPredictionEnabled: true, automaticLanguageDetection: false,
+            passwordSavingEnabled: false, autoCapitalizationEnabled: false, urlHistoryEnabled: false},
+        Qt: {Key_Space: 32, Key_Backspace: 8, Key_Return: 13, Key_Enter: 14},
+        ShiftState: {LockedShift: 3, LatchedShift: 2, NoShift: 0, AutoShift: 1},
+        KeyType: {ShiftKey: 1, SymbolKey: 2}, Maliit: {KeyClick: 0},
+        keyboard: {shiftState: 0, autocaps: false, layout: {}, expandedPaste: false},
+        predictionTimer: timer(), nextPredictionTimer: timer(), editorContextTimer: timer(),
+        urlSuggestionTimer: timer(), swipeReleaseTimer: timer(), swipeEditorReadyTimer: timer(),
+        committedPreeditReconcileTimer: timer(), passwordFocusProtectionTimer: timer(),
+        Clipboard: {text: "pasted"},
+        predictionModel: {get count() { return rows.length; }, get: i => rows[i], clear: () => rows.splice(0), append: row => rows.push(row)},
+        suggestionsUpdated: noop, syncEditorTypedBuffer: noop, playAutomaticKeySound: noop, playOptionFeedback: noop,
+        typingContinued: noop, captureEditorKey: noop, captureCredentialKey: noop, restorePressEffect: noop,
+        handleArmedDesktopModifierKey: () => false, finishSwipeGesture: () => false,
+        conversionEnabled: false, conversion: {clear: noop}, handleConversionKey: () => false,
+        refreshApplicationSuggestions: noop, credentialDebug: noop, credentialDebugContext: noop,
+        refreshCredentialPlatform: noop, refreshAndroidKeyboardAutofill: noop, rememberCredentialContext: noop,
+        refreshCredentialMatch: noop, endForcedAppSupportSession: noop,
+        refreshWordSuggestionPreference: noop, learn: noop, learnSwipeCorrection: noop, learnWithPrevious: noop,
+        enabledLanguages: () => "EN", learnCurrentUrl: noop, cancelVoiceInput: noop,
+        helper: {typedCall(method, args, success, failure) { requests.push({method, args, success, failure}); return true; }},
+        MInputMethodQuick: {surroundingText: initial, cursorPosition: position, surroundingTextValid: true,
+            hasSelection: false, hiddenText: false, anchorPosition: position,
+            actionKeyOverride: {label: "", icon: "", enabled: true}}
+    };
+    context.futoHandler = context;
+    Object.defineProperty(context, "activeSuggestionQuery", {get: () => context.preedit || context.editingWord});
+    vm.createContext(context);
+    const names = ["clearCommittedSpace", "armCommittedSpace", "committedSpaceIsCurrent", "spaceImmediatelyBeforeCursor",
+        "clearEditingWord", "clearCommittedPreedit", "committedPreeditMatchesEditor", "reconcileCommittedPreedit",
+        "editorStateSnapshot", "sameEditorState", "acknowledgedEditorState", "editorStateForWrite", "recordEditorMutation",
+        "sendEditorCommit", "sendEditorBackspace", "observeEditorContext", "editingWordMatchesEditor",
+        "appendCommittedWordCharacter", "wordRangeAtCursor",
+        "resetSuggestionDisplay", "requestSuggestionsSoon", "clearUndoCorrection", "undoLastCorrection",
+        "wordStartBeforeReplacement", "lastWord", "contextBeforeCursor", "handleKeyClick", "insertWordCharacter", "commit",
+        "isLetterCharacter", "isCombiningCharacter", "isInputCharacter", "smartPunctuationField",
+        "spaceAfterPunctuationAllowed", "clearSwipeReplacementState", "resetSwipePath", "cancelSwipeSession",
+        "discardPendingSwipeWord", "swipeSeparatorPrecedesKey", "insertPendingSwipeSeparator",
+        "scheduleNextWords", "displayableSuggestion", "nonEmptySuggestions", "allowedWordSuggestion", "wordSuggestions",
+        "replacePredictionSuggestions", "visiblePrimaryCorrection", "correctedWordForCommit", "requestSuggestions",
+        "requestNextWords", "applyPrediction", "deletePreviousWord", "deletePreviousWords", "rawEditorText", "refreshEditingWord",
+        "acceptSelectionCaseSuggestion",
+        "swipeEditorUnchanged", "dispatchNextSwipe", "acceptPendingSwipeForNextGesture", "wordOpensAddress"];
+    for (const name of names) vm.runInContext(extract(name), context);
+    for (const name of ["onCursorPositionChanged", "onEditorStateUpdate", "onFocusTargetChanged", "onPaste", "onSelect"])
+        vm.runInContext(extract(name, true), context);
+    context.KeyboardSupport = {};
+    context.punctuationAddressSchemes = ["http", "https", "mailto"];
+    context.punctuationInsideAddress = () => false;
+    context.swipeKeyAllowed = () => true;
+    context.serializeSwipePath = () => "trace";
+    context.swipeGeometry = () => "geometry";
+    context.keyboard.layout.swipeGeometry = () => "geometry";
+    const finishSwipe = vm.runInContext("(" + extract("finishSwipeGesture") + ")", context);
+    function publish() {
+        const editor = context.MInputMethodQuick;
+        const cursorChanged = editor.cursorPosition !== cursor;
+        editor.surroundingText = text; editor.cursorPosition = cursor;
+        editor.anchorPosition = selection ? selection.start : cursor;
+        editor.hasSelection = !!selection;
+        if (cursorChanged) context.onCursorPositionChanged();
+        context.onEditorStateUpdate();
+    }
+    context.MInputMethodQuick.sendCommit = (value, offset = 0, length = 0) => {
+        commits.push({value, offset, length, cursor});
+        const start = selection && offset === 0 && length === 0 ? selection.start : Math.max(0, cursor + offset);
+        const count = selection && offset === 0 && length === 0 ? selection.end - selection.start : length;
+        text = text.slice(0, start) + value + text.slice(start + count);
+        cursor = start + value.length; selection = null;
+        if (!options.delayed) publish();
+    };
+    context.MInputMethodQuick.sendKey = (key) => {
+        keys.push(key);
+        if (key === 8) {
+            const start = selection ? selection.start : Math.max(0, cursor - 1);
+            const end = selection ? selection.end : cursor;
+            text = text.slice(0, start) + text.slice(end); cursor = start; selection = null;
+            if (!options.delayed) publish();
+        }
+    };
+    function type(value) {
+        for (const character of value) {
+            context.pressedKey = {key: character === " " ? 32 : character.charCodeAt(0), text: character, keyType: 0};
+            context.handleKeyClick();
+        }
+    }
+    return {context, commits, keys, requests, rows, type, publish,
+        get text() { return text; }, get cursor() { return cursor; },
+        swipe() {
+            context.keyboardSettings.swipeTypingEnabled = true;
+            context.acceptPendingSwipeForNextGesture();
+            context.swipePath = [{x: 0, y: 0}, {x: 100, y: 0}]; context.swipeGestureActive = true;
+            context.swipeDistance = 1000; context.swipeStartX = 0; context.swipeStartY = 0;
+            context.pressedKey = {key: 101, text: "e", keyType: 0};
+            return finishSwipe();
+        },
+        move(position) { cursor = position; publish(); },
+        clear() { text = ""; cursor = 0; publish(); },
+        select(start, end) { selection = {start, end}; cursor = end; publish(); },
+        focus(value) { text = value; cursor = value.length; publish(); context.onFocusTargetChanged(); },
+        backspace() {
+            context.pressedKey = {key: 8, text: "", keyType: 0};
+            if (!context.handleKeyClick()) context.MInputMethodQuick.sendKey(8);
+        }
+    };
+}
+function check(name, body) { body(); console.log("ok    " + name); }
+check("ordinary key sound starts on press and is not repeated on release", () => {
+    const t = setup(), c = t.context, sounds = [];
+    c.KeyType.CharacterKey = 3; c.KeyType.PopupKey = 4;
+    c.keyboardSettings.swipeVibrationEnabled = true;
+    c.swipeCrossesSpacebar = () => false;
+    c.captureSwipeKey = noop;
+    c.playKeySound = sound => sounds.push(sound);
+    vm.runInContext(extract("playAutomaticKeySound"), c);
+    vm.runInContext(extract("handleKeyPress"), c);
+    c.pressedKey = {key: 97, text: "a", keyType: c.KeyType.CharacterKey};
+    c.handleKeyPress(); assert.deepStrictEqual(sounds, ["letter"]);
+    c.handleKeyClick(); assert.deepStrictEqual(sounds, ["letter"]);
+    c.swipePath = [{x: 1, y: 1}]; c.handleKeyPress();
+    assert.deepStrictEqual(sounds, ["letter"], "crossing keys during a swipe must stay quiet");
+    c.swipePath = []; c.pressedKey.manualFeedbackOnPress = true; c.handleKeyPress();
+    assert.deepStrictEqual(sounds, ["letter"], "custom keys already play their own press sound");
+});
+check("suggestions only: ordinary Space never replaces typed words", () => {
+    const t = setup(); t.type("hello world "); assert.strictEqual(t.text, "hello world ");
+    assert(t.commits.every(c => c.length === 0 && c.offset === 0));
+});
+check("cursor move while typing cannot carry the old word into an edit", () => {
+    const t = setup(); t.type("one two"); t.move(3); t.type("X "); assert.strictEqual(t.text, "oneX  two");
+});
+check("cleared message cannot reappear in the next message", () => {
+    const t = setup(); t.type("old"); t.clear(); t.type("new "); assert.strictEqual(t.text, "new ");
+});
+check("a matching word at a different position does not own the query", () => {
+    const t = setup(); t.type("same same"); t.move(4); assert.strictEqual(t.context.preedit, "");
+    t.type(" "); assert.strictEqual(t.text, "same  same");
+});
+check("focus change clears all committed prediction ownership", () => {
+    const t = setup(); t.type("old"); t.focus(""); t.type("new "); assert.strictEqual(t.text, "new ");
+});
+check("selection replacement and deleting selected text are safe", () => {
+    const t = setup(); t.type("first last"); t.select(0, 5); t.type("new "); assert.strictEqual(t.text, "new  last");
+    t.select(0, 3); t.context.deletePreviousWord(); assert.strictEqual(t.text, "  last");
+});
+check("typing within an existing word predicts the whole edited word", () => {
+    const t = setup("hell world", 4); t.type("o"); t.context.refreshEditingWord();
+    assert.strictEqual(t.text, "hello world"); assert.strictEqual(t.context.editingWord, "hello");
+});
+check("paste after a cursor move never reintroduces the cached word", () => {
+    const t = setup(); t.type("one two"); t.move(0); t.context.onPaste(); assert.strictEqual(t.text, "pastedone two");
+});
+check("Space and punctuation respect independently disabled correction", () => {
+    const t = setup(); t.type("teh"); t.context.correctionQuery = "teh"; t.context.correctionCandidate = "the";
+    t.context.replacePredictionSuggestions(["teh", "the"], "the"); t.type("."); assert.strictEqual(t.text, "teh.");
+});
+check("enabled Space correction and first-Backspace undo remain functional", () => {
+    const t = setup(); t.context.keyboardSettings.autoCorrectionEnabled = true;
+    t.context.keyboardSettings.undoCorrectionEnabled = true; t.type("teh");
+    t.context.correctionQuery = "teh"; t.context.correctionCandidate = "the";
+    t.context.replacePredictionSuggestions(["teh", "the"], "the"); t.type(" "); assert.strictEqual(t.text, "the ");
+    t.backspace(); assert.strictEqual(t.text, "teh "); t.backspace(); assert.strictEqual(t.text, "teh");
+});
+check("explicit suggestion replaces the verified current word", () => {
+    const t = setup(); t.type("hel"); t.context.replacePredictionSuggestions(["hello"]);
+    t.context.applyPrediction("hello"); assert.strictEqual(t.text, "hello ");
+});
+check("actual suggestion-tap handler accepts the current row", () => {
+    const t = setup(); t.type("hel"); t.context.replacePredictionSuggestions(["hello"]);
+    t.context.text = "hello"; t.context.onSelect(); assert.strictEqual(t.text, "hello ");
+});
+check("old suggestion cannot replace text after a cursor move", () => {
+    const t = setup(); t.type("one two"); t.context.replacePredictionSuggestions(["too"]); t.move(3);
+    t.context.applyPrediction("too"); assert.strictEqual(t.text, "one two");
+});
+check("late analysis for the same word at another position is ignored", () => {
+    const t = setup("same same", 9); t.context.refreshEditingWord(); t.context.requestSuggestions();
+    const request = t.requests.find(r => r.method === "AnalyzeContext"); assert(request);
+    t.move(4); request.success(JSON.stringify({suggestions: ["wrong"], correction: "wrong"})); assert.strictEqual(t.rows.length, 0);
+});
+check("next-word results cannot overwrite suggestions in a new edit", () => {
+    const t = setup("one "); t.context.requestNextWords(); const request = t.requests.find(r => r.method === "NextWords");
+    t.type("x"); request.success(JSON.stringify(["wrong"])); assert.strictEqual(t.rows.length, 0);
+});
+check("delayed Android publication preserves fast multiword typing", () => {
+    const t = setup("", 0, {delayed: true}); t.type("one two three");
+    assert.strictEqual(t.context.preedit, "three"); assert.strictEqual(t.context.committedPreeditStart, 8);
+    t.publish(); assert(t.context.committedPreeditMatchesEditor()); t.type(" ");
+    assert.strictEqual(t.text, "one two three "); assert(t.commits.every(c => c.length === 0));
+});
+check("unchanged editor updates do not starve asynchronous suggestions", () => {
+    const t = setup(); t.type("hel"); t.context.requestSuggestions();
+    const request = t.requests.find(r => r.method === "AnalyzeContext");
+    t.publish(); t.publish(); request.success(JSON.stringify({suggestions: ["hello"]}));
+    assert(t.rows.some(row => row.text === "hello"));
+});
+check("delayed backspaces keep ownership of the surviving word", () => {
+    const t = setup("", 0, {delayed: true}); t.type("hello"); t.backspace(); t.backspace(); t.publish();
+    assert.strictEqual(t.text, "hel"); assert.strictEqual(t.context.preedit, "hel");
+    assert(t.context.committedPreeditMatchesEditor());
+});
+check("word deletion uses the pending word, not an old published cursor", () => {
+    const t = setup("older ", 6, {delayed: true}); t.type("longerword"); t.context.deletePreviousWord();
+    assert.strictEqual(t.text, "older "); t.publish(); t.type("new "); assert.strictEqual(t.text, "older new ");
+});
+for (const delayed of [false, true]) check("progressive word deletion uses successive editor states (delayed=" + delayed + ")", () => {
+    const t = setup("one two three four five", 23, {delayed});
+    t.context.deletePreviousWords(1); assert.strictEqual(t.text, "one two three four ");
+    t.context.deletePreviousWords(2); assert.strictEqual(t.text, "one two ");
+    t.context.deletePreviousWords(1); assert.strictEqual(t.text, "one ");
+    t.publish(); t.type("new"); assert.strictEqual(t.text, "one new");
+});
+check("multiword deletion includes the immediately committed current word", () => {
+    const t = setup("one two ", 8, {delayed: true}); t.type("three");
+    t.context.deletePreviousWords(2); assert.strictEqual(t.text, "one ");
+});
+check("case suggestion replaces only the selection, without appending a space", () => {
+    const t = setup("before hello world after"); t.select(7, 18);
+    t.context.selectionCaseSuggestion = "Hello World";
+    t.context.keyboard.shiftState = t.context.ShiftState.LatchedShift;
+    t.context.acceptSelectionCaseSuggestion(); assert.strictEqual(t.text, "before Hello World after");
+    assert.strictEqual(t.context.keyboard.shiftState, t.context.ShiftState.NoShift);
+});
+check("caps lock is preserved after accepting a selected-text case suggestion", () => {
+    const t = setup("hello"); t.select(0, 5); t.context.selectionCaseSuggestion = "HELLO";
+    t.context.keyboard.shiftState = t.context.ShiftState.LockedShift;
+    t.context.acceptSelectionCaseSuggestion(); assert.strictEqual(t.text, "HELLO");
+    assert.strictEqual(t.context.keyboard.shiftState, t.context.ShiftState.LockedShift);
+});
+check("acknowledgement ledger stays bounded and never stores passwords", () => {
+    const t = setup("", 0, {delayed: true}); t.type("very ".repeat(100));
+    assert(t.context.pendingEditorStates.length <= 16);
+    assert(t.context.pendingEditorStates.every(s => s.before.length <= 128 && s.after.length <= 128));
+    t.context.passwordField = true; t.type("secret"); assert.strictEqual(t.context.pendingEditorStates.length, 0);
+    t.publish(); assert.strictEqual(t.context.lastObservedEditorState, null);
+});
+check("queued swipes decode and insert in gesture order", () => {
+    const t = setup(); assert(t.swipe()); assert(t.swipe());
+    const first = t.requests.find(r => r.method === "SwipeSuggestions"); assert(first);
+    assert.strictEqual(t.requests.filter(r => r.method === "SwipeSuggestions").length, 1);
+    first.success(JSON.stringify({suggestions: ["one"]}));
+    const second = t.requests.filter(r => r.method === "SwipeSuggestions")[1]; assert(second);
+    assert.strictEqual(second.args[3].value, "one");
+    second.success(JSON.stringify({suggestions: ["two"]})); assert.strictEqual(t.text, "one two");
+});
+check("a subsequent swipe works after accepting the previous word", () => {
+    const t = setup(); t.swipe(); t.requests[0].success(JSON.stringify({suggestions: ["one"]}));
+    t.swipe(); const second = t.requests.filter(r => r.method === "SwipeSuggestions")[1]; assert(second);
+    second.success(JSON.stringify({suggestions: ["two"]})); assert.strictEqual(t.text, "one two");
+});
+check("delayed swipe publication waits for the preceding committed word", () => {
+    const t = setup("", 0, {delayed: true}); t.swipe(); t.swipe();
+    t.requests[0].success(JSON.stringify({suggestions: ["one"]}));
+    assert.strictEqual(t.requests.filter(r => r.method === "SwipeSuggestions").length, 1);
+    t.publish(); t.context.dispatchNextSwipe();
+    const second = t.requests.filter(r => r.method === "SwipeSuggestions")[1]; assert(second);
+    second.success(JSON.stringify({suggestions: ["two"]})); assert.strictEqual(t.text, "one two");
+});
+check("a third gesture cannot consume a separator owned by a pending swipe", () => {
+    const t = setup(); t.swipe(); t.swipe();
+    t.requests[0].success(JSON.stringify({suggestions: ["one"]})); t.swipe();
+    t.requests[1].success(JSON.stringify({suggestions: ["two"]}));
+    t.requests[2].success(JSON.stringify({suggestions: ["three"]}));
+    assert.strictEqual(t.text, "one two three");
+});
+check("swiping after fast typed text waits for that text's acknowledgement", () => {
+    const t = setup("", 0, {delayed: true}); t.type("one"); t.swipe();
+    assert.strictEqual(t.requests.filter(r => r.method === "SwipeSuggestions").length, 0);
+    t.publish(); t.context.dispatchNextSwipe();
+    const request = t.requests.find(r => r.method === "SwipeSuggestions"); assert(request);
+    assert.strictEqual(request.args[3].value, "one ");
+    request.success(JSON.stringify({suggestions: ["two"]})); assert.strictEqual(t.text, "one two");
+});
+check("stale visible row cannot insert after an unpublished edit", () => {
+    const t = setup("hel", 3, {delayed: true}); t.context.refreshEditingWord();
+    t.context.replacePredictionSuggestions(["hello"]); t.type("p"); t.context.applyPrediction("hello");
+    assert.strictEqual(t.text, "help");
+});
+check("one-shot Shift captures a key before consuming its live Shift state", () => {
+    const t = setup(); t.context.keyboard.shiftState = t.context.ShiftState.LatchedShift;
+    t.context.pressedKey = {key: 65, keyType: 0, get text() { return t.context.keyboard.shiftState === 0 ? "a" : "A"; }};
+    t.context.handleKeyClick(); assert.strictEqual(t.text, "A"); assert.strictEqual(t.context.keyboard.shiftState, 0);
+});
+for (const [name, action] of [
+    ["typing", t => t.type("x")], ["cursor move", t => t.move(0)],
+    ["clear", t => t.clear()], ["focus change", t => t.focus("")],
+    ["paste", t => t.context.onPaste()], ["backspace", t => t.backspace()]
+]) check("late swipe cannot insert after " + name, () => {
+    const t = setup("old "); t.swipe(); const request = t.requests[0]; assert(request);
+    action(t); const expected = t.text; request.success(JSON.stringify({suggestions: ["wrong"]}));
+    assert.strictEqual(t.text, expected);
+});
+check("cancelled swipe reply cannot complete a newer swipe", () => {
+    const t = setup(); t.swipe(); const old = t.requests[0]; t.context.cancelSwipeSession(); t.swipe();
+    old.success(JSON.stringify({suggestions: ["wrong"]})); assert.strictEqual(t.context.swipeOutstanding, 1);
+    t.requests[1].success(JSON.stringify({suggestions: ["right"]})); assert.strictEqual(t.text, "right");
+});
+for (const word of ["íslenska", "русский", "العربية", "فارسی", "Ελληνικά", "görüş"])
+    check("committed query stays anchored for " + word, () => {
+        const t = setup(); t.type(word); assert(t.context.committedPreeditMatchesEditor());
+        t.type(" "); assert.strictEqual(t.text, word + " ");
+    });
+for (const delayed of [false, true]) check("mixed editing sequences never alter unaccepted words (delayed=" + delayed + ")", () => {
+    const t = setup("", 0, {delayed}); let seed = 271828;
+    const random = n => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed % n; };
+    for (let i = 0; i < 600; ++i) {
+        const action = random(12), before = t.text, cursor = t.cursor;
+        if (action < 7) {
+            const value = ["a", "b", " ", ".", "e", "'", "Ж"][action];
+            t.type(value); assert.strictEqual(t.text, before.slice(0, cursor) + value + before.slice(cursor), "type " + i);
+        } else if (action === 7) {
+            t.backspace(); assert.strictEqual(t.text, before.slice(0, Math.max(0, cursor - 1)) + before.slice(cursor), "backspace " + i);
+        } else if (action === 8) {
+            t.move(random(t.text.length + 1)); assert.strictEqual(t.text, before, "move " + i);
+        } else if (action === 9) {
+            t.publish(); assert.strictEqual(t.text, before, "publish " + i);
+        } else if (action === 10) {
+            t.clear(); assert.strictEqual(t.text, "", "clear " + i);
+        } else {
+            t.context.requestSuggestions();
+            const request = t.requests[t.requests.length - 1];
+            if (request && request.method === "AnalyzeContext")
+                request.success(JSON.stringify({suggestions: ["wrong"], correction: "wrong"}));
+            assert.strictEqual(t.text, before, "suggestion reply " + i);
+        }
+    }
+});
+console.log("Editor-state and suggestion ownership checks passed.");

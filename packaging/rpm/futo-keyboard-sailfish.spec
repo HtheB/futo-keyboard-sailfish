@@ -4,10 +4,10 @@
 %global _missing_build_ids_terminate_build 0
 
 Name:           futo-keyboard-sailfish
-Version:        0.8.0
-Release:        2
+Version:        0.9.0
+Release:        1
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
-License:        LicenseRef-FUTO-Source-First-1.1-kb AND GPL-3.0-only AND BSD-3-Clause AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND LGPL-2.1-or-later AND (LGPL-2.1-only OR LGPL-3.0-only)
+License:        LicenseRef-FUTO-Source-First-1.1-kb AND GPL-3.0-only AND BSD-3-Clause AND BSD-2-Clause AND BSL-1.0 AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND LGPL-2.1-or-later AND (LGPL-2.1-only OR LGPL-3.0-only)
 Source0:        %{name}-%{version}.tar.gz
 Icon:           %{name}.xpm
 ExclusiveArch:  aarch64 armv7hl i486
@@ -126,9 +126,15 @@ fi
 %license %{_licensedir}/%{name}/NOTO-FONTS-OFL.txt
 %license %{_licensedir}/%{name}/YEKA-ZIP-LICENSE.txt
 %license %{_licensedir}/%{name}/MODIFIED-NOTICE.md
+%license %{_licensedir}/%{name}/MOZC-*.txt
+%license %{_licensedir}/%{name}/RIME-*.txt
+%license %{_licensedir}/%{name}/GCC-RUNTIME-EXCEPTION.txt
+%license %{_licensedir}/%{name}/FUTO-COMPOSITION-NOTICE.md
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-engine
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-swipe
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-prediction
+%attr(0755,root,root) %{_libexecdir}/futo-keyboard-mozc
+%attr(0755,root,root) %{_libexecdir}/futo-keyboard-rime
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-helper
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-secrets
 %attr(2755,root,privileged) %{_libexecdir}/futo-keyboard-device-auth
@@ -154,10 +160,18 @@ fi
 %{_datadir}/fonts/amiri/00-futo-amiri-regular.ttf
 %config(noreplace) %{_sysconfdir}/fonts/conf.d/65-futo-keyboard-symbols.conf
 %{_datadir}/maliit/plugins/com/jolla/FutoInputHandler.qml
+%{_datadir}/maliit/plugins/com/jolla/FutoCompositionSession.js
+%{_datadir}/maliit/plugins/com/jolla/FutoCompositionController.qml
+%{_datadir}/maliit/plugins/com/jolla/FutoConversionStrip.qml
+%{_datadir}/maliit/plugins/com/jolla/FutoSavedLoginPrompt.qml
 %{_datadir}/maliit/plugins/com/jolla/FutoHorizontalPredictionListView.qml
 %{_datadir}/maliit/plugins/com/jolla/FutoVerticalPredictionListView.qml
 %{_datadir}/maliit/plugins/com/jolla/FutoPasteButton.qml
 %{_datadir}/maliit/plugins/com/jolla/handlers/FutoInputHandler.qml
+%{_datadir}/maliit/plugins/com/jolla/handlers/FutoCompositionSession.js
+%{_datadir}/maliit/plugins/com/jolla/handlers/FutoCompositionController.qml
+%{_datadir}/maliit/plugins/com/jolla/handlers/FutoConversionStrip.qml
+%{_datadir}/maliit/plugins/com/jolla/handlers/FutoSavedLoginPrompt.qml
 %{_datadir}/maliit/plugins/com/jolla/handlers/FutoHorizontalPredictionListView.qml
 %{_datadir}/maliit/plugins/com/jolla/handlers/FutoVerticalPredictionListView.qml
 %{_datadir}/maliit/plugins/com/jolla/handlers/FutoPasteButton.qml
@@ -187,6 +201,10 @@ fi
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoLetterLayouts.js
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoLayoutKey.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoLetterRow.qml
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoJapaneseFlickPanel.qml
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoKanaModifierLabel.qml
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoKanaPunctuationLabel.qml
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoFlickGesture.js
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoNumberKey.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoGeneratedNumberRow.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoLayoutEditor.qml
@@ -215,6 +233,12 @@ fi
 %{_userunitdir}/maliit-server.service.d/10-futo-hardware-policy.conf
 
 %changelog
+* Thu Oct 15 2026 HtheB - 0.9.0-1
+- Add Japanese and Chinese offline input and conversion dictionaries.
+- Add selected-text capitalization, progressive word deletion and saved-login dismissal.
+- Fix paste visibility, unwanted word replacements, fast swiping and keypress sounds.
+- Improve thumb-mode key alignment.
+
 * Thu Oct 08 2026 HtheB - 0.7.1-1
 - Let users choose which FUTO Keyboard data is removed during uninstall.
 - Add a switch for enabling or disabling the downloaded context-aware English

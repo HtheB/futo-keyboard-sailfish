@@ -21,6 +21,7 @@ var establishedNames = {
 // end-user names here instead of allowing unsupported locales to appear as
 // raw codes such as "tk" or "si_LK".
 var additionalNames = {
+    "JA": "日本語", "ZH": "中文（简体）", "ZH_HANT": "中文（繁體）",
     "AF": "Afrikaans", "AK": "Akan", "ALT": "алтай тил",
     "AZ_AZ": "Azərbaycan dili", "BA": "башҡорт теле",
     "BE_BY": "Беларуская", "BE_LATN": "Biełaruskaja (łacinka)",
@@ -105,6 +106,10 @@ function swipeSupported(code) {
 
 function dictionaryPack(code) {
     return String(entry(code).dictionaryPack || "")
+}
+
+function compositionPack(code) {
+    return String(entry(code).compositionPack || "")
 }
 
 function isLatinLead(value) {

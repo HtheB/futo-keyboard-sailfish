@@ -103,6 +103,7 @@ Page {
         property bool spaceAfterPunctuationEnabled: false
         property bool doubleSpacePeriodEnabled: true
         property bool autoCapitalizationEnabled: true
+        property bool selectionCaseSuggestionsEnabled: false
         property bool undoCorrectionEnabled: true
         property bool centerPredictions: false
     }
@@ -158,6 +159,15 @@ Page {
                 text: qsTr("Capitalize sentences automatically")
                 description: qsTr("Shift and Caps Lock still work when this is disabled.")
                 onClicked: settings.autoCapitalizationEnabled = !checked
+            }
+
+            TextSwitch {
+                width: parent.width
+                automaticCheck: false
+                checked: settings.selectionCaseSuggestionsEnabled
+                text: qsTr("Change selected text with Shift")
+                description: qsTr("Select text, then press Shift for initial capitals or Caps Lock for all capitals. Tap the suggestion to apply it.")
+                onClicked: settings.selectionCaseSuggestionsEnabled = !checked
             }
 
             TextSwitch {

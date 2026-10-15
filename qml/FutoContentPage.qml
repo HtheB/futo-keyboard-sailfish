@@ -62,6 +62,13 @@ Page {
 
             FutoSettingsMenuItem {
                 width: parent.width
+                text: qsTr("Japanese and Chinese")
+                iconSource: "image://theme/icon-m-text-input"
+                onClicked: page.openCategory("composition", qsTr("Japanese and Chinese"))
+            }
+
+            FutoSettingsMenuItem {
+                width: parent.width
                 text: qsTr("Prediction models")
                 iconSource: "image://theme/icon-m-levels"
                 onClicked: page.openCategory("prediction", qsTr("Prediction models"))

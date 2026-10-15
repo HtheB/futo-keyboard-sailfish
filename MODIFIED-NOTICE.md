@@ -1,6 +1,6 @@
 # Modified derivative notice
 
-This is **FUTO Keyboard for Sailfish OS 0.5.0**, an independent and modified
+This is **FUTO Keyboard for Sailfish OS**, an independent and modified
 Sailfish OS integration. It is not an official FUTO product and is not built,
 published, or supported by FUTO.
 
@@ -8,6 +8,13 @@ The derivative uses FUTO Keyboard word-list data and selected native Unicode
 utility code at upstream commit
 `eaf0389f962b0dba07778d0feab6511e6e98c581` (2026-08-11). The Android UI,
 Android input method service and Android application code are not included.
+
+The Japanese and Chinese integration rebuilds upstream Mozc and RIME as
+separate native processes. New Sailfish adapters provide revision-bound
+conversion sessions, candidate selection, verified downloadable language data,
+private temporary profiles, and Chinese dictionary preparation. Supported
+modes and exact upstream revisions are recorded in `UPSTREAM.md`; component
+and data notices are in `LICENSES/FUTO-COMPOSITION-NOTICE.md`.
 
 Sailfish-specific code adds a unified Maliit layout, a QML input handler,
 multilingual native settings, a local D-Bus service, a native dictionary worker,
@@ -145,3 +152,12 @@ authorize saved-login use. Native credential integration also checks editor,
 application and website identity before replacing fields. No browser passwords
 or device-specific configuration are included in the sources or installation
 package.
+
+Japanese kana flick preserves FUTO's four-row kana layout and directional Mozc
+codes. Its Sailfish touch frontend and cross-shaped popup are newly developed;
+the ABC action uses FUTO's matching 12-key alphabet layout. Chinese Pinyin and stroke use FUTO's
+RIME data and are selectable independently for Simplified and Traditional text.
+Additional settings expose upstream tap-cycling, Japanese space width, fuzzy
+Pinyin and double-Pinyin schemes. The Sailfish integration adds a paged
+candidate grid, reading-cursor editing, and encrypted native conversion
+learning with isolated Incognito profiles.

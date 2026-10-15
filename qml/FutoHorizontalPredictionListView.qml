@@ -11,12 +11,17 @@ PredictionListView {
     property real predictionItemsWidth: 0
     property bool resetPositionAfterGeometry: false
     property string displayedPredictionSignature: ""
+    // A surrounding strip can provide a fixed Paste action instead of one
+    // that scrolls with the suggestions.
+    property bool showClipboardPaste: true
     readonly property real _maximumLabelWidth: width - (2 * Theme.paddingLarge)
     readonly property real centeredHeaderWidth: predictionSettings.centerPredictions
             && predictionItemsWidth > 0 && predictionItemsWidth < width
             ? Math.max(0, (width - predictionItemsWidth) / 2) : 0
 
     orientation: ListView.Horizontal
+    boundsBehavior: showClipboardPaste && !keyboard.expandedPaste && Clipboard.hasText
+                    ? Flickable.DragOverBounds : Flickable.StopAtBounds
 
     ConfigurationGroup {
         id: predictionSettings
@@ -79,6 +84,7 @@ PredictionListView {
             width: visible ? height : 0
             height: view.height
             handler: view.handler
+            visible: view.showClipboardPaste && Clipboard.hasText
             onPasteRequested: {
                 view.cancelRemoval()
                 view.handler.paste(Clipboard.text)

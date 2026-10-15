@@ -9,6 +9,7 @@ const projectRoot = path.resolve(__dirname, "..");
 const outputDirectory = path.resolve(process.argv[2] || path.join(projectRoot, "build/content-packs"));
 const manifestPath = path.resolve(process.argv[3] || path.join(projectRoot, "content/manifest.json"));
 const publishedPacks = require("../content/published-packs.json");
+const compositionPacks = require("../content/composition-packs.json");
 const packVersion = "0.4.0-1";
 // Packs whose content changed after the release their base URL points at.
 // Only these carry a new version and filename; every other archive already
@@ -275,7 +276,7 @@ const manifest = {
     formatVersion: 1,
     contentVersion: packVersion,
     baseUrl: process.env.FUTO_CONTENT_BASE_URL || defaultBaseUrl,
-    items
+    items: items.concat(compositionPacks)
 };
 
 fs.mkdirSync(path.dirname(manifestPath), { recursive: true });

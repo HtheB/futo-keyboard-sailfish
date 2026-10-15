@@ -17,6 +17,7 @@ Item {
                 || !targetLayout.usesLocalizedDigits
                 || targetLayout.attributes.inSymView)
     property bool fixedWidth: keyKind !== "character" && keyKind !== "gap"
+            && keyKind !== "spacer"
     // KeyboardRow identifies ordinary keys through this property on its
     // direct children.  The real CharacterKey is loaded one level below, so
     // mirror the row-layout contract on this wrapper as well.
@@ -36,16 +37,22 @@ Item {
     property real leftPadding: 0
     property real rightPadding: 0
 
-    implicitWidth: keyKind === "shift" && targetLayout
+    implicitWidth: (keyKind === "shift" || keyKind === "delete") && targetLayout
+                   && targetLayout.thumbLetterKeyWidth > 0
+                   ? targetLayout.thumbLetterKeyWidth
+                   : keyKind === "shift" && targetLayout
                    ? targetLayout.shiftKeyWidth
                    : keyKind === "delete" && targetLayout
-                     ? targetLayout.shiftKeyWidth : 0
+                     ? targetLayout.shiftKeyWidth
+                     : keyKind === "symbols" && targetLayout
+                       ? targetLayout.shiftKeyWidth : 0
 
     Loader {
         anchors.fill: parent
         sourceComponent: cell.keyKind === "character" ? characterComponent
                          : cell.keyKind === "shift" ? shiftComponent
-                         : cell.keyKind === "delete" ? deleteComponent : null
+                         : cell.keyKind === "delete" ? deleteComponent
+                         : cell.keyKind === "symbols" ? symbolsComponent : null
         asynchronous: false
     }
 
@@ -53,6 +60,7 @@ Item {
         id: characterComponent
         FutoCharacterKey {
             active: cell.active
+            implicitSeparator: cell.implicitSeparator
             leftPadding: cell.leftPadding
             rightPadding: cell.rightPadding
             caption: LetterLayouts.caption(cell.layoutIndex, cell.rowIndex,
@@ -97,6 +105,11 @@ Item {
             rightPadding: cell.rightPadding
             targetLayout: cell.targetLayout
         }
+    }
+
+    Component {
+        id: symbolsComponent
+        FutoSymbolKey { targetLayout: cell.targetLayout }
     }
 
     Component {

@@ -10,11 +10,16 @@ SymbolKey {
     property Item targetLayout
     property bool held
     property bool manualFeedbackOnPress: true
+    readonly property bool japaneseLatinToggle: targetLayout
+            && targetLayout.compositionLanguage === "JA"
+            && parent && parent.objectName === "futoSpacebarRow"
 
     caption: attributes.inSymView
              ? (targetLayout && targetLayout.letterPageLabel
                 ? targetLayout.letterPageLabel() : "ABC")
-                                  : (targetLayout && targetLayout.numberPageLabel
+                                  : (japaneseLatinToggle
+                                     ? (targetLayout.compositionLatinMode ? "あ" : "ABC")
+                                     : targetLayout && targetLayout.numberPageLabel
                                      ? targetLayout.numberPageLabel() : "123")
     background.visible: false
 	// Keep this action comfortably tappable while giving the reclaimed width to
@@ -42,6 +47,11 @@ SymbolKey {
     }
 
     function triggerSymbolSwitch() {
+        if (!attributes.inSymView && japaneseLatinToggle) {
+            if (keyboard.inputHandler && keyboard.inputHandler.toggleJapaneseLatinMode)
+                keyboard.inputHandler.toggleJapaneseLatinMode()
+            return
+        }
         if (!keyboard.inputHandler)
             return
         var returningToLetters = attributes.inSymView

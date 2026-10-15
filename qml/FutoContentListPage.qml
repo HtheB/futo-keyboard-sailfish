@@ -23,6 +23,8 @@ Page {
     }
 
     function categoryDescription() {
+        if (packKind === "composition")
+            return qsTr("Install FUTO's offline dictionaries for Japanese kana/kanji conversion or Chinese Pinyin and stroke input.")
         if (packKind === "emoji")
             return qsTr("Install the emoji artwork styles you want to use.")
         if (packKind === "voice")

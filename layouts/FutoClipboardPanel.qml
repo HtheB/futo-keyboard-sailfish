@@ -112,10 +112,31 @@ Item {
             }
         }
 
-        ViewPlaceholder {
-            enabled: historyList.count === 0
-            text: qsTr("Clipboard history is empty")
-            hintText: qsTr("Copy text while Incognito mode is off")
+        Column {
+            // The keyboard surface has no Silica ApplicationWindow.
+            parent: historyList
+            anchors.centerIn: parent
+            width: parent.width - 2 * Theme.paddingLarge
+            spacing: Theme.paddingMedium
+            visible: historyList.count === 0
+
+            Label {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+                text: qsTr("Clipboard history is empty")
+                color: Theme.secondaryColor
+                font.pixelSize: Theme.fontSizeMedium
+            }
+
+            Label {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+                text: qsTr("Copy text while Incognito mode is off")
+                color: Theme.secondaryColor
+                font.pixelSize: Theme.fontSizeSmall
+            }
         }
 
         VerticalScrollDecorator {}

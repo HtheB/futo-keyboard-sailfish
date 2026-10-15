@@ -15,11 +15,13 @@ BackspaceKey {
     property double holdStartedAt
     readonly property int wordRepeatDelay: 3000
     property bool manualFeedbackOnPress: true
+    property int draggedWordCount: 0
 
     ConfigurationGroup {
         id: gestureSettings
         path: "/sailfish/text_input/futo_keyboard"
         property bool swipeDeleteEnabled: true
+        property bool progressiveSwipeDeleteEnabled: false
     }
 
     function triggerBackspace() {
@@ -92,6 +94,7 @@ BackspaceKey {
                 keyboard.inputHandler.playManualKeyFeedback(backspaceKey, "option")
             backspaceKey.pressX = mouse.x
             backspaceKey.gestureMoved = false
+            backspaceKey.draggedWordCount = 0
             backspaceKey.repeatTriggered = false
             backspaceKey.holdActive = true
             backspaceKey.holdStartedAt = Date.now()
@@ -102,15 +105,15 @@ BackspaceKey {
 
         onPositionChanged: {
             var threshold = Math.max(Theme.itemSizeSmall, width * 0.8)
-			// One left-swipe is one command, regardless of how far the finger
-			// continues across the keyboard.  Accelerated character/word deletion
-			// remains available only through the separate hold-repeat path.
-			if (!backspaceKey.gestureMoved
-					&& backspaceKey.pressX - mouse.x >= threshold) {
+            var distance = backspaceKey.pressX - mouse.x
+            var desired = distance >= threshold ? (gestureSettings.progressiveSwipeDeleteEnabled
+                    ? 1 + Math.floor((distance - threshold) / Math.max(Theme.itemSizeSmall, width)) : 1) : 0
+            if (desired > backspaceKey.draggedWordCount) {
                 repeatTimer.stop()
                 backspaceKey.gestureMoved = true
-				if (keyboard.inputHandler && keyboard.inputHandler.deletePreviousWord)
-					keyboard.inputHandler.deletePreviousWord()
+                if (keyboard.inputHandler && keyboard.inputHandler.deletePreviousWords)
+                    keyboard.inputHandler.deletePreviousWords(desired - backspaceKey.draggedWordCount)
+                backspaceKey.draggedWordCount = desired
             }
         }
 

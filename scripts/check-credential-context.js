@@ -560,6 +560,7 @@ context.credentialAutofillContextCurrent = completed => completed();
 context.credentialDebug = () => {};
 let nativeCommits = [];
 context.MInputMethodQuick.sendCommit = (...args) => nativeCommits.push(args);
+context.sendEditorCommit = (...args) => context.MInputMethodQuick.sendCommit(...args);
 context.MInputMethodQuick.surroundingTextValid = false;
 let replacementFinished = 0;
 const rejectedBefore = cancellations;

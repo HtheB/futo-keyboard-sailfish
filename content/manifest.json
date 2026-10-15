@@ -1071,6 +1071,45 @@
       ],
       "languageCode": "ZGH",
       "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.7.1/futo-content-dictionary-zgh-0.7.1-1.tar.gz"
+    },
+    {
+      "id": "composition-japanese",
+      "kind": "composition",
+      "name": "日本語 - Japanese conversion",
+      "version": "25.08",
+      "archive": "jisho-v25.08.dict",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.9.0/jisho-v25.08.dict",
+      "fallbackUrl": "https://dl.keyboard.futo.org/jisho-v25.08.dict",
+      "rawFile": true,
+      "sha256": "b7d0c92518ee0b00fc944f8572ca818ec66b2bb9e40632498bb9d213a22b24dc",
+      "downloadBytes": 46831685,
+      "installedBytes": 46831685,
+      "paths": [
+        "composition/japanese/mozc.data"
+      ],
+      "languageCodes": [
+        "JA"
+      ]
+    },
+    {
+      "id": "composition-chinese",
+      "kind": "composition",
+      "name": "中文 - Chinese conversion",
+      "version": "26.02",
+      "archive": "zidian-v26.02.dict",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.9.0/zidian-v26.02.dict",
+      "fallbackUrl": "https://dl.keyboard.futo.org/zidian-v26.02.dict",
+      "archiveFormat": "zip",
+      "sha256": "cd5f684b8c78991ff211f6f0169ce5186bca3d78346f479a2c406970206038e5",
+      "downloadBytes": 4615163,
+      "installedBytes": 11382076,
+      "paths": [
+        "composition/chinese"
+      ],
+      "languageCodes": [
+        "ZH",
+        "ZH_HANT"
+      ]
     }
   ]
 }

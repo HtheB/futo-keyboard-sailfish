@@ -37,14 +37,17 @@ Page {
             var code = page.pendingDictionaryCode
             page.pendingDictionaryCode = ""
             pageStack.push(Qt.resolvedUrl("FutoContentListPage.qml"), {
-                "packKind": "dictionary",
-                "pageTitle": qsTr("Dictionaries"),
+                "packKind": LanguageData.compositionPack(code) !== "" ? "composition" : "dictionary",
+                "pageTitle": LanguageData.compositionPack(code) !== ""
+                             ? qsTr("Japanese and Chinese") : qsTr("Dictionaries"),
                 "requestedPackId": page.dictionaryPackId(code)
             })
         }
     }
 
     function dictionaryPackId(code) {
+        var conversionPack = LanguageData.compositionPack(code)
+        if (conversionPack !== "") return conversionPack
         var pack = LanguageData.dictionaryPack(code)
         return pack === "" ? "" : "dictionary-" + pack
     }
@@ -104,7 +107,7 @@ Page {
             var installed = {}
             var items = result.items || []
             for (var i = 0; i < items.length; ++i) {
-                if (String(items[i].kind) === "dictionary")
+                if (String(items[i].kind) === "dictionary" || String(items[i].kind) === "composition")
                     installed[String(items[i].id)] = !!items[i].installed
             }
             page.installedDictionaries = installed
@@ -119,7 +122,9 @@ Page {
     function openDictionaryDownloads(code, title) {
         var dialog = pageStack.push(Qt.resolvedUrl("FutoContentRequiredDialog.qml"), {
             "contentName": qsTr("%1 dictionary").arg(title),
-            "explanation": qsTr("Predictions for this language need its offline dictionary. "
+            "explanation": LanguageData.compositionPack(code) !== ""
+                           ? qsTr("This language needs its offline conversion dictionary. Open the downloader to install it?")
+                           : qsTr("Predictions for this language need its offline dictionary. "
                                 + "Open the Dictionaries downloader to install it?")
         })
         dialog.accepted.connect(function() {
@@ -204,7 +209,7 @@ Page {
     }
 
     function predictionSupported(code) {
-        return LanguageData.predictionSupported(code)
+        return LanguageData.predictionSupported(code) || LanguageData.compositionPack(code) !== ""
     }
 
     ConfigurationGroup {
@@ -262,6 +267,17 @@ Page {
             width: parent.width
 
             PageHeader { title: qsTr("Languages and layouts") }
+
+            BackgroundItem {
+                width: parent.width
+                onClicked: pageStack.push(Qt.resolvedUrl("FutoConversionSettingsPage.qml"))
+                Label {
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: Theme.horizontalPageMargin
+                    text: qsTr("Japanese and Chinese options")
+                    color: parent.down ? Theme.highlightColor : Theme.primaryColor
+                }
+            }
 
             Label {
                 x: Theme.horizontalPageMargin

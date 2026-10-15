@@ -38,7 +38,7 @@ EXCLUDED_LANGUAGES = {
     # Explicit project policy.
     "iw",
     # These need an IME, combiner, dead-key state, or sub-keyboard renderer.
-    "zh", "zh_Hant", "ja", "ko", "vi", "ga", "haw", "lkt", "ks_Latn",
+    "ko", "vi", "ga", "haw", "lkt", "ks_Latn",
     "dz", "lbj", "sip", "xsr",
     # Upstream's language-neutral test entry is not a user language.
     "zz",
@@ -72,6 +72,16 @@ PREDICTION_PACKS = {
 # only variants explicitly supported by the Sailfish UI belong here.
 EXTRA_LANGUAGE_LAYOUTS = {
     "bg": ("bulgarian_bds",),
+    "ja": ("flick",),
+    "zh": ("zh_stroke",),
+    "zh_Hant": ("zh_stroke",),
+}
+
+COMPOSITION_LAYOUTS = {
+    "Japanese QWERTY": "qwerty",
+    "Japanese 12-Key Flick Layout": "12key",
+    "Chinese QWERTY": "qwerty",
+    "Chinese Stroke input": "stroke",
 }
 
 
@@ -87,6 +97,8 @@ def find_layout_files(root: pathlib.Path) -> dict[str, pathlib.Path]:
 
 
 def layout_supported(document: dict[str, Any]) -> bool:
+    if document.get("name") in COMPOSITION_LAYOUTS:
+        return document.get("imeHint") == COMPOSITION_LAYOUTS[document["name"]]
     return not any(document.get(key) for key in ("combiners", "imeHint", "subKeyboards"))
 
 
@@ -165,6 +177,8 @@ def parse_spec(value: Any, texts: dict[str, Any], explicit_code: Any = None) -> 
         else:
             output = str(explicit_code)
     if output.startswith("!code/"):
+        if output == "!code/key_delete":
+            return {"kind": "delete"}
         raise ValueError(f"unsupported key-code output {output}")
     return {"kind": "character", "caption": display_for_icon(display), "output": output}
 
@@ -248,6 +262,41 @@ def parse_key(value: Any, texts: dict[str, Any]) -> dict[str, Any]:
             normal["shiftedOutput"] = shifted["output"]
             normal["shiftedMore"] = shifted.get("more", [])
     return normal
+
+
+def parse_flick_key(value: Any) -> dict[str, Any]:
+    """Retain FUTO's directional labels and Mozc 12-key codes verbatim."""
+    if isinstance(value, dict) and value.get("type") == "case":
+        value = value["normal"]  # Kana has no Shift state.
+    if isinstance(value, dict) and value.get("type") == "flick":
+        choices = {}
+        for direction in ("primary", "left", "up", "right", "down"):
+            if direction in value:
+                spec = str(value[direction])
+                caption, separator, output = spec.partition("|")
+                choices[direction] = {"caption": caption,
+                                      "output": output if separator else caption}
+        return {"kind": "flick", "choices": choices,
+                **({"label": str(value["label"])} if "label" in value else {})}
+    if isinstance(value, dict) and value.get("type") == "enter":
+        return {"kind": "action", "action": "enter"}
+    spec = str(value.get("spec", "") if isinstance(value, dict) else value)
+    actions = {
+        "!icon/action_undo|!code/action_undo": "undo",
+        "!icon/delete_key|!code/key_delete": "delete",
+        "!icon/action_left|!code/action_left": "left",
+        "!icon/action_right|!code/action_right": "right",
+        "!icon/action_emoji|!code/action_emoji": "emoji",
+        "!icon/space_key_for_number_layout|!code/key_space": "space",
+        "ABC|_": "latin",
+        "あ|_": "latin",
+        "!text/keylabel_to_symbol|!code/key_switch_alpha_symbol": "symbols",
+    }
+    if spec == "a ⇔ A|*":
+        return {"kind": "flick", "choices": {"primary": {"caption": "a ⇔ A", "output": "*"}}}
+    if spec not in actions:
+        raise ValueError(f"unsupported Japanese flick action {spec!r}")
+    return {"kind": "action", "action": actions[spec]}
 
 
 def row_values(row: dict[str, Any]) -> tuple[str, list[Any]]:
@@ -365,11 +414,15 @@ def generated_layout(root: pathlib.Path, files: dict[str, pathlib.Path],
     """Parse one directly typed upstream layout into the Sailfish data shape."""
     path = files[layout_id]
     document = load_yaml(path)
+    flick = document.get("name") == "Japanese 12-Key Flick Layout"
     letter_rows: list[list[dict[str, Any]]] = []
     number_row: list[dict[str, Any]] = []
     bottom_row: list[dict[str, Any]] = []
     for row in document.get("rows", []):
         kind, values = row_values(row)
+        if flick:
+            letter_rows.append([parse_flick_key(value) for value in values])
+            continue
         if kind == "bottom":
             # Sailfish supplies the functional bottom row. Its presence is
             # still significant because upstream then does not auto-add
@@ -377,6 +430,9 @@ def generated_layout(root: pathlib.Path, files: dict[str, pathlib.Path],
             bottom_row = [{"kind": "custom"}]
             continue
         parsed = [parse_key(value, texts) for value in values]
+        if document.get("name") == "Chinese Stroke input":
+            parsed = [({"kind": "spacer"} if key.get("output") == " " else key)
+                      for key in parsed]
         if kind == "letters":
             letter_rows.append(parsed)
         elif kind == "numbers":
@@ -402,6 +458,9 @@ def generated_layout(root: pathlib.Path, files: dict[str, pathlib.Path],
         "bottomRow": bottom_row,
         "independentSizing": max_characters >= 11
             or path.relative_to(root).parts[0] not in {"Default", "LatinScript"},
+        **({"imeHint": COMPOSITION_LAYOUTS[document["name"]], "autoShift": False,
+            "shiftable": document["name"] == "Chinese QWERTY"}
+           if document.get("name") in COMPOSITION_LAYOUTS else {}),
     }
 
 
@@ -426,7 +485,9 @@ def generate(root: pathlib.Path, android_root: pathlib.Path, android_revision: s
         code = normalized_code(official_code)
         if code in language_source_layouts:
             raise ValueError(f"duplicate normalized language code {code}")
-        selected = [direct[0]]
+        # Keep the previously offered romaji layout as Japanese's default;
+        # enabling the upstream flick renderer must not change its saved ID.
+        selected = ["japanese_qwerty" if code == "JA" else direct[0]]
         for layout_id in EXTRA_LANGUAGE_LAYOUTS.get(official_code, ()):
             if layout_id not in direct:
                 raise ValueError(f"{official_code}: requested layout {layout_id} is not directly typed")
@@ -496,6 +557,8 @@ def generate(root: pathlib.Path, android_root: pathlib.Path, android_revision: s
             "prediction": bool(prediction_pack),
             "dictionaryPack": prediction_pack,
             "swipe": bool(prediction_pack),
+            **({"compositionPack": "composition-japanese" if code == "JA"
+                else "composition-chinese"} if code in {"JA", "ZH", "ZH_HANT"} else {}),
         })
     languages.sort(key=lambda item: (not has_latin_lead(item["name"]),
                                      item["name"].casefold(), item["code"]))
@@ -519,8 +582,13 @@ def generate(root: pathlib.Path, android_root: pathlib.Path, android_revision: s
     header = (".pragma library\n\n"
               "// Generated by scripts/generate-futo-layout-catalogue.py from the pinned\n"
               "// Apache-2.0 futo-org/futo-keyboard-layouts revision. Do not hand-edit.\n")
+    japanese_document = load_yaml(files["flick"])
+    japanese_alphabet = [[parse_flick_key(value) for value in row_values(row)[1]]
+                         for row in japanese_document["subKeyboards"]["Alphabet1"]["rows"]]
     output.write_text(
         header + f"var upstreamRevision = {json.dumps(revision)}\n\n"
+        + "var japaneseAlphabetRows = " + json.dumps(japanese_alphabet, ensure_ascii=False,
+                                                       separators=(",", ":")) + "\n\n"
         + "var layouts = " + json.dumps(layouts, ensure_ascii=False, separators=(",", ":")) + "\n\n"
         + "var languageLayoutIds = " + json.dumps(language_layout, ensure_ascii=False,
                                                    separators=(",", ":")) + "\n\n"

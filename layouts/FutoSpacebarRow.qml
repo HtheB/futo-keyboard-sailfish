@@ -6,6 +6,7 @@ import ".."
 
 KeyboardRow {
     id: spacebarRow
+    objectName: "futoSpacebarRow"
     splitIndex: 4
     z: targetLayout && targetLayout.languagePopupActive !== undefined
        && targetLayout.languagePopupActive ? 10 : 0
@@ -23,7 +24,9 @@ KeyboardRow {
     }
     FutoVoiceKey { targetLayout: spacebarRow.targetLayout }
     FutoSpacebarKey {
-        languageLabel: (keyboard.inputHandler && keyboard.inputHandler.detectedLanguage
+        languageLabel: spacebarRow.targetLayout && spacebarRow.targetLayout.compositionLanguageLabel
+                      ? spacebarRow.targetLayout.compositionLanguageLabel
+                      : (keyboard.inputHandler && keyboard.inputHandler.detectedLanguage
                         ? keyboard.inputHandler.detectedLanguage : "FUTO")
         incognitoIndicatorVisible: spacebarRow.targetLayout
                 && spacebarRow.targetLayout.effectiveIncognitoMode

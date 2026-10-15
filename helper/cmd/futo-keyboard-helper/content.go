@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
@@ -102,6 +103,7 @@ type contentItem struct {
 	DownloadURL    string   `json:"url,omitempty"`
 	FallbackURL    string   `json:"fallbackUrl,omitempty"`
 	RawFile        bool     `json:"rawFile,omitempty"`
+	ArchiveFormat  string   `json:"archiveFormat,omitempty"`
 	SHA256         string   `json:"sha256"`
 	DownloadBytes  int64    `json:"downloadBytes"`
 	InstalledBytes int64    `json:"installedBytes"`
@@ -154,6 +156,7 @@ type contentManager struct {
 	jobs         map[string]*contentJob
 	httpClient   *http.Client
 	onChanged    func(contentItem, string)
+	afterInstall func(contentItem, <-chan struct{}) error
 }
 
 func optionalContentRoot() string {
@@ -260,6 +263,9 @@ func loadContentManifest(manifestPath string) (contentManifest, error) {
 		}
 		if item.RawFile && item.DownloadBytes != item.InstalledBytes {
 			return manifest, fmt.Errorf("raw content size differs for %q", item.ID)
+		}
+		if item.ArchiveFormat != "" && (item.ArchiveFormat != "zip" || item.RawFile) {
+			return manifest, fmt.Errorf("invalid archive format for %q", item.ID)
 		}
 		for _, candidate := range []string{item.DownloadURL, item.FallbackURL} {
 			if candidate != "" {
@@ -516,6 +522,11 @@ func (manager *contentManager) status() contentStatus {
 			state.DoneBytes = job.DoneBytes
 			state.TotalBytes = job.TotalBytes
 			state.Message = job.Message
+			// Conversion tables are prepared after extraction. Do not enable
+			// their language while the verified install is still incomplete.
+			if item.Kind == "composition" && job.State == "installing" {
+				state.Installed = false
+			}
 		}
 		result.Items = append(result.Items, state)
 	}
@@ -609,6 +620,9 @@ func (manager *contentManager) installContent(item contentItem, job *contentJob)
 		return err
 	}
 	required := uint64(item.DownloadBytes + item.InstalledBytes + 16*1024*1024)
+	if item.ID == "composition-chinese" {
+		required += 64 * 1024 * 1024 // Compiled RIME tables, prepared once.
+	}
 	if available < required {
 		return fmt.Errorf("not enough free space: need %d MB", (required+999999)/1000000)
 	}
@@ -634,6 +648,16 @@ func (manager *contentManager) installContent(item contentItem, job *contentJob)
 		if err := os.Rename(archivePath, staged); err != nil {
 			return err
 		}
+	} else if item.ArchiveFormat == "zip" {
+		// Official FUTO Chinese data is a ZIP with files at its root, not a
+		// tarball containing our content-root-relative installation path.
+		if err := os.MkdirAll(staged, 0700); err != nil {
+			return err
+		}
+		if err := extractContentZIP(archivePath, staged, item.InstalledBytes, job.Cancel); err != nil {
+			return err
+		}
+		_ = os.Remove(archivePath)
 	} else {
 		if err := extractContentArchive(archivePath, stagingRoot,
 			item.InstalledBytes, job.Cancel); err != nil {
@@ -663,6 +687,16 @@ func (manager *contentManager) installContent(item contentItem, job *contentJob)
 			_ = os.Rename(backup, destination)
 		}
 		return err
+	}
+	if manager.afterInstall != nil {
+		if err := manager.afterInstall(item, job.Cancel); err != nil {
+			// Both targets are exact content paths validated by destination().
+			_ = os.RemoveAll(destination)
+			if pathAvailable(backup) {
+				_ = os.Rename(backup, destination)
+			}
+			return err
+		}
 	}
 	_ = os.RemoveAll(backup)
 	manager.removeLegacyPaths(item.ID)
@@ -826,6 +860,66 @@ func extractContentArchive(archivePath, destination string, maximumBytes int64, 
 		}
 		if closeErr != nil {
 			return closeErr
+		}
+		extracted += copied
+	}
+	if extracted != maximumBytes {
+		return fmt.Errorf("installed size mismatch: got %d, expected %d", extracted, maximumBytes)
+	}
+	return nil
+}
+
+func extractContentZIP(archivePath, destination string, maximumBytes int64, cancel <-chan struct{}) error {
+	archive, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return err
+	}
+	defer archive.Close()
+	if maximumBytes <= 0 || len(archive.File) > 4096 {
+		return errors.New("content archive exceeds its declared size")
+	}
+	var extracted int64
+	for _, entry := range archive.File {
+		select {
+		case <-cancel:
+			return errors.New("installation cancelled")
+		default:
+		}
+		relative, err := safeContentRelativePath(strings.TrimSuffix(entry.Name, "/"))
+		if err != nil || strings.Contains(entry.Name, `\`) {
+			return errors.New("content archive contains an unsafe path")
+		}
+		target := filepath.Join(destination, filepath.FromSlash(relative))
+		if entry.FileInfo().IsDir() {
+			if err := os.MkdirAll(target, 0700); err != nil {
+				return err
+			}
+			continue
+		}
+		if !entry.Mode().IsRegular() {
+			return errors.New("content archive contains an unsupported entry")
+		}
+		if entry.UncompressedSize64 > uint64(maximumBytes-extracted) {
+			return errors.New("content archive exceeds its declared size")
+		}
+		if err := os.MkdirAll(filepath.Dir(target), 0700); err != nil {
+			return err
+		}
+		input, err := entry.Open()
+		if err != nil {
+			return err
+		}
+		output, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		if err != nil {
+			_ = input.Close()
+			return err
+		}
+		// Read through EOF to verify the ZIP CRC, but never expand past its
+		// declared size. This also rejects duplicate filenames and symlinks.
+		copied, copyErr := io.Copy(output, io.LimitReader(input, int64(entry.UncompressedSize64)+1))
+		inputErr, outputErr := input.Close(), output.Close()
+		if copyErr != nil || inputErr != nil || outputErr != nil || copied != int64(entry.UncompressedSize64) {
+			return errors.New("invalid content archive entry")
 		}
 		extracted += copied
 	}

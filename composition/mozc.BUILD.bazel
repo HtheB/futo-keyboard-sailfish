@@ -1,0 +1,15 @@
+load("//:build_defs.bzl", "mozc_cc_binary")
+
+# Staged in android/jni to use exactly the visibility granted to FUTO's JNI adapter.
+mozc_cc_binary(
+    name = "futo-keyboard-mozc",
+    srcs = ["futo_mozc_worker.cpp", "protocol.h"],
+    deps = [
+        "//base:system_util",
+        "//data_manager",
+        "//engine",
+        "//protocol:commands_cc_proto",
+        "//protocol:config_cc_proto",
+        "//session:session_handler",
+    ],
+)

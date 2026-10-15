@@ -24,8 +24,13 @@ FutoCharacterKey {
     readonly property bool localizedPunctuation: arabicPunctuation
                                                  || persianPunctuation
 
-    caption: "."
-    captionShifted: "."
+    readonly property bool compositionPunctuation: !attributes.inSymView
+            && targetLayout && !targetLayout.compositionLatinMode
+            && targetLayout.compositionLanguage !== ""
+    caption: compositionPunctuation ? "。" : "."
+    captionShifted: caption
+    keyOutput: caption
+    keyOutputShifted: caption
     symView: "."
     symView2: "."
     letterAccents: localizedPunctuation
