@@ -16,6 +16,11 @@ CharacterKey {
     property var letterAlternativeChoices: []
     property var letterAlternativeChoicesShifted: []
     property bool exactAlternativeMode: false
+    property bool exactPopupSet: false
+    property bool popupPreviewEligible: true
+    property bool plainTextKeyLabel: false
+    property int exactPopupDefaultIndex: 0
+    property string explicitPopupDefault: ""
     property string preferredFontFamily: ""
     property string specialArabicFontFamily: "Noto Naskh Arabic"
     property string androidRiyalFontFamily: "FUTO Android Riyal"
@@ -296,6 +301,21 @@ CharacterKey {
         var model = findPopperModel(popper)
         if (!model)
             return
+        if (exactPopupSet) {
+            var defaultIndex = Math.max(0, Math.min(choices.length - 1, exactPopupDefaultIndex))
+            var highlighted = Math.max(0, Math.min(choices.length - 1, Number(popper.activeCell) || 0))
+            var ordered = []
+            for (var choiceIndex = 0; choiceIndex < choices.length; ++choiceIndex)
+                if (choiceIndex !== defaultIndex) ordered.push(choices[choiceIndex])
+            ordered.splice(highlighted, 0, choices[defaultIndex])
+            model.clear()
+            for (var exactIndex = 0; exactIndex < ordered.length; ++exactIndex)
+                model.append({labelText: ordered[exactIndex].caption, inputText: ordered[exactIndex].output})
+            // setActiveCell takes screen coordinates, not a cell index.
+            popper.activeCell = highlighted
+            popper.initialActiveCell = highlighted
+            return
+        }
         var activeCell = Number(popper.activeCell)
         if (!isFinite(activeCell) || activeCell < 0)
             activeCell = Math.floor((choices.length + 1) / 2)
@@ -328,6 +348,7 @@ CharacterKey {
     function applyPopupGlyphFonts(item) {
         if (!item)
             return
+        if (exactPopupSet && item.textFormat !== undefined) item.textFormat = Text.PlainText
         // These three symbols are absent or malformed in Sailfish's native
         // fonts. Keep their fallback exact so ordinary Arabic and Latin text
         // continues to use the system typeface.
@@ -411,6 +432,7 @@ CharacterKey {
         if (item !== futoKey && item.text !== undefined
                 && item.font !== undefined
                 && String(item.text) === String(futoKey.keyText)) {
+            if (plainTextKeyLabel && item.textFormat !== undefined) item.textFormat = Text.PlainText
             var value = String(item.text)
             var usesAndroidFont = usesAndroidRiyalFont(value)
             var usesSpecialFont = usesSpecialArabicFont(value)
@@ -493,6 +515,10 @@ CharacterKey {
                                  : ((!attributes.inSymView
                                      && visualSettings.secondarySymbolsEnabled)
                                     ? secondarySymbolOutput : "")
+        if (explicitPopupDefault !== "") {
+            popupHighlightedText = explicitPopupDefault
+            popupHighlightedOutput = explicitPopupDefault
+        }
         popupArmed = false
 
         var popper = findPopper(keyboard)
@@ -577,7 +603,7 @@ CharacterKey {
     pixelSize: Math.round(Theme.fontSizeLarge
                           * Math.max(0.8, Math.min(1.3, visualSettings.keyFontScale)))
     fontSizeMode: Text.Fit
-    showPopper: visualSettings.keyPreviewEnabled
+    showPopper: popupPreviewEligible && visualSettings.keyPreviewEnabled
 				&& !gesturePreviewSuppressed
                 && !(visualSettings.hideKeyPreviewsInIncognito
                      && keyboard.layout

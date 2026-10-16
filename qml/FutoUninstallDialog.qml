@@ -60,7 +60,7 @@ Page {
                     width: parent.width
                     automaticCheck: false
                     text: qsTr("Settings and interface preferences")
-                    description: qsTr("Languages, layouts, gestures, appearance, emoji "
+                    description: qsTr("Languages, custom layouts, gestures, appearance, emoji "
                                       + "history and other keyboard options")
                     checked: page.removeSettings
                     onClicked: page.removeSettings = !checked

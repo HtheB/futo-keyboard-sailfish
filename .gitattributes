@@ -12,6 +12,7 @@ Makefile text eol=lf
 *.qml text eol=lf
 *.js text eol=lf
 *.go text eol=lf
+*.py text eol=lf
 *.c text eol=lf
 *.cc text eol=lf
 *.cpp text eol=lf

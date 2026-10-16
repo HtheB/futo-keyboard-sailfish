@@ -31,6 +31,8 @@ This project brings the FUTO typing experience to Sailfish OS while adding many 
 - Adjustable long-press timing
 - Customizable sounds, vibration, and key previews
 - Customizable Quick Settings menu
+- FUTO Layout Editor for creating, testing and sharing custom keyboard layouts
+- Custom layouts for any language, with adjustable keys, long-press characters and extra pages
 
 ### Emoji and symbols
 

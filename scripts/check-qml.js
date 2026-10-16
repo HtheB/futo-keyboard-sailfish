@@ -33,7 +33,7 @@ let failed = false;
 const requestedDirectories = process.argv.slice(2);
 const directories = requestedDirectories.length > 0
     ? requestedDirectories.map((directory) => path.resolve(directory))
-    : [path.join(root, "layouts"), path.join(root, "qml")];
+    : [path.join(root, "layouts"), path.join(root, "qml"), path.join(root, "editor")];
 const files = directories.flatMap(filesBelow);
 const sources = files.map((file) => ({file, source: fs.readFileSync(file, "utf8")}));
 let overlayCount = 0;

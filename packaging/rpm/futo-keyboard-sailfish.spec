@@ -4,7 +4,7 @@
 %global _missing_build_ids_terminate_build 0
 
 Name:           futo-keyboard-sailfish
-Version:        0.9.0
+Version:        0.9.5
 Release:        1
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
 License:        LicenseRef-FUTO-Source-First-1.1-kb AND GPL-3.0-only AND BSD-3-Clause AND BSD-2-Clause AND BSL-1.0 AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND LGPL-2.1-or-later AND (LGPL-2.1-only OR LGPL-3.0-only)
@@ -29,8 +29,10 @@ Requires:       pulseaudio
 Requires:       libstdc++
 Requires:       systemd
 Requires:       libsailfishsecrets
+Requires:       libsailfishapp
 Requires:       sailfishsecretsdaemon
 Requires:       sailfish-components-pickers-qt5
+Requires:       sailfishshare-components
 Requires:       polkit
 Requires:       qt5-qtwayland-wayland_egl >= 5.6.3
 
@@ -99,6 +101,8 @@ if [ "$1" -eq 0 ]; then
 fi
 
 %files
+%attr(0755,root,root) %{_bindir}/futo-layout-editor
+%{_datadir}/applications/futo-layout-editor.desktop
 %{_datadir}/icons/hicolor/128x128/apps/futo-keyboard-sailfish.png
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-setup-toast
 %defattr(0644,root,root,0755)
@@ -178,6 +182,10 @@ fi
 %{_datadir}/jolla-settings/pages/futo-keyboard-sailfish/
 %{_datadir}/jolla-settings/entries/futo-keyboard.json
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoCharacterKey.qml
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoCustomKey.qml
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoCustomLayoutPanel.qml
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoCustomLayouts.js
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoDeadKeyData.js
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoBackspaceKey.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoCommaKey.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoEmojiBackKey.qml
@@ -233,6 +241,9 @@ fi
 %{_userunitdir}/maliit-server.service.d/10-futo-hardware-policy.conf
 
 %changelog
+* Fri Oct 16 2026 HtheB - 0.9.5-1
+- Add custom keyboard layouts and the FUTO Layout Editor.
+
 * Thu Oct 15 2026 HtheB - 0.9.0-1
 - Add Japanese and Chinese offline input and conversion dictionaries.
 - Add selected-text capitalization, progressive word deletion and saved-login dismissal.

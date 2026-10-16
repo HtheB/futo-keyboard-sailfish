@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=FUTO Layout Editor
+Icon=futo-keyboard-sailfish
+Exec=/usr/bin/invoker --type=silica-qt5 --single-instance /usr/bin/futo-layout-editor
+Comment=Create and edit custom keyboard layouts
+X-Nemo-Application-Type=silica-qt5
+
+[X-Sailjail]
+Sandboxing=Disabled

@@ -35,7 +35,7 @@ function setup(initial = "", position = initial.length, options = {}) {
         committedSpaceArmed: false, committedSpaceExpectedCursor: -1, candidateSpaceIndex: -1,
         undoCorrectionAvailable: false, undoOriginalWord: "", undoReplacementWord: "", undoCommittedSuffix: "",
         undoRestoredSuffix: "", undoCursorPosition: -1, activePredictionsAvailable: true,
-        spacebarGestureActive: false, swipeAutoSpacePending: false, swipeReplacementActive: false,
+        customPendingDeadKey: "", activeDesktopModifiers: 0, spacebarGestureActive: false, swipeAutoSpacePending: false, swipeReplacementActive: false,
         swipePendingForcedInput: false, swipeLeadingSpaceForGesture: false, swipeOutstanding: 0, swipeRequestQueue: [],
         swipeBatchActionSerial: -1, swipeExpectedEditorState: null, swipeExpectedTextValid: false,
         swipeAwaitingEditor: false, swipeEditorWaitStarted: 0, swipeSessionSerial: 0, swipePath: [],
@@ -49,7 +49,8 @@ function setup(initial = "", position = initial.length, options = {}) {
             autoSpaceAfterSuggestion: true, suggestionCount: 12, showTypedWord: true, correctionLevel: 0,
             nextWordPredictionEnabled: true, contextPredictionEnabled: true, automaticLanguageDetection: false,
             passwordSavingEnabled: false, autoCapitalizationEnabled: false, urlHistoryEnabled: false},
-        Qt: {Key_Space: 32, Key_Backspace: 8, Key_Return: 13, Key_Enter: 14},
+        Qt: {Key_Space: 32, Key_Backspace: 8, Key_Return: 13, Key_Enter: 14,
+            Key_Escape: 27, Key_Left: 37, Key_Right: 39},
         ShiftState: {LockedShift: 3, LatchedShift: 2, NoShift: 0, AutoShift: 1},
         KeyType: {ShiftKey: 1, SymbolKey: 2}, Maliit: {KeyClick: 0},
         keyboard: {shiftState: 0, autocaps: false, layout: {}, expandedPaste: false},
@@ -61,7 +62,7 @@ function setup(initial = "", position = initial.length, options = {}) {
         suggestionsUpdated: noop, syncEditorTypedBuffer: noop, playAutomaticKeySound: noop, playOptionFeedback: noop,
         typingContinued: noop, captureEditorKey: noop, captureCredentialKey: noop, restorePressEffect: noop,
         handleArmedDesktopModifierKey: () => false, finishSwipeGesture: () => false,
-        conversionEnabled: false, conversion: {clear: noop}, handleConversionKey: () => false,
+        conversionEnabled: false, customPageAllowsSuggestions: true, conversion: {clear: noop}, handleConversionKey: () => false,
         refreshApplicationSuggestions: noop, credentialDebug: noop, credentialDebugContext: noop,
         refreshCredentialPlatform: noop, refreshAndroidKeyboardAutofill: noop, rememberCredentialContext: noop,
         refreshCredentialMatch: noop, endForcedAppSupportSession: noop,
@@ -82,6 +83,7 @@ function setup(initial = "", position = initial.length, options = {}) {
         "appendCommittedWordCharacter", "wordRangeAtCursor",
         "resetSuggestionDisplay", "requestSuggestionsSoon", "clearUndoCorrection", "undoLastCorrection",
         "wordStartBeforeReplacement", "lastWord", "contextBeforeCursor", "handleKeyClick", "insertWordCharacter", "commit",
+        "clearCustomDeadKey", "typeCustomText", "handleCustomLayoutKey",
         "isLetterCharacter", "isCombiningCharacter", "isInputCharacter", "smartPunctuationField",
         "spaceAfterPunctuationAllowed", "clearSwipeReplacementState", "resetSwipePath", "cancelSwipeSession",
         "discardPendingSwipeWord", "swipeSeparatorPrecedesKey", "insertPendingSwipeSeparator",
@@ -373,5 +375,51 @@ for (const delayed of [false, true]) check("mixed editing sequences never alter 
             assert.strictEqual(t.text, before, "suggestion reply " + i);
         }
     }
+});
+check("custom dead keys compose without exposing the pending accent to the editor", () => {
+    const t=setup();
+    t.context.keyboard.layout.composeCustomDeadKey=(dead,text)=>dead==="`"&&text==="e"?"è":text===" "||text===dead?dead:dead+text;
+    function dead(value) {t.context.pressedKey={key:0,text:value,keyType:0,customAction:"text",customDeadKey:true}; t.context.handleKeyClick();}
+    dead("`"); assert.equal(t.text,""); assert.equal(t.context.customPendingDeadKey,"`");
+    t.type("e"); assert.equal(t.text,"è"); assert.equal(t.context.customPendingDeadKey,"");
+    t.type(" "); dead("`"); t.type(" "); assert.equal(t.text,"è `");
+    dead("`"); t.backspace(); assert.equal(t.text,"è `"); assert.equal(t.context.customPendingDeadKey,"");
+    dead("`"); dead("`"); assert.equal(t.text,"è ``");
+    dead("`"); t.focus(""); assert.equal(t.context.customPendingDeadKey,"");
+});
+check("custom action and protected Quick Settings releases never type their labels", () => {
+    const t=setup(); let action="";
+    t.context.keyboard.layout.activateCustomAction=item=>action=item.action;
+    t.context.pressedKey={key:0,text:"",keyType:0,customAction:"page",customDefinition:{action:"page",target:"numbers"}};
+    assert.equal(t.context.handleKeyClick(),true);assert.equal(action,"page");assert.equal(t.text,"");
+    t.context.pressedKey={key:32,text:" ",keyType:0,reservedQuickSettings:true,heldForSettings:true};
+    assert.equal(t.context.handleKeyClick(),true);assert.equal(t.text,"");
+});
+for (const language of ["JA", "ZH", "ZH_HANT"]) check("custom keys use the active conversion engine for " + language, () => {
+    const t = setup(), submitted = [], actions = [];
+    const c = t.context;
+    c.conversionEnabled = true;
+    c.conversion = {language, submit: (operation, value) => submitted.push([operation, value]), kanaKeyEntered: noop};
+    c.handleConversionKey = vm.runInContext("(" + extract("handleConversionKey") + ")", c);
+    c.keyboard.layout.activateCustomAction = item => actions.push(item.action);
+    c.desktopKeyCode = action => ({esc: 27, left: 37, right: 39})[action];
+    t.type(language === "JA" ? "nihon" : "nihao");
+    assert.equal(t.text, "", "Phonetic keys must not bypass conversion");
+    assert.equal(submitted.map(item => item[1]).join(""), language === "JA" ? "nihon" : "nihao");
+    for (const action of ["left", "right", "esc"]) {
+        c.pressedKey = {key: 0, text: "", keyType: 0, customAction: action, customDefinition: {action}};
+        c.handleKeyClick();
+    }
+    assert.deepEqual(submitted.slice(-3).map(item => item[1]), ["65361", "65363", "65307"]);
+    assert.equal(actions.length, 0, "Navigation belongs to the unfinished conversion");
+    c.keyboard.layout.composeCustomDeadKey = () => "è";
+    c.pressedKey = {key: 0, text: "`", keyType: 0, customAction: "text", customDeadKey: true};
+    c.handleKeyClick(); t.type("e");
+    assert.deepEqual(submitted[submitted.length - 1], ["text", "è"]);
+    c.customPageAllowsSuggestions = false;
+    const before = submitted.length;
+    t.type("123");
+    assert.equal(t.text, "123", "A custom symbol page types its literal keys");
+    assert.equal(submitted.length, before, "Symbol pages must not feed Pinyin/Romaji");
 });
 console.log("Editor-state and suggestion ownership checks passed.");

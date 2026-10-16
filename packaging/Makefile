@@ -18,6 +18,7 @@ FOCUS_BINARY ?= $(BUILD_DIR)/futo-keyboard-focus
 APPSUPPORT_BINARY ?= $(BUILD_DIR)/futo-keyboard-appsupport
 BROWSER_ORIGIN_BINARY ?= $(BUILD_DIR)/futo-keyboard-browser-origin
 EDITOR_BINARY ?= $(BUILD_DIR)/futo-keyboard-editor
+LAYOUT_EDITOR_BINARY ?= $(BUILD_DIR)/futo-layout-editor
 ANDROID_AUTOFILL_APK ?= build/android/FutoAutofill.apk
 VOICE_BINARY ?= $(BUILD_DIR)/futo-keyboard-voice
 POLICY_LIBRARY ?= $(BUILD_DIR)/libfuto-maliit-policy.so.1
@@ -43,6 +44,10 @@ HANDLER_FILES := \
 	qml/FutoPasteButton.qml
 
 LAYOUT_FILES := \
+	layouts/FutoCustomKey.qml \
+	layouts/FutoCustomLayoutPanel.qml \
+	layouts/FutoCustomLayouts.js \
+	layouts/FutoDeadKeyData.js \
 	layouts/FutoCharacterKey.qml \
 	layouts/FutoBackspaceKey.qml \
 	layouts/FutoCommaKey.qml \
@@ -118,6 +123,7 @@ SETTINGS_QML := \
 	FutoDeviceLockInputPage.qml \
 	FutoSettingsTestPanel.qml \
 	FutoSettingsMenuItem.qml \
+	FutoLayoutEditorIcon.qml \
 	FutoLearnedDataPage.qml \
 	FutoPersonalWordsPage.qml \
 	FutoUrlHistoryPage.qml \
@@ -146,7 +152,7 @@ EMOJI_PREVIEW_CODEPOINTS := 1f600 1f44d 1f389 2764
 EMOJI_TAB_CODEPOINTS := 1f550 1f600 1f44b 1f43b 1f354 1f697 26bd 1f4a1 2764 1f3f3
 SOUND_FILES := $(wildcard assets/sounds/*.wav)
 SOUND_EXPECTED_FILES := 30
-ICON_FILES := assets/icons/icon-m-emoji.svg assets/icons/icon-m-kana-modifier.svg assets/icons/icon-m-kana-punctuation.svg assets/icons/futo-keyboard-sailfish.png assets/icons/futo-keyboard-sailfish.xpm
+ICON_FILES := assets/icons/icon-m-emoji.svg assets/icons/icon-m-kana-modifier.svg assets/icons/icon-m-kana-punctuation.svg assets/icons/futo-keyboard-cover.svg assets/icons/futo-keyboard-sailfish.png assets/icons/futo-keyboard-sailfish.xpm
 FONT_FILES := \
 	assets/fonts/Amiri-Regular.ttf \
 	assets/fonts/NotoSansTifinagh-Regular.ttf \
@@ -177,6 +183,7 @@ check:
 	@test -s "$(APPSUPPORT_BINARY)" || { echo "Missing AppSupport keyboard bridge" >&2; exit 1; }
 	@test -s "$(BROWSER_ORIGIN_BINARY)" || { echo "Missing browser-origin resolver" >&2; exit 1; }
 	@test -s "$(EDITOR_BINARY)" || { echo "Missing restricted credential editor" >&2; exit 1; }
+	@test -s "$(LAYOUT_EDITOR_BINARY)" || { echo "Missing layout editor" >&2; exit 1; }
 	@test -s "$(ANDROID_AUTOFILL_APK)" || { echo "Build the optional Android autofill companion first" >&2; exit 1; }
 	@test -s "$(VOICE_BINARY)" || { echo "Missing $(ARCH) voice worker" >&2; exit 1; }
 	@for file in $(HANDLER_FILES); do test -s "$$file" || exit 1; done
@@ -280,6 +287,11 @@ install: check
 	install -Dm0755 "$(APPSUPPORT_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-appsupport"
 	install -Dm4755 "$(BROWSER_ORIGIN_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-browser-origin"
 	install -Dm4755 "$(EDITOR_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-editor"
+	install -Dm0755 "$(LAYOUT_EDITOR_BINARY)" "$(DESTDIR)$(PREFIX)/bin/futo-layout-editor"
+	install -Dm0644 editor/futo-layout-editor.desktop "$(DESTDIR)$(PREFIX)/share/applications/futo-layout-editor.desktop"
+	@for file in editor/*.qml editor/*.js qml/FutoMemorial.qml qml/FutoSettingsMenuItem.qml layouts/FutoSymbolData.js layouts/FutoLetterLayouts.js layouts/FutoGeneratedLayouts.js layouts/FutoLanguageCatalogue.js layouts/FutoCustomLayouts.js layouts/FutoDeadKeyData.js; do \
+		install -Dm0644 "$$file" "$(PACKAGE_ROOT)/editor/$$(basename "$$file")"; \
+	done
 	install -Dm0755 "$(VOICE_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-voice"
 	install -Dm0755 "$(POLICY_LIBRARY)" \
 		"$(DESTDIR)$(LIBDIR)/libfuto-maliit-policy.so.1"
@@ -328,6 +340,9 @@ install: check
 	done
 	install -Dm0644 layouts/FutoLetterLayouts.js \
 		"$(DESTDIR)$(PREFIX)/share/jolla-settings/pages/futo-keyboard-sailfish/FutoLetterLayouts.js"
+	@for file in layouts/FutoCustomLayouts.js layouts/FutoDeadKeyData.js; do \
+		install -Dm0644 "$$file" "$(DESTDIR)$(PREFIX)/share/jolla-settings/pages/futo-keyboard-sailfish/$$(basename "$$file")"; \
+	done
 	install -Dm0644 layouts/FutoGeneratedLayouts.js \
 		"$(DESTDIR)$(PREFIX)/share/jolla-settings/pages/futo-keyboard-sailfish/FutoGeneratedLayouts.js"
 	install -Dm0644 layouts/FutoLanguageCatalogue.js \

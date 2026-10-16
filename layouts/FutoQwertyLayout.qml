@@ -5,12 +5,14 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0 as Silica
 import Nemo.Configuration 1.0
+import Nemo.DBus 2.0
 import com.jolla.keyboard 1.0
 import com.meego.maliitquick 1.0
 import ".."
 import "FutoSymbolData.js" as SymbolData
 import "FutoLetterLayouts.js" as LetterLayouts
 import "FutoLanguageData.js" as LanguageData
+import "FutoCustomLayouts.js" as CustomLayouts
 
 FutoKeyboardLayout {
     id: root
@@ -64,6 +66,7 @@ FutoKeyboardLayout {
         property int layoutVariant: 0
         property string layoutAssignments: "{}"
         property string layoutIds: "{}"
+        property string customLayoutsJson: '{"version":1,"layouts":[]}'
         property int layoutAssignmentVersion: 0
         property string manualLayoutAssignments: "{}"
         property int layoutDefaultsVersion: 3
@@ -91,9 +94,132 @@ FutoKeyboardLayout {
         property bool debugInputContext: false
     }
 
-    readonly property int layoutVariant: LetterLayouts.clampedIndex(
-                                             layoutSettings.layoutVariant)
-    readonly property string compositionHint: LetterLayouts.imeHint(layoutVariant)
+    property int customLayoutRevision: 0
+    property string loadedCustomLayoutsJson: ""
+    readonly property int layoutVariant: { customLayoutRevision; return LetterLayouts.clampedIndex(layoutSettings.layoutVariant) }
+    readonly property var customDocument: { customLayoutRevision; return customPreviewActive ? customPreviewCandidate.layout : LetterLayouts.customDocument(layoutVariant) }
+    readonly property bool customLayoutActive: customDocument !== null
+    property string customPageId: ""
+    readonly property var customPage: customDocument ? customDocument.pages[CustomLayouts.pageIndex(customDocument, customPageId)] : null
+    readonly property bool customPageIsText: !customPage || customPage.kind === "text"
+    readonly property bool customInputRightToLeft: customLayoutActive
+            && ["AR", "FA", "UR", "PS", "UG", "SD"].indexOf(selectedPredictionLanguage(layoutVariant)) >= 0
+    readonly property bool customSurfaceVisible: customLayoutActive && !attributes.inSymView
+            && !emojiMode && !extendedSymbolMode && !extraKeysMode && !layoutEditorMode
+            && !clipboardMode && !credentialMode
+    onCustomDocumentChanged: {
+        if (!customDocument) customPageId = ""
+        else if (!customPageId || customDocument.pages[CustomLayouts.pageIndex(customDocument, customPageId)].id !== customPageId)
+            customPageId = customDocument.pages[0].id
+        if (customDocument && keyboard.layout === root) {
+            keyboard.inSymView = false
+            keyboard.inSymView2 = false
+        }
+        if (handler && handler.clearCustomDeadKey) handler.clearCustomDeadKey()
+        rowRelayoutTimer.restart()
+    }
+    function reloadCustomLayouts(raw) {
+        raw = String(raw)
+        if (raw === loadedCustomLayoutsJson) return
+        var previousId = LetterLayouts.idForIndex(layoutSettings.layoutVariant)
+        var previousLanguage = selectedPredictionLanguage(layoutVariant)
+        if (!LetterLayouts.setCustomLayouts(raw)) return
+        loadedCustomLayoutsJson = raw
+        customLayoutRevision++
+        var index = LetterLayouts.indexForId(previousId)
+        if (index < 0 && previousLanguage !== "")
+            index = LetterLayouts.defaultForLanguage(previousLanguage)
+        if (index >= 0 && layoutSettings.layoutVariant !== index) layoutSettings.layoutVariant = index
+        if (layoutSettings.customLayoutsJson !== String(raw)) layoutSettings.customLayoutsJson = String(raw)
+        if (layoutConfigurationReady) ensureLayoutAssignments()
+        rowRelayoutTimer.restart()
+    }
+    function activateCustomAction(item) {
+        if (item.action === "page" && customDocument) {
+            var document = customDocument
+            var destination = document.pages[CustomLayouts.pageIndex(document, item.target)].id
+            if (handler && handler.finishConversion)
+                handler.finishConversion(function() { if (root.customDocument === document) root.applyCustomPage(destination) })
+            else applyCustomPage(destination)
+        } else if (item.action === "emoji") showEmojiPicker()
+        else if (item.action === "symbols") showExtendedSymbolPicker()
+        else if (item.action === "language") cycleLetterLayout()
+        else if (item.action === "clipboard") showClipboardHistory()
+        else if (item.action === "voice" && handler) { hideControlStrip(); handler.toggleVoiceInput() }
+        else if (item.action !== "spacer" && handler) handler.activateDesktopKey(item.action)
+    }
+    function applyCustomPage(id) {
+        if (!customDocument) return
+        if (handler && handler.clearCustomDeadKey) handler.clearCustomDeadKey()
+        if (handler && handler.cancelSwipeSession) handler.cancelSwipeSession()
+        customPageId = customDocument.pages[CustomLayouts.pageIndex(customDocument, id)].id
+    }
+    function composeCustomDeadKey(dead, text) { return CustomLayouts.compose(dead, text) }
+    // An unsaved test layout is a short, foreground-process-scoped lease. It
+    // never enters the saved catalogue or changes the user's layout choice.
+    ConfigurationGroup {
+        id: customPreviewSettings
+        path: "/sailfish/text_input/futo_keyboard/layoutEditorPreview"
+        property string document: ""
+        property double expires: 0
+        onExpiresChanged: root.refreshCustomPreviewLease()
+    }
+    readonly property var customPreviewCandidate: parseCustomPreview(customPreviewSettings.document)
+    onCustomPreviewCandidateChanged: { customPreviewFocusMatches = false; refreshCustomPreviewLease(); refreshCustomPreviewFocus() }
+    property bool customPreviewLeaseValid: false
+    property bool customPreviewFocusMatches: false
+    property int customPreviewFocusSerial: 0
+    readonly property bool customPreviewActive: customPreviewCandidate !== null
+            && customPreviewLeaseValid && customPreviewFocusMatches && MInputMethodQuick.active
+    function parseCustomPreview(raw) {
+        if (!raw || raw.length > 262400) return null
+        try {
+            var value = JSON.parse(raw)
+            if (!value || typeof value.owner !== "number" || value.owner < 2
+                    || value.owner > 2147483647 || Math.floor(value.owner) !== value.owner
+                    || !CustomLayouts.valid(value.layout, false)) return null
+            return value
+        } catch (error) { return null }
+    }
+    function refreshCustomPreviewLease() {
+        var remaining = customPreviewSettings.expires - Date.now()
+        var wasValid = customPreviewLeaseValid
+        // Reject far-future/stale leases as well as malformed documents.
+        customPreviewLeaseValid = customPreviewCandidate !== null && remaining > 0 && remaining <= 6500
+        customPreviewExpiry.stop()
+        if (customPreviewLeaseValid) {
+            customPreviewExpiry.interval = Math.ceil(remaining) + 10
+            customPreviewExpiry.start()
+            if (!wasValid) refreshCustomPreviewFocus()
+        } else { customPreviewFocusSerial++; customPreviewFocusMatches = false }
+    }
+    function refreshCustomPreviewFocus() {
+        var serial = ++customPreviewFocusSerial
+        customPreviewFocusMatches = false
+        if (!customPreviewLeaseValid || !customPreviewCandidate || !MInputMethodQuick.active || keyboard.layout !== root) return
+        var owner = customPreviewCandidate.owner
+        customPreviewCompositor.typedCall("privateTopmostWindowProcessId", [], function(pid) {
+            if (serial === root.customPreviewFocusSerial && root.customPreviewLeaseValid
+                    && root.customPreviewCandidate && root.customPreviewCandidate.owner === owner
+                    && MInputMethodQuick.active && keyboard.layout === root)
+                root.customPreviewFocusMatches = Number(pid) === owner
+        }, function() { if (serial === root.customPreviewFocusSerial) root.customPreviewFocusMatches = false })
+    }
+    Timer { id: customPreviewExpiry; onTriggered: root.refreshCustomPreviewLease() }
+    DBusInterface {
+        id: customPreviewCompositor
+        bus: DBus.SessionBus; service: "org.nemomobile.lipstick"; path: "/"; iface: "org.nemomobile.compositor"
+    }
+    DBusInterface {
+        id: customLayoutHelper
+        bus: DBus.SessionBus; service: "org.hb.FutoKeyboard1"; path: "/org/hb/FutoKeyboard1"; iface: "org.hb.FutoKeyboard1"
+        watchServiceStatus: true; signalsEnabled: true
+        function customLayoutsChanged(raw) { root.reloadCustomLayouts(raw) }
+        onStatusChanged: if (status === DBusInterface.Available)
+            typedCall("ListCustomLayouts", [], function(raw) { root.reloadCustomLayouts(raw) }, function() {})
+    }
+    readonly property string compositionHint: customLayoutActive
+            ? LetterLayouts.customCompositionHint(selectedPredictionLanguage(layoutVariant)) : LetterLayouts.imeHint(layoutVariant)
     readonly property string compositionLanguage: compositionHint !== ""
             ? selectedPredictionLanguage(layoutVariant) : ""
     readonly property string compositionLanguageLabel: compositionLanguage !== ""
@@ -102,10 +228,10 @@ FutoKeyboardLayout {
     readonly property string compositionModeHint: compositionHint === "12key" && compositionLatinMode
             ? "12key-latin" : compositionHint
     property bool layoutConfigurationReady: false
-    readonly property int renderedLayoutVariant: compositionLatinMode
+    readonly property int renderedLayoutVariant: !customLayoutActive && (compositionLatinMode
             && compositionLanguage === "JA" && compositionHint !== "12key" || (compositionHint === "12key"
-                && handler && !handler.conversionEnabled) ? 0 : layoutVariant
-    readonly property bool japaneseFlickLayout: LetterLayouts.imeHint(renderedLayoutVariant) === "12key"
+                && handler && !handler.conversionEnabled)) ? 0 : layoutVariant
+    readonly property bool japaneseFlickLayout: !customLayoutActive && LetterLayouts.imeHint(renderedLayoutVariant) === "12key"
     readonly property real thumbLetterKeyWidth: {
         if (!thumbMode || japaneseFlickLayout) return 0
         var columns = 1
@@ -117,7 +243,8 @@ FutoKeyboardLayout {
     // ABC changes the rendered grid without changing the saved Japanese
     // layout. Wait for the new cell models/loaders before measuring the rows.
     onRenderedLayoutVariantChanged: rowRelayoutTimer.restart()
-    onCompositionLanguageChanged: compositionLatinMode = false
+    onCompositionLanguageChanged: { compositionLatinMode = false; applyConfiguredAutocaps() }
+    onCompositionHintChanged: { compositionLatinMode = false; applyConfiguredAutocaps() }
     readonly property int symbolNumberLayout: Math.max(0, Math.min(2,
                                                                   layoutSettings.symbolNumberLayout))
     readonly property int emojiStyle: Math.max(0, Math.min(3, layoutSettings.emojiStyle))
@@ -128,12 +255,14 @@ FutoKeyboardLayout {
     readonly property bool numberRowEnabled: layoutSettings.numberRowEnabled
 	readonly property int letterRowCount: japaneseFlickLayout ? 3
             : LetterLayouts.rowCount(renderedLayoutVariant)
-	readonly property bool effectiveNumberRowEnabled: LetterLayouts.numberRowAllowed(renderedLayoutVariant)
+	readonly property bool effectiveNumberRowEnabled: !customLayoutActive && LetterLayouts.numberRowAllowed(renderedLayoutVariant)
             && (numberRowEnabled || LetterLayouts.numberRowRequired(renderedLayoutVariant))
 	readonly property real numberRowHeightScale: Math.max(0.5, Math.min(1.0,
 			isFinite(Number(layoutSettings.numberRowHeightScale))
 			? Number(layoutSettings.numberRowHeightScale) : 1.0))
-	readonly property real keyboardPanelHeight: (1 + letterRowCount
+	readonly property real keyboardPanelHeight: customLayoutActive
+            ? Math.max(3, Math.min(5, customDocument.pages[0].rows.length)) * keyHeight
+            : (1 + letterRowCount
 			+ (effectiveNumberRowEnabled
 			? numberRowHeightScale : 0)) * keyHeight
     readonly property bool automaticPrivateInput: MInputMethodQuick.hiddenText
@@ -153,16 +282,18 @@ FutoKeyboardLayout {
     readonly property bool languagesShareActiveLayout:
 		layoutSettings.automaticLanguageDetection
 		&& layoutSettings.mergeSameLayoutLanguages
+    readonly property bool separateLayoutLanguages: !languagesShareActiveLayout || layoutHasConversionLanguages(layoutVariant)
     readonly property int languageSwitchCount: languageSwitchEntries().length
     readonly property string currentLetterLayoutName: letterLayoutName(
             layoutVariant, selectedPredictionLanguage(layoutVariant))
-    readonly property string currentLetterLayoutMenuName:
-            LetterLayouts.menuNameForLanguage(
-                layoutVariant, selectedPredictionLanguage(layoutVariant))
-    readonly property string currentLayoutLanguages: languagesShareActiveLayout && compositionHint === ""
+    readonly property string currentLetterLayoutMenuName: {
+        customLayoutRevision
+        return LetterLayouts.menuNameForLanguage(layoutVariant, selectedPredictionLanguage(layoutVariant))
+    }
+    readonly property string currentLayoutLanguages: !separateLayoutLanguages
 			? languageNamesForLayout(layoutVariant)
 			: LanguageData.name(selectedPredictionLanguage(layoutVariant))
-    readonly property string currentLayoutLanguageCodes: languagesShareActiveLayout && compositionHint === ""
+    readonly property string currentLayoutLanguageCodes: !separateLayoutLanguages
 			? languagesForLayout(layoutVariant).join("+")
 			: selectedPredictionLanguage(layoutVariant)
     // Raised by the Space key while its language chooser is open, so the
@@ -194,7 +325,7 @@ FutoKeyboardLayout {
         return ""
     }
     readonly property string currentLayoutMenuLanguageLabel: {
-        if (!languagesShareActiveLayout || compositionHint !== "")
+        if (separateLayoutLanguages)
             return selectedPredictionLanguage(layoutVariant)
         var languages = languagesForLayout(layoutVariant)
         return languages.length > 2 ? qsTr("MULTI") : languages.join("+")
@@ -411,6 +542,8 @@ FutoKeyboardLayout {
         layoutSettings.layoutAssignments = JSON.stringify(assignments)
         layoutSettings.layoutAssignmentVersion = 2
         layoutSettings.layoutVariant = layoutValue
+        if (!languagesShareActiveLayout || layoutHasConversionLanguages(layoutValue))
+            layoutSettings.manualPredictionLanguage = String(languageCode)
         synchronizeDetectedLanguage()
         return true
     }
@@ -546,7 +679,7 @@ FutoKeyboardLayout {
     }
 
     function predictionLanguagesForLayout(layoutValue) {
-        if (!languagesShareActiveLayout) {
+        if (!languagesShareActiveLayout || layoutHasConversionLanguages(layoutValue)) {
             var selected = selectedPredictionLanguage(layoutValue)
             return selected !== "" && LanguageData.predictionSupported(selected)
                     ? selected : ""
@@ -558,6 +691,13 @@ FutoKeyboardLayout {
                 result.push(languages[i])
         }
         return result.join(",")
+    }
+
+    function layoutHasConversionLanguages(layoutValue) {
+        var languages = languagesForLayout(layoutValue)
+        for (var i = 0; i < languages.length; i++)
+            if (LetterLayouts.imeHint(layoutValue, languages[i]) !== "") return true
+        return false
     }
 
     function selectedPredictionLanguage(layoutValue) {
@@ -584,6 +724,7 @@ FutoKeyboardLayout {
     }
 
     function compatibleLetterLayouts(languageCode) {
+        customLayoutRevision
         return LetterLayouts.compatibleIndices(languageCode)
     }
 
@@ -604,6 +745,7 @@ FutoKeyboardLayout {
     }
 
     function letterLayoutName(value, languageCode) {
+        customLayoutRevision
         return LetterLayouts.nameForLanguage(value, languageCode)
     }
 
@@ -734,7 +876,7 @@ FutoKeyboardLayout {
         var languages = languagesForLayout(layoutVariant)
         if (languages.length < 1)
             return
-        if (!languagesShareActiveLayout || compositionHint !== "") {
+        if (!languagesShareActiveLayout || layoutHasConversionLanguages(layoutVariant)) {
             var selected = selectedPredictionLanguage(layoutVariant)
             if (selected === "")
                 return
@@ -766,7 +908,7 @@ FutoKeyboardLayout {
         var groups = configuredLayoutGroups()
         for (i = 0; i < groups.length; ++i) {
             var codes = languagesForLayout(groups[i])
-            if (LetterLayouts.imeHint(groups[i]) !== "") {
+            if (layoutHasConversionLanguages(groups[i])) {
                 for (var j = 0; j < codes.length; ++j)
                     result.push({ "code": codes[j], "name": LanguageData.name(codes[j]),
                                   "layout": groups[i] })
@@ -782,7 +924,7 @@ FutoKeyboardLayout {
     function currentLanguageSwitchIndex() {
         var entries = languageSwitchEntries()
         var i
-        if (!languagesShareActiveLayout || compositionHint !== "") {
+        if (separateLayoutLanguages) {
             var selected = selectedPredictionLanguage(layoutVariant)
             for (i = 0; i < entries.length; ++i) {
                 if (entries[i].code === selected)
@@ -816,7 +958,7 @@ FutoKeyboardLayout {
             suppressNextLayoutSwipeCancel = true
             layoutSettings.layoutVariant = entry.layout
         }
-        if ((!languagesShareActiveLayout || LetterLayouts.imeHint(entry.layout) !== "")
+        if ((!languagesShareActiveLayout || layoutHasConversionLanguages(entry.layout))
                 && entry.code !== "") {
             if (String(layoutSettings.manualPredictionLanguage) !== entry.code)
                 suppressNextLanguageSwipeCancel = true
@@ -1227,6 +1369,7 @@ FutoKeyboardLayout {
     Connections {
         target: MInputMethodQuick
         onActiveChanged: {
+            root.refreshCustomPreviewFocus()
             if (MInputMethodQuick.active && layoutSettings.debugInputContext)
                 contextDebugTimer.restart()
             if (!MInputMethodQuick.active) {
@@ -1251,6 +1394,7 @@ FutoKeyboardLayout {
             }
         }
         onFocusTargetChanged: {
+            root.refreshCustomPreviewFocus()
             if (MInputMethodQuick.active && layoutSettings.debugInputContext)
                 contextDebugTimer.restart()
         }
@@ -1299,9 +1443,11 @@ FutoKeyboardLayout {
         onEnabledLanguagesChanged: if (root.layoutConfigurationReady) root.ensureLayoutAssignments()
         onLayoutAssignmentsChanged: root.ensureActiveLetterLayout()
         onLayoutIdsChanged: root.ensureActiveLetterLayout()
+        onCustomLayoutsJsonChanged: root.reloadCustomLayouts(layoutSettings.customLayoutsJson)
         onAutomaticLanguageDetectionChanged: root.synchronizeDetectedLanguage()
         onMergeSameLayoutLanguagesChanged: root.synchronizeDetectedLanguage()
         onManualPredictionLanguageChanged: {
+            if (root.handler && root.handler.clearCustomDeadKey) root.handler.clearCustomDeadKey()
             if (root.suppressNextLanguageSwipeCancel) {
                 root.suppressNextLanguageSwipeCancel = false
             } else if (root.handler && root.handler.cancelSwipeSession) {
@@ -1321,6 +1467,7 @@ FutoKeyboardLayout {
     }
 
     Component.onCompleted: {
+        reloadCustomLayouts(layoutSettings.customLayoutsJson)
         loadExtendedSymbolFavorites()
         initialLayoutConfiguration.start()
     }
@@ -1353,7 +1500,7 @@ FutoKeyboardLayout {
 		height: Math.round(root.keyHeight * (root.effectiveNumberRowEnabled
 			? root.numberRowHeightScale : 1.0))
         opacity: root.cursorMoveMode ? 0 : 1
-        visible: !root.emojiMode && !root.extendedSymbolMode
+        visible: !root.customLayoutActive && !root.emojiMode && !root.extendedSymbolMode
                  && !root.extraKeysMode
                  && !root.layoutEditorMode && !root.clipboardMode
 				 && !root.credentialMode
@@ -1376,7 +1523,7 @@ FutoKeyboardLayout {
     FutoGeneratedNumberRow {
         targetLayout: root
         layoutIndex: root.layoutVariant
-        visible: !root.emojiMode && !root.extendedSymbolMode
+        visible: !root.customLayoutActive && !root.emojiMode && !root.extendedSymbolMode
                  && !root.extraKeysMode && !root.layoutEditorMode
                  && !root.clipboardMode && !root.credentialMode
                  && !attributes.inSymView && !root.numpadMode
@@ -1396,6 +1543,13 @@ FutoKeyboardLayout {
     FutoLetterRow { targetLayout: root; layoutIndex: root.renderedLayoutVariant; rowIndex: 3 }
     FutoLetterRow { targetLayout: root; layoutIndex: root.renderedLayoutVariant; rowIndex: 4 }
 
+    FutoCustomLayoutPanel {
+        targetLayout: root
+        visible: root.customSurfaceVisible
+        height: root.keyboardPanelHeight
+        opacity: root.cursorMoveMode ? 0 : 1
+    }
+
     FutoJapaneseFlickPanel {
         targetLayout: root
         visible: root.japaneseFlickLayout && !attributes.inSymView
@@ -1406,7 +1560,7 @@ FutoKeyboardLayout {
 
     FutoSpacebarRow {
         opacity: root.cursorMoveMode ? 0 : 1
-        visible: !root.emojiMode && !root.extendedSymbolMode
+        visible: !root.customLayoutActive && !root.emojiMode && !root.extendedSymbolMode
                  && !root.extraKeysMode
                  && !root.layoutEditorMode && !root.clipboardMode
 				 && !root.credentialMode

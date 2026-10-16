@@ -16,6 +16,13 @@ private temporary profiles, and Chinese dictionary preparation. Supported
 modes and exact upstream revisions are recorded in `UPSTREAM.md`; component
 and data notices are in `LICENSES/FUTO-COMPOSITION-NOTICE.md`.
 
+The FUTO Layout Editor adds a native landscape editor for custom layouts,
+including key arrangement and sizing, multiple pages, long-press alternatives,
+Unicode dead keys, local testing, and layout import/export and sharing. Its
+versioned layout documents contain inert key data, not executable code or
+commands. Custom layouts can be assigned to any supported language; Japanese
+and Chinese use the existing conversion engines with their custom key positions.
+
 Sailfish-specific code adds a unified Maliit layout, a QML input handler,
 multilingual native settings, a local D-Bus service, a native dictionary worker,
 configurable auto-correction with undo, cross-language typo/prefix ranking, and

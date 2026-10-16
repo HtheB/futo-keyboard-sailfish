@@ -89,17 +89,28 @@ Session.prototype.begin = function(language, layout, privateMode, options) {
         {type: "b", value: privateMode}
     ]
     if (configured) args.push({type: "s", value: configuration})
-    this.transport(configured ? "StartCompositionWithOptions" : "StartComposition", args, function(reply) {
-        if (epoch !== self.epoch) {
-            try { self.endToken(String(JSON.parse(String(reply)).session || "")) }
-            catch (error) {}
-            return
-        }
-        self.busy = false
-        self.starting = false
-        if (self.accept(reply, null, epoch))
-            self.pump()
-    }, function() { self.fail(epoch) })
+    var attempt = 0
+    function start() {
+        var currentAttempt = ++attempt
+        self.transport(configured ? "StartCompositionWithOptions" : "StartComposition", args, function(reply) {
+            if (epoch !== self.epoch || currentAttempt !== attempt) {
+                try { self.endToken(String(JSON.parse(String(reply)).session || "")) }
+                catch (error) {}
+                return
+            }
+            self.busy = false
+            self.starting = false
+            if (self.accept(reply, null, epoch))
+                self.pump()
+        }, function(name) {
+            if (epoch !== self.epoch || currentAttempt !== attempt) return
+            // Cold dictionary preparation can outlast the D-Bus call. No
+            // text has been sent yet, so one retry keeps the queued keys safe.
+            if (attempt === 1 && String(name) === "org.freedesktop.DBus.Error.NoReply") start()
+            else self.fail(epoch)
+        })
+    }
+    start()
 }
 
 Session.prototype.enqueue = function(operation, value, after) {

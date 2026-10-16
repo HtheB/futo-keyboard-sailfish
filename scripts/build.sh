@@ -365,6 +365,11 @@ RUNTIME_QT_DIRECTORY=/usr/lib/qt5
     -lpthread -ldl -o "$BUILD/futo-keyboard-setup-toast"
 "$STRIP" "$BUILD/futo-keyboard-setup-toast"
 
+FUTO_ARCH="$ARCH" FUTO_BUILD_DIR="$BUILD" FUTO_CXX="$CXX" FUTO_STRIP="$STRIP" \
+    FUTO_TARGET_SYSROOT="$TARGET_SYSROOT" FUTO_QT_INCLUDE_ROOT="$QT_INCLUDE_ROOT" \
+    FUTO_QML_INCLUDE_ROOT="$QML_INCLUDE_ROOT" FUTO_TARGET_LIB_ROOT="$TARGET_LIB_ROOT" \
+    FUTO_TOOLCHAIN_SHIM="$TOOLCHAIN_SHIM" bash "$ROOT/scripts/build-layout-editor.sh"
+
 "$CC" "${TARGET_COMPILE_FLAGS[@]}" -std=c11 -O2 -DNDEBUG -fPIE -pie \
     -Wall -Wextra -Werror \
     "$ROOT/vault/futo-keyboard-keyring.c" \

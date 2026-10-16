@@ -43,6 +43,7 @@ Item {
     Component.onCompleted: ensureLanguage()
     onEnabledLanguagesChanged: ensureLanguage()
     onSelectedLanguageChanged: syncTimer.restart()
+    onLayoutChoicesChanged: syncTimer.restart()
 
     Timer {
         id: syncTimer

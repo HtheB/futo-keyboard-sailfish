@@ -1,6 +1,7 @@
 .pragma library
 .import "FutoGeneratedLayouts.js" as Generated
 .import "FutoLanguageCatalogue.js" as Catalogue
+.import "FutoCustomLayouts.js" as Custom
 
 // Layout rows and language-specific long-press choices are adapted from the
 // pinned Apache-2.0 futo-org/futo-keyboard-layouts catalogue and the locale
@@ -269,6 +270,26 @@ var pre071Defaults = {"SJE":91,"BN_BD":31,"BN_IN":32,"BOD":33,"CA":34,"CKB":35,"
 var legacyLayoutCount = legacyLayouts.length
 var layouts = legacyLayouts.concat(Generated.layouts)
 var count = layouts.length
+var builtinCount = count
+var customIndexById = {}
+
+function setCustomLayouts(raw) {
+    var collection = Custom.parse(raw)
+    if (!collection) return false
+    layouts = layouts.slice(0, builtinCount)
+    menuNames = menuNames.slice(0, builtinCount)
+    customIndexById = {}
+    for (var i = 0; i < collection.layouts.length; ++i) {
+        var document = collection.layouts[i]
+        customIndexById[document.id] = layouts.length
+        layouts.push({id: document.id, name: document.name + " (Custom)", script: "custom",
+            rows: Custom.textRows(document), customDocument: document})
+        menuNames.push(document.name + " (Custom)")
+    }
+    count = layouts.length
+    return true
+}
+function customDocument(value) { return layouts[clampedIndex(value)].customDocument || null }
 
 // Compact names are used only in the narrow held-123 action strip.  The
 // layout editor and Settings continue to show the full descriptive names.
@@ -388,6 +409,7 @@ function idForIndex(value) {
 
 function indexForId(id) {
     id = String(id || "")
+    if (customIndexById[id] !== undefined) return customIndexById[id]
     if (generatedIndexById[id] !== undefined)
         return generatedIndexById[id]
     if (/^legacy-[0-9]+$/.test(id)) {
@@ -404,6 +426,9 @@ function assignedIndex(code, assignments, identities) {
     var compatible = compatibleIndices(code)
     if (index >= 0 && compatible.indexOf(index) >= 0)
         return index
+    // A deleted custom layout's numeric slot may now belong to another one.
+    if (String(identities[code] || "").indexOf("custom-") === 0)
+        return defaultForLanguage(code)
     var value = Number(assignments[code])
     // Old numeric settings carry no catalogue version. Only translate a
     // recognizable former default, never guess arbitrary custom selections.
@@ -443,8 +468,13 @@ function script(value) {
     return layouts[clampedIndex(value)].script
 }
 
-function imeHint(value) {
-    return String(layouts[clampedIndex(value)].imeHint || "")
+function customCompositionHint(languageCode) {
+    return ["JA", "ZH", "ZH_HANT"].indexOf(String(languageCode || "").toUpperCase()) >= 0 ? "qwerty" : ""
+}
+
+function imeHint(value, languageCode) {
+    var layout = layouts[clampedIndex(value)]
+    return layout.customDocument ? customCompositionHint(languageCode) : String(layout.imeHint || "")
 }
 
 function flickRows(value, latinMode) {
@@ -508,6 +538,8 @@ function compatibleIndices(languageCode) {
     languageCode = String(languageCode).toUpperCase()
     var wantedScript = languageScript(languageCode)
     var result = []
+    var custom = []
+    for (var customIndex = builtinCount; customIndex < layouts.length; ++customIndex) custom.push(customIndex)
     if (wantedScript === "latin") {
         // As agreed for the visual layout editor, direct Latin layouts are
         // interchangeable (for example English can use Turkish F).
@@ -515,7 +547,7 @@ function compatibleIndices(languageCode) {
             if (layouts[i].script === "latin")
                 result.push(i)
         }
-        return result
+        return result.concat(custom)
     }
 
     // Do not fall back from one non-Latin script layout to another. Offer the
@@ -534,7 +566,7 @@ function compatibleIndices(languageCode) {
         if (generatedIndex !== undefined && result.indexOf(generatedIndex) < 0)
             result.push(generatedIndex)
     }
-    return result
+    return result.concat(custom)
 }
 
 function rawKey(value, row, column) {

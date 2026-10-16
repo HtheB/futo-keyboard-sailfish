@@ -16,13 +16,14 @@ const context = {
     handler: {detectedLanguage: "EN"}, layoutVariant: 0,
     compositionHint: "", layoutConfigurationReady: true,
     languagesForLayout: () => ["EN", "IS"],
+    LetterLayouts: {imeHint: (_layout, code) => ["JA", "ZH", "ZH_HANT"].includes(code) ? "qwerty" : ""},
     LanguageData: {predictionSupported: () => true}
 };
 context.root = context;
 Object.defineProperty(context, "languagesShareActiveLayout", {get: () =>
     context.layoutSettings.automaticLanguageDetection && context.layoutSettings.mergeSameLayoutLanguages});
 vm.createContext(context);
-for (const name of ["predictionLanguagesForLayout", "selectedPredictionLanguage", "synchronizeDetectedLanguage"])
+for (const name of ["layoutHasConversionLanguages", "predictionLanguagesForLayout", "selectedPredictionLanguage", "synchronizeDetectedLanguage"])
     vm.runInContext(qmlFunction(name), context);
 for (const automatic of [false, true]) {
     context.layoutSettings.automaticLanguageDetection = automatic;

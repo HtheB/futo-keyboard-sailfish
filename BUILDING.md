@@ -27,6 +27,9 @@ compiler runtimes or target binutils are reported before the full build begins.
 The SDK target needs the Qt 5 base/Wayland development files and Sailfish
 Secrets development files. In particular, it must contain Qt's `qconfig.h`,
 `qfeatures.h` and the runtime libraries checked by the preparation script.
+The layout editor also needs the target SailfishApp and declarative-cache
+headers and libraries. Layout sharing uses the `sailfishshare-components`
+runtime package, which the RPM declares as a dependency.
 
 Japanese and Chinese conversion also require a C++20-capable target compiler,
 Bazel 8.2.1 and CMake 3.22 or newer. The pinned upstream sources are prepared by

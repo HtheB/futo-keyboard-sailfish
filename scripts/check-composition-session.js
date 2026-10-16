@@ -17,6 +17,41 @@ function setup() {
 }
 {
     const t = setup();
+    t.session.begin("ZH", "qwerty");
+    t.session.enqueue("text", "n"); t.session.enqueue("text", "i");
+    t.calls[0].failure("org.freedesktop.DBus.Error.NoReply");
+    assert.equal(t.calls.length, 2, "A cold startup gets one bounded retry");
+    assert.equal(t.session.queue.length, 2, "Queued input survives preparation");
+    assert.equal(t.session.starting, true);
+    t.reply(t.calls[1], "warm-session");
+    assert.deepStrictEqual(t.calls[2].args, ["warm-session", 0, "text", "n"]);
+    t.reply(t.calls[2], "warm-session", 1);
+    assert.deepStrictEqual(t.calls[3].args, ["warm-session", 1, "text", "i"]);
+    t.reply(t.calls[3], "warm-session", 2);
+    t.reply(t.calls[0], "abandoned-session");
+    assert.equal(t.session.token, "warm-session", "A late startup cannot replace the current session");
+    assert.equal(t.calls[t.calls.length - 1].method, "EndComposition");
+    assert.equal(t.calls[t.calls.length - 1].args[0], "abandoned-session");
+}
+{
+    const t = setup();
+    t.session.begin("JA", "qwerty");
+    t.calls[0].failure("org.freedesktop.DBus.Error.NoReply");
+    t.calls[1].failure("org.freedesktop.DBus.Error.NoReply");
+    assert.equal(t.calls.length, 2, "Startup retries cannot loop");
+    assert.equal(t.failures.length, 1);
+    assert.equal(t.session.queue.length, 0);
+}
+{
+    const t = setup();
+    t.session.begin("ZH", "qwerty");
+    t.session.invalidate();
+    t.calls[0].failure("org.freedesktop.DBus.Error.NoReply");
+    assert.equal(t.calls.length, 1, "A departed editor never retries startup");
+    assert.equal(t.failures.length, 0);
+}
+{
+    const t = setup();
     t.session.begin("JA", "qwerty");
     assert.deepStrictEqual(t.calls[0].args, ["JA", "qwerty", true]);
     t.session.enqueue("text", "n"); t.session.enqueue("text", "i");

@@ -15,6 +15,63 @@ import org.nemomobile.systemsettings 1.0
 
 InputHandler {
     id: futoHandler
+    property string customPendingDeadKey: ""
+    readonly property bool customPageAllowsSuggestions: !keyboard.layout
+            || keyboard.layout.customPageIsText === undefined || keyboard.layout.customPageIsText
+
+    function clearCustomDeadKey() { customPendingDeadKey = "" }
+    function typeCustomText(text) {
+        if (conversionEnabled && customPageAllowsSuggestions) {
+            conversion.submit("text", text)
+            conversion.kanaKeyEntered()
+            return
+        }
+        inputActionSerial++
+        reconcileCommittedPreedit()
+        clearCommittedSpace()
+        if (isInputCharacter(text)) insertWordCharacter(text)
+        else commit(preedit + text)
+        captureEditorKey({text: text, key: Qt.Key_unknown, keyType: KeyType.CharacterKey})
+        captureCredentialKey({text: text, key: Qt.Key_unknown, keyType: KeyType.CharacterKey})
+        if (keyboard.shiftState !== ShiftState.LockedShift) keyboard.shiftState = ShiftState.NoShift
+    }
+    function handleCustomLayoutKey(key) {
+        if (!key) return false
+        if (key.reservedQuickSettings === true && key.heldForSettings === true) return true
+        var action = String(key.customAction || "")
+        if (action !== "" && ["text", "space", "enter", "backspace", "shift"].indexOf(action) < 0
+                && keyboard.layout && keyboard.layout.activateCustomAction) {
+            clearCustomDeadKey()
+            if (activeDesktopModifiers === 0 && ["esc", "left", "right"].indexOf(action) >= 0
+                    && handleConversionKey({key: desktopKeyCode(action), text: "", keyType: KeyType.CharacterKey}))
+                return true
+            keyboard.layout.activateCustomAction(key.customDefinition)
+            return true
+        }
+        if (activeDesktopModifiers !== 0) { clearCustomDeadKey(); return false }
+        if (key.customDeadKey === true) {
+            var value = String(key.text || "")
+            if (customPendingDeadKey === value) { clearCustomDeadKey(); typeCustomText(value) }
+            else {
+                var previous = customPendingDeadKey
+                customPendingDeadKey = value
+                if (previous !== "") typeCustomText(previous)
+            }
+            return true
+        }
+        if (customPendingDeadKey === "" || key.keyType === KeyType.ShiftKey) return false
+        var pending = customPendingDeadKey
+        clearCustomDeadKey()
+        if (key.key === Qt.Key_Backspace) return true
+        var text = String(key.text || "")
+        if (key.key === Qt.Key_Space) text = " "
+        if (text !== "" && keyboard.layout && keyboard.layout.composeCustomDeadKey) {
+            typeCustomText(keyboard.layout.composeCustomDeadKey(pending, text))
+            return true
+        }
+        typeCustomText(pending)
+        return false
+    }
 
     readonly property bool conversionSelected: keyboard.layout
             && keyboard.layout.compositionHint !== undefined
@@ -32,6 +89,7 @@ InputHandler {
         nextPredictionTimer.stop()
     }
     readonly property bool conversionMainPage: conversionEnabled
+            && customPageAllowsSuggestions
             && !keyboard.layout.attributes.inSymView
             && !keyboard.layout.emojiMode && !keyboard.layout.emojiSearchMode
             && !keyboard.layout.extendedSymbolMode && !keyboard.layout.extraKeysMode
@@ -88,7 +146,7 @@ InputHandler {
     }
 
     function handleConversionKey(key) {
-        if (!conversionEnabled || !key || key.keyType === KeyType.SymbolKey
+        if (!conversionEnabled || !customPageAllowsSuggestions || !key || key.keyType === KeyType.SymbolKey
                 || key.keyType === KeyType.ShiftKey)
             return false
         var keys = {}
@@ -347,6 +405,7 @@ InputHandler {
             || (keyboardSettings.incognitoOnPrivacySwitch && privacySwitchActive)
     readonly property bool incognitoMode: keyboardSettings.incognitoMode
             || automaticIncognitoMode
+            || (keyboard.layout && keyboard.layout.customPreviewActive === true)
     readonly property bool hardwareKeyboardSuppressed:
             !keyboardSettings.keepVirtualWithHardwareKeyboard
             && hardwareKeyboardAvailable
@@ -364,7 +423,8 @@ InputHandler {
 	        && ((keyboard.layout.usesArabicDigits !== undefined
 	             && keyboard.layout.usesArabicDigits)
 	            || (keyboard.layout.usesPersianDigits !== undefined
-	                && keyboard.layout.usesPersianDigits))
+	                && keyboard.layout.usesPersianDigits)
+                || keyboard.layout.customInputRightToLeft === true)
 	// Some terminal and console editors need a reduced input path. Ordinary
 	// fields, including URL fields, still keep a private current-word buffer for
 	// predictions, swipe/search and URL history, but their characters are already
@@ -402,6 +462,7 @@ InputHandler {
 	        && (passwordField || credentialUsernameField)
 	readonly property bool credentialSavingPrivateBlocked:
             androidCompanionOwnsCredentials
+            || (keyboard.layout && keyboard.layout.customPreviewActive === true)
             ||
             keyboardSettings.incognitoMode
             || !!MInputMethodQuick.extensions.privateMode
@@ -421,6 +482,7 @@ InputHandler {
             && !passwordField && (!urlField || urlSuggestionFallbackActive)
             && !hardwareKeyboardSuppressed
             && !keyboardSettings.forcedAppSupportKeyEvents
+              && customPageAllowsSuggestions
     readonly property bool urlHistoryStripEnabled:
             keyboardSettings.urlHistoryEnabled && urlField
             && !urlSuggestionFallbackActive
@@ -3745,6 +3807,7 @@ InputHandler {
 					                            + " strip=" + stripRequired)
 			}
             readonly property bool predictionContentAvailable: !layoutEditorVisible
+                    && futoHandler.customPageAllowsSuggestions
 			        && !selectionCaseVisible
 			        && !futoHandler.conversionEnabled
 			        && !cursorStatusVisible
@@ -4961,6 +5024,7 @@ InputHandler {
             // letter page. Keeping it alive on 123 or a tool page caused stale
             // predictions to cover the landscape picker and control surfaces.
             readonly property bool predictionsVisible: activeLayout
+                    && futoHandler.customPageAllowsSuggestions
 					&& !futoHandler.conversionEnabled
 					&& futoHandler.activeDesktopModifiers === 0
                     && !activeLayout.attributes.inSymView
@@ -5032,6 +5096,7 @@ InputHandler {
     }
 
     onActiveChanged: {
+        if (!active) clearCustomDeadKey()
 		if (!editorSessionActive && passwordField) {
 			finalizeCredentialCapture()
 			offerCapturedCredential()
@@ -5182,6 +5247,7 @@ InputHandler {
             }
         }
         onFocusTargetChanged: {
+			futoHandler.clearCustomDeadKey()
 			conversion.clear()
 			futoHandler.inputActionSerial++
 			futoHandler.editorContextSerial++
@@ -5993,7 +6059,7 @@ InputHandler {
 		if (!key || key.key === Qt.Key_Space || key.key === Qt.Key_Backspace
 				|| key.key === Qt.Key_Return || key.key === Qt.Key_Enter)
 		return false
-		var caption = String(key.caption || "")
+		var caption = String(key.swipeCharacter !== undefined ? key.swipeCharacter : key.caption || "")
 		return caption.length === 1 && isLetterCharacter(caption)
 	}
 
@@ -6149,6 +6215,8 @@ InputHandler {
 	}
 
 	function handleKeyPress() {
+		if (pressedKey && pressedKey.customAction === "space")
+			suppressSpacebarLanguageSwitch()
 		if (swipePath.length === 0 && !spacebarGestureActive) playAutomaticKeySound(pressedKey)
 		// The first key of a touch has already had its pulse by the time this
 		// runs, so silencing here leaves the rest of that touch quiet however
@@ -6217,6 +6285,7 @@ InputHandler {
 		}
         // Feedback is played on touch-down; release must not play it again.
         typingContinued()
+		if (swipePath.length < 2 && handleCustomLayoutKey(pressedKey)) { resetSwipePath(); return true }
 		if (handleArmedDesktopModifierKey(pressedKey)) {
 			resetSwipePath()
 			return true
@@ -6230,6 +6299,7 @@ InputHandler {
 		captureCredentialKey(pressedKey)
 		if (finishSwipeGesture())
 			return true
+		if (handleCustomLayoutKey(pressedKey)) { resetSwipePath(); return true }
 		inputActionSerial++
 		reconcileCommittedPreedit()
 		resetSwipePath()
@@ -6490,7 +6560,7 @@ InputHandler {
 	}
 
 	function swipeKeyAllowed(key) {
-		if (conversionSelected || spacebarGestureActive || activeDesktopModifiers !== 0
+		if (conversionSelected || customPendingDeadKey !== "" || spacebarGestureActive || activeDesktopModifiers !== 0
 				|| !key || key.swipeTypingKey !== true
 				|| !keyboardSettings.swipeTypingEnabled
 				|| !swipeContentInstalled
@@ -6502,7 +6572,7 @@ InputHandler {
 				|| layout.extendedSymbolMode || layout.layoutEditorMode
 				|| layout.extraKeysMode || layout.clipboardMode || layout.numpadMode)
 			return false
-		var caption = String(key.caption || "")
+		var caption = String(key.swipeCharacter !== undefined ? key.swipeCharacter : key.caption || "")
 		return caption.length === 1 && (isLetterCharacter(caption)
 		        || isCombiningCharacter(caption))
 	}
@@ -6511,7 +6581,7 @@ InputHandler {
 		var layout = keyboard.layout
 		if (!layout || layout.width <= 0 || layout.height <= 0)
 			return ""
-		var caption = String(key.caption || "")
+		var caption = String(key.swipeCharacter !== undefined ? key.swipeCharacter : key.caption || "")
 		if (caption.length !== 1)
 			return ""
 		caption = caption.toLowerCase()
@@ -6551,7 +6621,7 @@ InputHandler {
 			resetSwipePath()
 			return
 		}
-		var caption = String(key.caption)
+		var caption = String(key.swipeCharacter !== undefined ? key.swipeCharacter : key.caption || "")
 		if (caption === swipeLastKey) {
 			suppressSwipePopper(key)
 			return
@@ -6615,7 +6685,7 @@ InputHandler {
 		if (!item)
 			return
 		if (item.swipeTypingKey === true && item.visible && item.active) {
-			var caption = String(item.caption || "")
+			var caption = String(item.swipeCharacter !== undefined ? item.swipeCharacter : item.caption || "")
 			if (caption.length === 1 && (isLetterCharacter(caption)
 			        || isCombiningCharacter(caption))) {
 				var code = caption.toLowerCase().charCodeAt(0)

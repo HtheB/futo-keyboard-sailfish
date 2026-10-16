@@ -60,7 +60,7 @@ const (
 	forcedAppSupportDconfPath = "/sailfish/text_input/futo_keyboard/forcedAppSupportKeyEvents"
 	vaultAuthAction           = "org.hb.futo.keyboard.saved-login"
 	vaultSaveAuthAction       = "org.hb.futo.keyboard.save-login"
-	version                   = "0.9.0"
+	version                   = "0.9.1"
 )
 
 func zeroBytes(data []byte) {
@@ -6419,6 +6419,9 @@ func removeKeyboardUserFiles(path string, options uninstallCleanupOptions) error
 	}
 
 	if options.Settings {
+		if err := removeFileAndTemporaryCopies(filepath.Join(path, "custom-layouts.json")); err != nil {
+			return err
+		}
 		if err := removeFileAndTemporaryCopies(
 			filepath.Join(path, "keep-virtual-hardware")); err != nil {
 			return err
@@ -7340,6 +7343,7 @@ func helperIntrospectionInterface(application interface{}) introspect.Interface 
 					{Name: "token", Type: "s"},
 				},
 			},
+			{Name: "CustomLayoutsChanged", Args: []introspect.Arg{{Name: "document", Type: "s"}}},
 		},
 	}
 }

@@ -45,6 +45,7 @@ SpacebarKey {
     // Hold on the 123 and {&= pages always reaches the cursor pad. Only the
     // letter page follows the setting, because only it has a language.
     readonly property bool onLetterPage: !attributes.inSymView
+            && (!ownerLayout || ownerLayout.customPageIsText !== false)
     readonly property int holdAction: {
         var configured = holdActionOverride >= 0 ? Number(holdActionOverride)
                                                 : Number(gestureSettings.spacebarHoldAction)

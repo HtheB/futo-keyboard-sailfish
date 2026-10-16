@@ -141,6 +141,22 @@ Page {
             width: parent.width
             PageHeader { title: qsTr("Appearance and keys") }
 
+            BackgroundItem {
+                width: parent.width
+                onClicked: helper.typedCall("OpenLayoutEditor", [], function() {}, function() {})
+                Label {
+                    x: Theme.horizontalPageMargin
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Custom layout editor")
+                    color: parent.highlighted ? Theme.highlightColor : Theme.primaryColor
+                }
+                Image {
+                    anchors.right: parent.right; anchors.rightMargin: Theme.horizontalPageMargin
+                    anchors.verticalCenter: parent.verticalCenter
+                    source: "image://theme/icon-m-next"
+                }
+            }
+
             SectionHeader { text: qsTr("Keyboard mode") }
 
             ComboBox {

@@ -7,6 +7,19 @@ import Nemo.DBus 2.0
 Page {
     id: page
     allowedOrientations: Orientation.All
+    property string layoutEditorError: ""
+    property bool layoutEditorOpening: false
+    function openLayoutEditor() {
+        if (layoutEditorOpening) return
+        layoutEditorError = ""
+        layoutEditorOpening = true
+        helper.typedCall("OpenLayoutEditor", [], function() {
+            page.layoutEditorOpening = false
+        }, function() {
+            page.layoutEditorOpening = false
+            page.layoutEditorError = qsTr("Could not open the layout editor")
+        })
+    }
     function enabledLanguageCount() {
         var raw = String(settings.enabledLanguages).split(",")
         var seen = []
@@ -337,6 +350,25 @@ Page {
                 text: qsTr("Languages and layouts")
                 iconSource: "image://theme/icon-m-region"
                 onClicked: pageStack.push(Qt.resolvedUrl("FutoLanguagesPage.qml"))
+            }
+
+            FutoSettingsMenuItem {
+                id: layoutEditorEntry
+                objectName: "layoutEditorSettingsEntry"
+                width: parent.width
+                text: qsTr("Layout editor")
+                iconSource: "image://theme/icon-m-keyboard"
+                iconComponent: Component {
+                    FutoLayoutEditorIcon { highlighted: layoutEditorEntry.highlighted }
+                }
+                enabled: !page.layoutEditorOpening
+                onClicked: page.openLayoutEditor()
+            }
+
+            Label {
+                x: Theme.horizontalPageMargin; width: parent.width - 2 * x
+                text: page.layoutEditorError; visible: text !== ""
+                wrapMode: Text.Wrap; color: Theme.highlightColor
             }
 
             FutoSettingsMenuItem {

@@ -18,6 +18,12 @@ Page {
     property string requestedDictionaryCode: ""
     property int languageSelectionRevision: 0
     property var languageModel: LanguageData.displayLanguages()
+    readonly property var regularLanguageModel: languageModel.filter(function(language) {
+        return LanguageData.compositionPack(language.code) === ""
+    })
+    readonly property var conversionLanguageModel: languageModel.filter(function(language) {
+        return LanguageData.compositionPack(language.code) !== ""
+    })
 
     onStatusChanged: {
         if (status === PageStatus.Active) {
@@ -219,6 +225,8 @@ Page {
         property string layoutAssignments: "{}"
         property string layoutIds: "{}"
         property string manualLayoutAssignments: "{}"
+        property string customLayoutsJson: '{"version":1,"layouts":[]}'
+        onCustomLayoutsJsonChanged: page.reloadCustomLayouts(customLayoutsJson)
         property bool automaticLanguageDetection: true
 		property bool mergeSameLayoutLanguages: true
     }
@@ -255,7 +263,13 @@ Page {
         }
     }
 
-    Component.onCompleted: refreshDictionaryContent()
+    function reloadCustomLayouts(raw) {
+        if (LetterLayouts.setCustomLayouts(String(raw))) languageSelectionRevision++
+    }
+    Component.onCompleted: {
+        reloadCustomLayouts(settings.customLayoutsJson)
+        refreshDictionaryContent()
+    }
 
     SilicaFlickable {
         anchors.fill: parent
@@ -267,17 +281,6 @@ Page {
             width: parent.width
 
             PageHeader { title: qsTr("Languages and layouts") }
-
-            BackgroundItem {
-                width: parent.width
-                onClicked: pageStack.push(Qt.resolvedUrl("FutoConversionSettingsPage.qml"))
-                Label {
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: Theme.horizontalPageMargin
-                    text: qsTr("Japanese and Chinese options")
-                    color: parent.down ? Theme.highlightColor : Theme.primaryColor
-                }
-            }
 
             Label {
                 x: Theme.horizontalPageMargin
@@ -311,11 +314,14 @@ Page {
 			}
 
             Repeater {
-                model: page.languageModel
+                id: regularLanguageRepeater
+                objectName: "regularLanguageRepeater"
+                model: page.regularLanguageModel
                 BackgroundItem {
                     id: languageItem
                     property string code: String(modelData.code)
                     property string title: String(modelData.title)
+                    objectName: "language-" + code
                     width: content.width
                     height: Math.max(Theme.itemSizeLarge,
                                      languageLabels.height + 2 * Theme.paddingMedium)
@@ -411,6 +417,25 @@ Page {
                 text: qsTr("Assign layouts visually from the keyboard: hold 123 and choose "
                            + "Edit layouts. Languages assigned to the same layout are predicted "
                            + "together.")
+            }
+
+            SectionHeader {
+                objectName: "conversionLanguagesHeader"
+                text: qsTr("Japanese and Chinese")
+            }
+
+            Repeater {
+                objectName: "conversionLanguageRepeater"
+                model: page.conversionLanguageModel
+                delegate: regularLanguageRepeater.delegate
+            }
+
+            FutoSettingsMenuItem {
+                objectName: "conversionSettingsEntry"
+                width: parent.width
+                text: qsTr("Japanese and Chinese options")
+                iconSource: "image://theme/icon-m-setting"
+                onClicked: pageStack.push(Qt.resolvedUrl("FutoConversionSettingsPage.qml"))
             }
         }
     }

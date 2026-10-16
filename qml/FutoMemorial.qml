@@ -1,7 +1,3 @@
-/*
- * Ten quick taps on the HtheB credit reveal this memorial.  Its timing and
- * trailing-tap protection intentionally match the Live Wallpaper easter egg.
- */
 import QtQuick 2.0
 import Sailfish.Silica 1.0
 

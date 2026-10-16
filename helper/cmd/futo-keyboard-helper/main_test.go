@@ -1436,8 +1436,8 @@ func TestRemoveKeyboardUserFilesClearsOnlyFutoData(t *testing.T) {
 
 func TestKeyboardModeSignalIsIntrospected(t *testing.T) {
 	iface := helperIntrospectionInterface(&service{})
-	if len(iface.Signals) != 7 {
-		t.Fatalf("signal count = %d, want 7", len(iface.Signals))
+	if len(iface.Signals) != 8 {
+		t.Fatalf("signal count = %d, want 8", len(iface.Signals))
 	}
 	signal := iface.Signals[0]
 	if signal.Name != keyboardModeChangedSignal {

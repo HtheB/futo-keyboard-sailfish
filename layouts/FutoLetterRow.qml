@@ -13,7 +13,7 @@ KeyboardRow {
     readonly property int keyCount: LetterLayouts.rowLength(layoutIndex, rowIndex)
 
     opacity: targetLayout && targetLayout.cursorMoveMode ? 0 : 1
-    visible: targetLayout && rowIndex < LetterLayouts.rowCount(layoutIndex)
+    visible: targetLayout && !targetLayout.customLayoutActive && rowIndex < LetterLayouts.rowCount(layoutIndex)
              && LetterLayouts.imeHint(layoutIndex) !== "12key"
              && !targetLayout.emojiMode && !targetLayout.extendedSymbolMode
              && !targetLayout.extraKeysMode && !targetLayout.layoutEditorMode

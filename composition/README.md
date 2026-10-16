@@ -31,6 +31,13 @@ non-learning profiles that cannot read past history. Chinese's one-time
 dictionary preparation caches only public language data. Japanese next-word
 candidates are provided by Mozc's zero-query suggestions.
 
+Custom layouts can be selected for Japanese and either Chinese script. Their
+text pages use the active language's Romaji or Pinyin conversion, independently
+of key positions; symbol and function pages type directly. Japanese and Chinese
+remain separate language choices even when they share a custom layout with
+other languages. The layout editor can copy the Japanese and Chinese QWERTY
+layouts; the built-in kana-flick and Chinese stroke layouts remain available.
+
 ## Building
 
 `scripts/bootstrap-futo-composition.sh` retrieves the pinned sources.
