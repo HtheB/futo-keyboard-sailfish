@@ -18,5 +18,6 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=-%h/.local/share/futo-keyboard-sailfish
+ReadWritePaths=-%h/.local/share/applications
 ReadWritePaths=-%h/Documents
 LimitCORE=0

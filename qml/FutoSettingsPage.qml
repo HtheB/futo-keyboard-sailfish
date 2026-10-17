@@ -165,7 +165,7 @@ Page {
         settings.keySoundVolume = 0.5
         settings.keySoundMigrationDone = true
         settings.settingsVersion = 11
-        // These two settings also have native side effects outside QML.
+        // These settings also have native side effects outside QML.
         // Restore those immediately instead of waiting for the helper's next
         // login-time synchronization.
         helper.typedCall("SetKeepVirtualKeyboardWithHardware", [
@@ -174,6 +174,9 @@ Page {
         helper.typedCall("SetHardwareDeadKeys", [
             { "type": "b", "value": false }
         ], function(variant) {}, function() {})
+        helper.typedCall("SetLayoutEditorLauncherVisible", [
+            { "type": "b", "value": false }
+        ], function(visible) {}, function() {})
     }
 
     function openPendingVaultAuthentication() {

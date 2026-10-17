@@ -2,6 +2,7 @@
 
 # Sailfish OS and Linux build/runtime files must retain Unix line endings.
 *.sh text eol=lf
+packaging/scripts/* text eol=lf
 *.spec text eol=lf
 Makefile text eol=lf
 *.conf text eol=lf

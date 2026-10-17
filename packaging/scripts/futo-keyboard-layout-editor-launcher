@@ -1,0 +1,19 @@
+#!/bin/sh
+# Prepare the per-user launcher directory without widening the helper sandbox.
+# Removing the package also removes only the optional entry owned by FUTO.
+set -eu
+
+case "${1:-}" in
+    prepare)
+        action='mkdir -p "$HOME/.local/share/applications"'
+        ;;
+    remove)
+        action='for name in futo-layout-editor-launcher.desktop futo-layout-editor.desktop; do entry="$HOME/.local/share/applications/$name"; if [ -f "$entry" ] && [ ! -L "$entry" ] && grep -Fqx "X-FUTO-Layout-Editor=true" "$entry"; then rm -f -- "$entry"; fi; done'
+        ;;
+    *) exit 1 ;;
+esac
+
+getent passwd | awk -F: '$3 >= 1000 && $6 ~ /^\/home\// { print $1 }' |
+    while IFS= read -r account; do
+        su -s /bin/sh "$account" -c "$action" || :
+    done

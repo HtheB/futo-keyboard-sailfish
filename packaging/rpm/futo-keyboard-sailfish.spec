@@ -5,7 +5,7 @@
 
 Name:           futo-keyboard-sailfish
 Version:        0.9.5
-Release:        1
+Release:        2
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
 License:        LicenseRef-FUTO-Source-First-1.1-kb AND GPL-3.0-only AND BSD-3-Clause AND BSD-2-Clause AND BSL-1.0 AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND LGPL-2.1-or-later AND (LGPL-2.1-only OR LGPL-3.0-only)
 Source0:        %{name}-%{version}.tar.gz
@@ -28,6 +28,7 @@ Requires:       fontconfig
 Requires:       pulseaudio
 Requires:       libstdc++
 Requires:       systemd
+Requires:       desktop-file-utils
 Requires:       libsailfishsecrets
 Requires:       libsailfishapp
 Requires:       sailfishsecretsdaemon
@@ -63,9 +64,11 @@ make -f packaging/Makefile install DESTDIR=%{buildroot} PREFIX=%{_prefix} \
     ARCH=%{_target_cpu} BUILD_DIR=build/%{_target_cpu} LIBDIR=%{_libdir}
 
 %post
+/usr/bin/update-desktop-database /usr/share/applications >/dev/null 2>&1 || :
 /usr/bin/fc-cache -f >/dev/null 2>&1 || :
 /usr/libexec/futo-keyboard-install-wayland-deadkey-hook || :
 /usr/libexec/futo-keyboard-install-textinput-bottom-hook || :
+/usr/libexec/futo-keyboard-layout-editor-launcher prepare || :
 /usr/bin/systemctl-user daemon-reload >/dev/null 2>&1 || :
 /usr/bin/systemctl-user reload dbus.service >/dev/null 2>&1 || :
 /usr/bin/systemctl-user restart futo-keyboard-helper.service >/dev/null 2>&1 || :
@@ -73,6 +76,7 @@ make -f packaging/Makefile install DESTDIR=%{buildroot} PREFIX=%{_prefix} \
 
 %preun
 if [ "$1" -eq 0 ]; then
+    /usr/libexec/futo-keyboard-layout-editor-launcher remove || :
     # The helper is deliberately left running: it is the only thing that
     # can say whether the removal worked and close the settings
     # application afterwards, and it ends itself once it has.
@@ -86,6 +90,7 @@ if [ "$1" -eq 0 ]; then
 fi
 
 %postun
+/usr/bin/update-desktop-database /usr/share/applications >/dev/null 2>&1 || :
 /usr/bin/fc-cache -f >/dev/null 2>&1 || :
 /usr/bin/systemctl-user daemon-reload >/dev/null 2>&1 || :
 /usr/bin/systemctl-user reload dbus.service >/dev/null 2>&1 || :
@@ -102,6 +107,7 @@ fi
 
 %files
 %attr(0755,root,root) %{_bindir}/futo-layout-editor
+%attr(0755,root,root) %{_libexecdir}/futo-keyboard-layout-editor-launcher
 %{_datadir}/applications/futo-layout-editor.desktop
 %{_datadir}/icons/hicolor/128x128/apps/futo-keyboard-sailfish.png
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-setup-toast

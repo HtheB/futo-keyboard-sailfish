@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Link
+Name=FUTO Layout Editor
+Icon=futo-keyboard-sailfish
+URL=futo-layout-editor://open
+NoDisplay=false
+X-FUTO-Layout-Editor=true
+Comment=Create and edit custom keyboard layouts

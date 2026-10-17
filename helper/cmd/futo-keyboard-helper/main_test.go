@@ -1436,8 +1436,8 @@ func TestRemoveKeyboardUserFilesClearsOnlyFutoData(t *testing.T) {
 
 func TestKeyboardModeSignalIsIntrospected(t *testing.T) {
 	iface := helperIntrospectionInterface(&service{})
-	if len(iface.Signals) != 8 {
-		t.Fatalf("signal count = %d, want 8", len(iface.Signals))
+	if len(iface.Signals) != 9 {
+		t.Fatalf("signal count = %d, want 9", len(iface.Signals))
 	}
 	signal := iface.Signals[0]
 	if signal.Name != keyboardModeChangedSignal {
@@ -1471,6 +1471,10 @@ func TestKeyboardModeSignalIsIntrospected(t *testing.T) {
 	if finishedSignal.Name != uninstallFinishedSignal ||
 		len(finishedSignal.Args) != 1 || finishedSignal.Args[0].Type != "s" {
 		t.Fatalf("finished signal = %#v, want UninstallFinished(s)", finishedSignal)
+	}
+	launcherSignal := iface.Signals[8]
+	if launcherSignal.Name != "LayoutEditorLauncherChanged" || len(launcherSignal.Args) != 1 || launcherSignal.Args[0].Type != "b" {
+		t.Fatalf("launcher signal = %#v, want LayoutEditorLauncherChanged(b)", launcherSignal)
 	}
 }
 

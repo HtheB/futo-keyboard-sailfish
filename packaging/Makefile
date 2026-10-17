@@ -289,6 +289,9 @@ install: check
 	install -Dm4755 "$(EDITOR_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-editor"
 	install -Dm0755 "$(LAYOUT_EDITOR_BINARY)" "$(DESTDIR)$(PREFIX)/bin/futo-layout-editor"
 	install -Dm0644 editor/futo-layout-editor.desktop "$(DESTDIR)$(PREFIX)/share/applications/futo-layout-editor.desktop"
+	install -Dm0644 editor/futo-layout-editor-launcher.desktop "$(PACKAGE_ROOT)/editor/futo-layout-editor-launcher.desktop"
+	install -Dm0755 packaging/scripts/futo-keyboard-layout-editor-launcher \
+		"$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-layout-editor-launcher"
 	@for file in editor/*.qml editor/*.js qml/FutoMemorial.qml qml/FutoSettingsMenuItem.qml layouts/FutoSymbolData.js layouts/FutoLetterLayouts.js layouts/FutoGeneratedLayouts.js layouts/FutoLanguageCatalogue.js layouts/FutoCustomLayouts.js layouts/FutoDeadKeyData.js; do \
 		install -Dm0644 "$$file" "$(PACKAGE_ROOT)/editor/$$(basename "$$file")"; \
 	done

@@ -2,6 +2,18 @@
 "use strict";
 const assert = require("assert"), fs = require("fs"), path = require("path"), vm = require("vm");
 const root = path.resolve(__dirname, "..");
+const launcher = fs.readFileSync(path.join(root, "editor/futo-layout-editor.desktop"), "utf8");
+assert(/^NoDisplay=true$/m.test(launcher), "Editor must not appear in the app drawer by default");
+assert(/^MimeType=x-scheme-handler\/futo-layout-editor;$/m.test(launcher), "The hidden editor must handle its shortcut URL");
+const shortcut = fs.readFileSync(path.join(root, "editor/futo-layout-editor-launcher.desktop"), "utf8");
+assert(/^Type=Link$/m.test(shortcut) && /^URL=futo-layout-editor:\/\/open$/m.test(shortcut) && !/^Exec=/m.test(shortcut), "Removing the optional shortcut must never uninstall the keyboard package");
+const maintenance = fs.readFileSync(path.join(root, "qml/FutoMaintenancePage.qml"), "utf8");
+assert(maintenance.includes('qsTr("Show Layout Editor in app drawer")') && maintenance.includes('automaticCheck: false'), "Launcher choice belongs in Maintenance and must wait for a successful change");
+assert(maintenance.includes('GetLayoutEditorLauncherVisible') && maintenance.includes('SetLayoutEditorLauncherVisible'), "Maintenance must read and write the real launcher state");
+assert(maintenance.includes('objectName: "layoutEditorLauncherSeparator"') && maintenance.indexOf('layoutEditorLauncherSeparator') < maintenance.indexOf('qsTr("Restore default settings")'), "Separate the launcher preference from the reset actions");
+const mainSettings = fs.readFileSync(path.join(root, "qml/FutoSettingsPage.qml"), "utf8");
+assert(!mainSettings.includes('qsTr("Show Layout Editor in app drawer")'), "Do not add another row to the main settings list");
+assert(mainSettings.includes('helper.typedCall("SetLayoutEditorLauncherVisible"'), "Restoring defaults must also hide the optional launcher");
 const editorWindow = fs.readFileSync(path.join(root, "editor", "main.qml"), "utf8");
 assert(/^    allowedOrientations: Orientation\.LandscapeMask\s*$/m.test(editorWindow), "Editor window must remain landscape");
 assert(/^    _defaultPageOrientations: Orientation\.LandscapeMask\s*$/m.test(editorWindow), "Native file-picker subpages must inherit landscape");

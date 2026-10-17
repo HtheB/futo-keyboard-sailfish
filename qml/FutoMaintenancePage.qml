@@ -1,6 +1,7 @@
 /* Maintenance actions for FUTO Keyboard settings. */
 import QtQuick 2.0
 import Sailfish.Silica 1.0
+import Nemo.DBus 2.0
 
 Page {
     id: page
@@ -8,7 +9,58 @@ Page {
 
     property QtObject settingsPage
     property string statusText: ""
+    property bool launcherVisible: false
+    property bool launcherReady: false
+    property bool launcherBusy: false
 
+    function refreshLauncherVisibility() {
+        if (launcherBusy) return
+        launcherBusy = true
+        helper.typedCall("GetLayoutEditorLauncherVisible", [], function(visible) {
+            page.launcherVisible = Boolean(visible)
+            page.launcherReady = true
+            page.launcherBusy = false
+        }, function() {
+            page.launcherBusy = false
+            page.launcherReady = false
+            page.statusText = qsTr("Could not read the Layout Editor launcher setting")
+        })
+    }
+
+    function setLauncherVisibility(visible) {
+        if (launcherBusy || !launcherReady) return
+        launcherBusy = true
+        statusText = ""
+        helper.typedCall("SetLayoutEditorLauncherVisible", [
+            { "type": "b", "value": visible }
+        ], function(applied) {
+            page.launcherVisible = Boolean(applied)
+            page.launcherBusy = false
+        }, function() {
+            page.launcherBusy = false
+            page.statusText = qsTr("Could not change the Layout Editor launcher setting")
+        })
+    }
+
+    DBusInterface {
+        id: helper
+        bus: DBus.SessionBus
+        service: "org.hb.FutoKeyboard1"
+        path: "/org/hb/FutoKeyboard1"
+        iface: "org.hb.FutoKeyboard1"
+        signalsEnabled: true
+        watchServiceStatus: true
+        onStatusChanged: if (status === DBusInterface.Available)
+                             page.refreshLauncherVisibility()
+        function layoutEditorLauncherChanged(visible) {
+            page.launcherVisible = Boolean(visible)
+            page.launcherReady = true
+        }
+    }
+
+    onStatusChanged: if (status === PageStatus.Active)
+                         refreshLauncherVisibility()
+    Component.onCompleted: refreshLauncherVisibility()
 
     FutoSettingsTestPanel {
         id: testPanel
@@ -31,6 +83,29 @@ Page {
             width: parent.width
 
             PageHeader { title: qsTr("Maintenance") }
+
+            TextSwitch {
+                objectName: "layoutEditorLauncherSwitch"
+                width: parent.width
+                text: qsTr("Show Layout Editor in app drawer")
+                description: qsTr("The editor is always available from FUTO Keyboard settings.")
+                automaticCheck: false
+                checked: page.launcherVisible
+                enabled: page.launcherReady && !page.launcherBusy
+                onClicked: page.setLauncherVisibility(!checked)
+            }
+
+            Item {
+                width: parent.width
+                height: Theme.paddingLarge
+                Separator {
+                    objectName: "layoutEditorLauncherSeparator"
+                    x: Theme.horizontalPageMargin
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - 2 * x
+                    color: Theme.primaryColor
+                }
+            }
 
             BackgroundItem {
                 width: parent.width

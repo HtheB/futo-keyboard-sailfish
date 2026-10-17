@@ -7344,6 +7344,7 @@ func helperIntrospectionInterface(application interface{}) introspect.Interface 
 				},
 			},
 			{Name: "CustomLayoutsChanged", Args: []introspect.Arg{{Name: "document", Type: "s"}}},
+			{Name: "LayoutEditorLauncherChanged", Args: []introspect.Arg{{Name: "visible", Type: "b"}}},
 		},
 	}
 }
@@ -7611,6 +7612,18 @@ func main() {
 	defer application.androidCursor.close()
 	defer application.CancelVoiceInput()
 
+	if path, err := layoutEditorLauncherPath(); err == nil {
+		if err := upgradeLayoutEditorLauncher(layoutEditorLauncherTemplate, path); err != nil {
+			log.Print(err)
+		}
+		if watcher, err := watchLayoutEditorLauncher(path, func(visible bool) {
+			_ = connection.Emit(objectPath, interfaceName+".LayoutEditorLauncherChanged", visible)
+		}); err == nil {
+			defer watcher.Close()
+		} else {
+			log.Printf("could not watch the Layout Editor shortcut: %v", err)
+		}
+	}
 	if err := connection.Export(application, objectPath, interfaceName); err != nil {
 		log.Fatal(err)
 	}
