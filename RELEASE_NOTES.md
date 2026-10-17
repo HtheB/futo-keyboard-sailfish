@@ -17,3 +17,4 @@
 - Improved suggestions for accented words across languages.
 - Tapping a suggestion correctly completes partially typed words.
 - Layout Editor error messages are easier to read in different ambiences.
+- Word suggestions appear faster while typing.

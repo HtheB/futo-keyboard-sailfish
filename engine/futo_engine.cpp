@@ -8,6 +8,7 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <cstdint>
@@ -200,9 +201,12 @@ int boundedDistance(CodeView left, CodeView right, int maximum) {
     if (std::abs(leftSize - rightSize) > maximum) {
         return maximum + 1;
     }
-    std::vector<int> previousPrevious(rightSize + 1);
-    std::vector<int> previous(rightSize + 1);
-    std::vector<int> current(rightSize + 1);
+    // Dictionary entries and queries are bounded at ingestion. Avoid three
+    // heap allocations and two row copies for every spelling comparison.
+    std::array<int, MAX_WORD_LENGTH + 1> rows[3];
+    int *previousPrevious = rows[0].data();
+    int *previous = rows[1].data();
+    int *current = rows[2].data();
     for (int j = 0; j <= rightSize; ++j) {
         previous[j] = j;
     }
@@ -222,8 +226,10 @@ int boundedDistance(CodeView left, CodeView right, int maximum) {
         if (rowMinimum > maximum) {
             return maximum + 1;
         }
+        int *oldest = previousPrevious;
         previousPrevious = previous;
         previous = current;
+        current = oldest;
     }
     return previous[rightSize];
 }
@@ -458,7 +464,8 @@ public:
         }
         const bool collectCorrections = normalizedQuery.size() >= 3 && uppercaseCount <= 1;
 
-        for (const Entry &entry : mEntries) {
+        for (const Entry *candidate : analysisCandidates(normalizedQuery)) {
+            const Entry &entry = *candidate;
             const int probability = std::max(0, entry.probability);
             const CodeView entryNormalized = normalizedOf(entry);
             if (entryNormalized == CodeView(normalizedQuery)) {
@@ -791,6 +798,32 @@ public:
         return CodeView(mCodes.data() + entry.gestureOffset, entry.gestureSize);
     }
 
+    std::vector<const Entry *> analysisCandidates(CodeView query, int maximum = -1) const {
+        std::vector<const Entry *> result;
+        if (query.empty() || query.size() > MAX_WORD_LENGTH) return result;
+        if (query.size() < 3 && maximum < 0) {
+            auto first = std::lower_bound(mAnalysisEntries.begin(), mAnalysisEntries.end(),
+                    query, [this](uint32_t index, CodeView key) {
+                return normalizedOf(mEntries[index]) < key;
+            });
+            for (; first != mAnalysisEntries.end(); ++first) {
+                const Entry &entry = mEntries[*first];
+                if (!startsWith(normalizedOf(entry), query)) break;
+                result.push_back(&entry);
+            }
+        } else {
+            AnalysisRows rows;
+            for (std::size_t column = 0; column <= query.size(); ++column)
+                rows[0][column] = static_cast<int>(column);
+            collectAnalysisCandidates(0, mAnalysisEntries.size(), 0, query,
+                    maximum >= 0 ? maximum : (query.size() >= 7 ? 2 : 1), 0, rows, result);
+        }
+        // Preserve dictionary order before ranking, including tied scores and
+        // accent variants. This changes lookup cost, not the candidate policy.
+        std::sort(result.begin(), result.end());
+        return result;
+    }
+
     std::string displayOf(const Entry &entry) const {
         return mText.substr(entry.displayOffset, entry.displaySize);
     }
@@ -904,14 +937,18 @@ private:
         }
         const int minimumProbability = key.size() == 2 ? 160
                 : (key.size() == 3 ? 140 : 100);
-        for (const Entry *entry : mExactEntries) {
+        auto candidates = analysisCandidates(key, 1);
+        std::sort(candidates.begin(), candidates.end(), [this](const Entry *left, const Entry *right) {
+            return normalizedOf(*left) < normalizedOf(*right);
+        });
+        for (const Entry *entry : candidates) {
             const CodeView spelling = normalizedOf(*entry);
             if (std::abs(static_cast<int>(spelling.size())
                     - static_cast<int>(key.size())) > 1) {
                 continue;
             }
             const int probability = std::max(0, entry->probability);
-            if (probability < minimumProbability
+            if (probability < minimumProbability || findExact(spelling) != entry
                     || boundedDistance(key, spelling, 1) != 1) {
                 continue;
             }
@@ -951,6 +988,11 @@ private:
             }
             return left->probability > right->probability;
         });
+        // Reuse the order already needed for exact lookup. Sorting a second
+        // index separately would slow the first request after loading a pack.
+        mAnalysisEntries.reserve(mExactEntries.size());
+        for (const Entry *entry : mExactEntries)
+            mAnalysisEntries.push_back(static_cast<uint32_t>(entry - mEntries.data()));
         mExactEntries.erase(std::unique(mExactEntries.begin(), mExactEntries.end(),
                 [this](const Entry *left, const Entry *right) {
                     return normalizedOf(*left) == normalizedOf(*right);
@@ -1266,6 +1308,57 @@ private:
         }
     }
 
+    using AnalysisRows = std::array<std::array<int, MAX_WORD_LENGTH + 1>,
+            MAX_WORD_LENGTH + 3>;
+
+    void collectAnalysisCandidates(std::size_t first, std::size_t last,
+            std::size_t depth, CodeView query, int maximum, uint32_t previousCode,
+            AnalysisRows &rows, std::vector<const Entry *> &result) const {
+        const int *previous = rows[depth].data();
+        if (depth >= query.size() + maximum) {
+            if (previous[query.size()] <= maximum)
+                for (; first < last; ++first)
+                    result.push_back(&mEntries[mAnalysisEntries[first]]);
+            return;
+        }
+        while (first < last && mEntries[mAnalysisEntries[first]].normalizedSize == depth) {
+            if (previous[query.size()] <= maximum)
+                result.push_back(&mEntries[mAnalysisEntries[first]]);
+            ++first;
+        }
+        while (first < last) {
+            const uint32_t code = normalizedOf(mEntries[mAnalysisEntries[first]])[depth];
+            const auto end = std::upper_bound(mAnalysisEntries.begin() + first,
+                    mAnalysisEntries.begin() + last, code,
+                    [this, depth](uint32_t wanted, uint32_t index) {
+                return wanted < normalizedOf(mEntries[index])[depth];
+            });
+            const std::size_t next = static_cast<std::size_t>(end - mAnalysisEntries.begin());
+            int *current = rows[depth + 1].data();
+            std::fill(current, current + query.size() + 1, maximum + 1);
+            current[0] = static_cast<int>(depth + 1);
+            int rowMinimum = current[0];
+            const std::size_t from = depth + 1 > static_cast<std::size_t>(maximum)
+                    ? depth + 1 - maximum : 1;
+            const std::size_t to = std::min(query.size(), depth + 1 + maximum);
+            for (std::size_t column = from; column <= to; ++column) {
+                current[column] = std::min({previous[column] + 1,
+                        current[column - 1] + 1,
+                        previous[column - 1] + (code == query[column - 1] ? 0 : 1)});
+                if (depth > 0 && column > 1 && code == query[column - 2]
+                        && previousCode == query[column - 1])
+                    current[column] = std::min(current[column], rows[depth - 1][column - 2] + 1);
+                rowMinimum = std::min(rowMinimum, current[column]);
+            }
+            // The sorted spelling index acts as a compact trie: skip a whole
+            // prefix range once no descendant can meet the existing distance.
+            if (rowMinimum <= maximum)
+                collectAnalysisCandidates(first, next, depth + 1, query,
+                        maximum, code, rows, result);
+            first = next;
+        }
+    }
+
     std::vector<Entry> mEntries;
     // Every display spelling, end to end; every normalized and gesture
     // spelling, end to end. Entries name their own runs by offset.
@@ -1276,6 +1369,8 @@ private:
     // second copy of every word as its key; searching the order costs a
     // handful of comparisons and no memory beyond the pointers.
     std::vector<const Entry *> mExactEntries;
+    // Four bytes per word; no duplicate spelling strings or allocated trie nodes.
+    std::vector<uint32_t> mAnalysisEntries;
 };
 
 void printJsonWords(const std::vector<std::string> &words) {

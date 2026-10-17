@@ -291,6 +291,8 @@ InputHandler {
     property int predictionActionSerial: -1
     property int inputActionSerial: 0
     property int requestSerial: 0
+    property bool predictionRequestInFlight: false
+    property var pendingPredictionRequest: null
     property int urlRequestSerial: 0
     property bool trackSurroundings: false
     property string correctionQuery: ""
@@ -5551,6 +5553,7 @@ InputHandler {
 
     function resetSuggestionDisplay() {
         cancelPendingSuggestionTap()
+        pendingPredictionRequest = null
         requestSerial++
         predictionTimer.stop()
         nextPredictionTimer.stop()
@@ -5987,6 +5990,60 @@ InputHandler {
         nextPredictionTimer.restart()
     }
 
+    function dispatchPredictionRequest(method, args, success, failure) {
+        if (predictionRequestInFlight) {
+            // Keep only the newest query while the worker is busy. Sending
+            // every intermediate prefix lets slow model requests accumulate
+            // long after the user has finished typing the word.
+            pendingPredictionRequest = {method: method, args: args,
+                success: success, failure: failure, serial: requestSerial,
+                editorSerial: editorContextSerial, actionSerial: inputActionSerial}
+            return true
+        }
+        predictionRequestInFlight = true
+        var completed = false
+        var dispatched
+        try {
+            dispatched = helper.typedCall(method, args, function(result) {
+                if (completed) return
+                completed = true
+                try { success(result) }
+                finally { futoHandler.finishPredictionRequest() }
+            }, function(error) {
+                if (completed) return
+                completed = true
+                try { failure(error) }
+                finally { futoHandler.finishPredictionRequest() }
+            })
+        } catch (error) {
+            if (!completed) {
+                completed = true
+                finishPredictionRequest()
+            }
+            return false
+        }
+        if (dispatched === false && !completed) {
+            completed = true
+            finishPredictionRequest()
+        }
+        return dispatched
+    }
+
+    function finishPredictionRequest() {
+        predictionRequestInFlight = false
+        var next = pendingPredictionRequest
+        pendingPredictionRequest = null
+        if (!next || next.serial !== requestSerial
+                || next.editorSerial !== editorContextSerial
+                || next.actionSerial !== inputActionSerial
+                || !active || passwordField || conversionEnabled
+                || !activePredictionsAvailable
+                || !(keyboardSettings.predictionEnabled || keyboardSettings.autoCorrectionEnabled))
+            return
+        var dispatched = dispatchPredictionRequest(next.method, next.args, next.success, next.failure)
+        if (dispatched === false) next.failure()
+    }
+
     function requestNextWords() {
         if (!active || activeSuggestionQuery !== "" || passwordField || urlField
                 || !activePredictionsAvailable
@@ -6004,7 +6061,7 @@ InputHandler {
         var suggestionLimit = isFinite(configuredLimit)
                 ? Math.max(3, Math.min(12, Math.round(configuredLimit))) : 12
         var sentenceStart = keyboard.autocaps
-        var dispatched = helper.typedCall("NextWords", [
+        var dispatched = dispatchPredictionRequest("NextWords", [
             { "type": "s", "value": enabledLanguages() },
             { "type": "s", "value": context },
             { "type": "i", "value": suggestionLimit },
@@ -6072,7 +6129,7 @@ InputHandler {
 		} else if (committedQuery && MInputMethodQuick.surroundingTextValid) {
             context = MInputMethodQuick.surroundingText.substring(0, queryStart)
 		}
-        var dispatched = helper.typedCall("AnalyzeContext", [
+        var dispatched = dispatchPredictionRequest("AnalyzeContext", [
             { "type": "s", "value": enabledLanguages() },
             { "type": "s", "value": String(query) },
             { "type": "s", "value": context },
@@ -7665,6 +7722,7 @@ InputHandler {
     }
 
     function reset() {
+        pendingPredictionRequest = null
         selectionCaseArmed = false
         conversion.clear()
 		inputActionSerial++

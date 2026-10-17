@@ -35,6 +35,7 @@ function setup(initial = "", position = initial.length, options = {}) {
         pendingSuggestionTap: null,
         pendingEditorStates: [], lastObservedEditorState: null, lastObservedSelection: false, lastObservedTextValid: false,
         requestSerial: 0, urlRequestSerial: 0, correctionQuery: "", correctionCandidate: "", nextWordMode: false,
+        predictionRequestInFlight: false, pendingPredictionRequest: null,
         nextContextOverride: "", editingWord: "", editingWordStart: -1, editingWordLength: 0,
         urlSuggestionResultsActive: false, urlSuggestionFallbackActive: false, editorTypedBuffer: "",
         committedSpaceArmed: false, committedSpaceExpectedCursor: -1, candidateSpaceIndex: -1,
@@ -94,7 +95,7 @@ function setup(initial = "", position = initial.length, options = {}) {
         "discardPendingSwipeWord", "swipeSeparatorPrecedesKey", "insertPendingSwipeSeparator",
         "scheduleNextWords", "displayableSuggestion", "nonEmptySuggestions", "allowedWordSuggestion", "wordSuggestions",
         "replacePredictionSuggestions", "visiblePrimaryCorrection", "correctedWordForCommit", "requestSuggestions",
-        "requestNextWords", "applyPrediction", "deletePreviousWord", "deletePreviousWords", "rawEditorText", "refreshEditingWord",
+        "dispatchPredictionRequest", "finishPredictionRequest", "requestNextWords", "applyPrediction", "deletePreviousWord", "deletePreviousWords", "rawEditorText", "refreshEditingWord",
         "cancelPendingSuggestionTap", "deferSuggestionTap", "retryPendingSuggestionTap",
         "acceptSelectionCaseSuggestion",
         "swipeEditorUnchanged", "dispatchNextSwipe", "acceptPendingSwipeForNextGesture", "wordOpensAddress"];
@@ -358,6 +359,64 @@ check("unchanged editor updates do not starve asynchronous suggestions", () => {
     const request = t.requests.find(r => r.method === "AnalyzeContext");
     t.publish(); t.publish(); request.success(JSON.stringify({suggestions: ["hello"]}));
     assert(t.rows.some(row => row.text === "hello"));
+});
+check("slow prediction requests keep only the latest typed prefix", () => {
+    const t = setup(), c = t.context;
+    t.type("h"); c.requestSuggestions();
+    const first = t.requests[0];
+    for (const letter of "elloabcdefghijklmnopqrstuvxyz") {
+        t.type(letter); c.requestSuggestions();
+    }
+    assert.equal(t.requests.length, 1, "Do not queue every keystroke in the helper");
+    const latest = c.preedit;
+    assert.equal(c.pendingPredictionRequest.args[1].value, latest);
+    first.success(JSON.stringify({suggestions: ["stale"]}));
+    assert.equal(t.requests.length, 2, "Dispatch just one retained request after completion");
+    first.success(JSON.stringify({suggestions: ["duplicate"]}));
+    assert.equal(c.predictionRequestInFlight, true, "An obsolete duplicate reply cannot release the newer request");
+    assert.equal(t.requests[1].args[1].value, latest);
+    assert.equal(t.rows.length, 0, "The superseded result must not be displayed");
+    t.requests[1].success(JSON.stringify({suggestions: [latest + "x"]}));
+    assert(t.rows.some(row => row.text === latest + "x"));
+    assert.equal(c.predictionRequestInFlight, false); assert.equal(c.pendingPredictionRequest, null);
+});
+check("next-word and typed-word predictions share one bounded request lane", () => {
+    const t = setup("one "), c = t.context;
+    c.requestNextWords(); const first = t.requests[0];
+    t.type("hel"); c.requestSuggestions();
+    t.type("lo"); c.requestSuggestions();
+    assert.equal(t.requests.length, 1);
+    first.success(JSON.stringify(["stale"]));
+    assert.equal(t.requests.length, 2); assert.equal(t.requests[1].method, "AnalyzeContext");
+    assert.equal(t.requests[1].args[1].value, "hello");
+    t.requests[1].failure("test error"); assert.equal(c.predictionRequestInFlight, false);
+    t.type("x"); c.requestSuggestions(); assert.equal(t.requests.length, 3);
+});
+for (const [name, change] of [
+    ["focus", t => t.focus("other")], ["cursor", t => t.move(0)],
+    ["clear", t => t.clear()], ["selection", t => t.select(0, 2)],
+    ["hidden keyboard", t => t.context.active = false],
+    ["password field", t => t.context.passwordField = true]
+]) check("retained predictions are dropped after " + name, () => {
+    const t = setup(), c = t.context;
+    t.type("h"); c.requestSuggestions(); const first = t.requests[0];
+    t.type("el"); c.requestSuggestions(); assert(c.pendingPredictionRequest);
+    change(t); first.success(JSON.stringify({suggestions: ["stale"]}));
+    assert.equal(t.requests.length, 1); assert.equal(c.pendingPredictionRequest, null);
+    assert.equal(c.predictionRequestInFlight, false); assert.equal(t.rows.length, 0);
+});
+check("a dispatch failure releases the prediction lane", () => {
+    const t = setup(), c = t.context;
+    t.type("hel"); c.helper.typedCall = () => false;
+    c.requestSuggestions(); assert.equal(c.predictionRequestInFlight, false);
+    c.helper.typedCall = (method, args, success, failure) => {
+        t.requests.push({method, args, success, failure}); return true;
+    };
+    c.requestSuggestions(); assert.equal(t.requests.length, 1);
+    t.requests[0].success(JSON.stringify({suggestions: ["hello"]}));
+    assert(t.rows.some(row => row.text === "hello"));
+    c.helper.typedCall = () => { throw new Error("service unavailable"); };
+    c.requestSuggestions(); assert.equal(c.predictionRequestInFlight, false);
 });
 check("delayed backspaces keep ownership of the surviving word", () => {
     const t = setup("", 0, {delayed: true}); t.type("hello"); t.backspace(); t.backspace(); t.publish();

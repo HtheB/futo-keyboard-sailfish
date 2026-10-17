@@ -4,6 +4,11 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 ENGINE="$ROOT/build/futo-dictionary-compiler"
 
+"${HOST_CXX:-g++}" -std=c++17 -O2 -DNDEBUG -I"$ROOT/upstream/native" \
+    "$ROOT/scripts/test-dictionary-lookup.cpp" "$ROOT/upstream/native/utils/char_utils.cpp" \
+    -o "$ROOT/build/test-dictionary-lookup"
+"$ROOT/build/test-dictionary-lookup" "$ROOT/build/test-dictionary-lookup.combined"
+
 bash "$ROOT/scripts/test-textinput-settings-hook.sh"
 node "$ROOT/scripts/check-credential-context.js"
 node "$ROOT/scripts/check-saved-login-prompt.js"

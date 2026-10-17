@@ -5,7 +5,7 @@
 
 Name:           futo-keyboard-sailfish
 Version:        0.9.6
-Release:        1
+Release:        2
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
 License:        LicenseRef-FUTO-Source-First-1.1-kb AND GPL-3.0-only AND BSD-3-Clause AND BSD-2-Clause AND BSL-1.0 AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND LGPL-2.1-or-later AND (LGPL-2.1-only OR LGPL-3.0-only)
 Source0:        %{name}-%{version}.tar.gz
@@ -253,6 +253,9 @@ fi
 %{_userunitdir}/maliit-server.service.d/10-futo-hardware-policy.conf
 
 %changelog
+* Sun Oct 18 2026 HtheB - 0.9.6-2
+- Reduce delays when showing word suggestions.
+
 * Sun Oct 18 2026 HtheB - 0.9.6-1
 - Add selectable vibration levels and expand custom keys with mixed text and actions.
 - Improve layout search, names and sorting in the Layout Editor.
