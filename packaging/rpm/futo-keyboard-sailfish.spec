@@ -4,8 +4,8 @@
 %global _missing_build_ids_terminate_build 0
 
 Name:           futo-keyboard-sailfish
-Version:        0.9.5
-Release:        2
+Version:        0.9.6
+Release:        1
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
 License:        LicenseRef-FUTO-Source-First-1.1-kb AND GPL-3.0-only AND BSD-3-Clause AND BSD-2-Clause AND BSL-1.0 AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND LGPL-2.1-or-later AND (LGPL-2.1-only OR LGPL-3.0-only)
 Source0:        %{name}-%{version}.tar.gz
@@ -153,6 +153,7 @@ fi
 %attr(4755,root,root) %{_libexecdir}/futo-keyboard-appsupport
 %attr(4755,root,root) %{_libexecdir}/futo-keyboard-browser-origin
 %attr(4755,root,root) %{_libexecdir}/futo-keyboard-editor
+%attr(4755,root,root) %{_libexecdir}/futo-keyboard-launcher-install
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-voice
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-install-wayland-deadkey-hook
 %attr(0755,root,root) %{_libexecdir}/futo-keyboard-remove-wayland-deadkey-hook
@@ -171,6 +172,8 @@ fi
 %config(noreplace) %{_sysconfdir}/fonts/conf.d/65-futo-keyboard-symbols.conf
 %{_datadir}/maliit/plugins/com/jolla/FutoInputHandler.qml
 %{_datadir}/maliit/plugins/com/jolla/FutoCompositionSession.js
+%{_datadir}/maliit/plugins/com/jolla/FutoHapticFeedback.js
+%{_datadir}/maliit/plugins/com/jolla/FutoKeyHaptics.qml
 %{_datadir}/maliit/plugins/com/jolla/FutoCompositionController.qml
 %{_datadir}/maliit/plugins/com/jolla/FutoConversionStrip.qml
 %{_datadir}/maliit/plugins/com/jolla/FutoSavedLoginPrompt.qml
@@ -179,6 +182,8 @@ fi
 %{_datadir}/maliit/plugins/com/jolla/FutoPasteButton.qml
 %{_datadir}/maliit/plugins/com/jolla/handlers/FutoInputHandler.qml
 %{_datadir}/maliit/plugins/com/jolla/handlers/FutoCompositionSession.js
+%{_datadir}/maliit/plugins/com/jolla/handlers/FutoHapticFeedback.js
+%{_datadir}/maliit/plugins/com/jolla/handlers/FutoKeyHaptics.qml
 %{_datadir}/maliit/plugins/com/jolla/handlers/FutoCompositionController.qml
 %{_datadir}/maliit/plugins/com/jolla/handlers/FutoConversionStrip.qml
 %{_datadir}/maliit/plugins/com/jolla/handlers/FutoSavedLoginPrompt.qml
@@ -188,6 +193,7 @@ fi
 %{_datadir}/jolla-settings/pages/futo-keyboard-sailfish/
 %{_datadir}/jolla-settings/entries/futo-keyboard.json
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoCharacterKey.qml
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoHideKeyboardIcon.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoCustomKey.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoCustomLayoutPanel.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoCustomLayouts.js
@@ -247,6 +253,12 @@ fi
 %{_userunitdir}/maliit-server.service.d/10-futo-hardware-policy.conf
 
 %changelog
+* Sun Oct 18 2026 HtheB - 0.9.6-1
+- Add selectable vibration levels and expand custom keys with mixed text and actions.
+- Improve layout search, names and sorting in the Layout Editor.
+- Fix custom Shift, app-drawer launching and editor sizing.
+- Improve accented-word suggestions and completion of partially typed words.
+
 * Fri Oct 16 2026 HtheB - 0.9.5-1
 - Add custom keyboard layouts and the FUTO Layout Editor.
 

@@ -12,14 +12,57 @@ import Nemo.DBus 2.0
 import Nemo.Configuration 1.0
 import QtFeedback 5.0
 import org.nemomobile.systemsettings 1.0
+import "FutoHapticFeedback.js" as Haptics
 
 InputHandler {
     id: futoHandler
     property string customPendingDeadKey: ""
+    property Item customPopupSource
+    Item {
+        id: customPopupDispatch
+        property int key: Qt.Key_unknown
+        property int keyType: KeyType.CharacterKey
+        property string text: ""
+        property string customAction: ""
+        property var customDefinition: ({})
+        property bool customLiteralText: false
+        property bool customPopupDiscard: false
+        readonly property bool customPopupAction: true
+    }
+    function resolveCustomPopupKey(key) {
+        if (!key || key.keyType !== KeyType.PopupKey) return key
+        var output = String(key.text || "")
+        if (output.indexOf("\uF8FFfuto:") !== 0) { customPopupSource = null; return key }
+        var choice = customPopupSource ? customPopupSource.choiceForPopupOutput(output) : null
+        customPopupSource = null
+        customPopupDispatch.key = Qt.Key_unknown
+        customPopupDispatch.keyType = KeyType.CharacterKey
+        customPopupDispatch.text = ""
+        customPopupDispatch.customAction = ""
+        customPopupDispatch.customDefinition = ({})
+        customPopupDispatch.customLiteralText = false
+        customPopupDispatch.customPopupDiscard = choice === null || choice === undefined
+        if (customPopupDispatch.customPopupDiscard) return customPopupDispatch
+        if (typeof choice === "string" || choice.text !== undefined) {
+            var text = typeof choice === "string" ? choice : choice.text
+            customPopupDispatch.text = text
+            customPopupDispatch.customAction = "text"
+            customPopupDispatch.customLiteralText = text.length > 1
+            return customPopupDispatch
+        }
+        var code = choice.action === "space" ? Qt.Key_Space : choice.action === "enter" ? Qt.Key_Return
+                 : choice.action === "backspace" ? Qt.Key_Backspace : choice.action === "shift" ? Qt.Key_Shift : Qt.Key_unknown
+        customPopupDispatch.key = code
+        customPopupDispatch.text = choice.action === "space" ? " " : ""
+        customPopupDispatch.keyType = choice.action === "shift" ? KeyType.ShiftKey : KeyType.CharacterKey
+        customPopupDispatch.customAction = choice.action
+        customPopupDispatch.customDefinition = choice
+        return customPopupDispatch
+    }
     readonly property bool customPageAllowsSuggestions: !keyboard.layout
             || keyboard.layout.customPageIsText === undefined || keyboard.layout.customPageIsText
 
-    function clearCustomDeadKey() { customPendingDeadKey = "" }
+    function clearCustomDeadKey() { customPendingDeadKey = ""; customPopupSource = null }
     function typeCustomText(text) {
         if (conversionEnabled && customPageAllowsSuggestions) {
             conversion.submit("text", text)
@@ -39,6 +82,22 @@ InputHandler {
         if (!key) return false
         if (key.reservedQuickSettings === true && key.heldForSettings === true) return true
         var action = String(key.customAction || "")
+        if (action === "hide") {
+            prepareDesktopKeyDispatch()
+            clearCustomDeadKey()
+            MInputMethodQuick.userHide()
+            return true
+        }
+        if (key.customLiteralText === true && customPendingDeadKey === "") {
+            inputActionSerial++
+            reconcileCommittedPreedit()
+            clearEditingWord(); clearUndoCorrection(); clearCommittedSpace()
+            commit(preedit + String(key.text || ""))
+            captureEditorKey(key); captureCredentialKey(key)
+            if (keyboard.shiftState !== ShiftState.LockedShift) keyboard.shiftState = ShiftState.NoShift
+            return true
+        }
+        if (action === "shift" && key.customPopupAction === true) { keyboard.cycleShift(); return true }
         if (action !== "" && ["text", "space", "enter", "backspace", "shift"].indexOf(action) < 0
                 && keyboard.layout && keyboard.layout.activateCustomAction) {
             clearCustomDeadKey()
@@ -235,6 +294,7 @@ InputHandler {
     property int urlRequestSerial: 0
     property bool trackSurroundings: false
     property string correctionQuery: ""
+    property var pendingSuggestionTap: null
     property string correctionCandidate: ""
     property bool undoCorrectionAvailable: false
     property string undoOriginalWord: ""
@@ -2348,12 +2408,32 @@ InputHandler {
 
     ProfileControl {
         id: systemFeedback
+        onTouchscreenVibrationLevelChanged: futoHandler.synchronizePlatformHaptics()
     }
 
-    ThemeEffect {
+    FutoKeyHaptics {
         id: customButtonVibration
-        effect: ThemeEffect.PressWeak
+        mode: keyboardSettings.keyVibrationMode
+        enabled: futoHandler.active && Haptics.allowed(mode, systemFeedback.touchscreenVibrationLevel)
     }
+
+    readonly property int configuredPressEffect: Haptics.platformEffect(keyboardSettings.keyVibrationMode,
+            ThemeEffect.PressWeak, ThemeEffect.UserEffect)
+    property bool pressEffectSilenced: false
+    property bool hapticsReady: false
+    property var platformHapticsState: ({applied: false, original: 0})
+    onConfiguredPressEffectChanged: synchronizePlatformHaptics()
+    onPressEffectSilencedChanged: synchronizePlatformHaptics()
+    function synchronizePlatformHaptics() {
+        if (!hapticsReady) return
+        Haptics.updatePlatformEffect(typeof buttonPressEffect !== "undefined" ? buttonPressEffect : null,
+            platformHapticsState, active,
+            Haptics.allowed(keyboardSettings.keyVibrationMode, systemFeedback.touchscreenVibrationLevel),
+            pressEffectSilenced, configuredPressEffect, ThemeEffect.UserEffect)
+    }
+    Component.onDestruction: Haptics.updatePlatformEffect(
+        typeof buttonPressEffect !== "undefined" ? buttonPressEffect : null,
+        platformHapticsState, false, false, false, configuredPressEffect, ThemeEffect.UserEffect)
 
     // Silence Jolla's profile-controlled samples only while FUTO is active.
     // FUTO sounds are sent through the isolated helper instead.
@@ -2365,6 +2445,13 @@ InputHandler {
 
     onSelect: {
         playOptionFeedback()
+        var waitingTap = pendingSuggestionTap
+        if (waitingTap && inputActionSerial === waitingTap.actionSerial
+                && predictionEditorSerial === editorContextSerial
+                && preedit === waitingTap.word && committedPreeditStart === waitingTap.start) {
+            waitingTap.replacement = String(text)
+            return
+        }
         var acceptingAction = inputActionSerial
         inputActionSerial++
         if (showUrlSuggestions) {
@@ -2631,6 +2718,7 @@ InputHandler {
         property real keySoundVolume: 0.5
 		property bool swipeTypingEnabled: false
 		property bool swipeVibrationEnabled: false
+        property int keyVibrationMode: 2
         // Set only by the Top Menu compatibility action. Android applications
         // which suppress their IME remain in a hidden composition state, so
         // this session must use hardware-style key events instead.
@@ -2724,6 +2812,12 @@ InputHandler {
         interval: 25
         repeat: false
         onTriggered: futoHandler.requestSuggestions()
+    }
+
+    Timer {
+        id: suggestionTapTimer
+        interval: 20
+        onTriggered: futoHandler.retryPendingSuggestionTap()
     }
 
     Timer {
@@ -2823,6 +2917,8 @@ InputHandler {
     }
 
     Component.onCompleted: {
+        hapticsReady = true
+        synchronizePlatformHaptics()
         // Languages sharing one layout are told apart only by detection, which
         // was forgotten on every restart. The layout corrects this if the
         // language is no longer on the active keyboard.
@@ -3005,7 +3101,7 @@ InputHandler {
     }
 
     function playManualKeyFeedback(key, soundKind) {
-        if (systemFeedback.touchscreenVibrationLevel !== 0)
+        if (Haptics.allowed(keyboardSettings.keyVibrationMode, systemFeedback.touchscreenVibrationLevel))
             customButtonVibration.play()
         playKeySound(soundKind)
     }
@@ -3338,12 +3434,24 @@ InputHandler {
 
 	function activateDesktopKey(keyId) {
 		keyId = String(keyId)
+        if (["copy", "cut", "paste", "selectall"].indexOf(keyId) >= 0)
+            return activateEditingAction(keyId)
 		if (desktopModifierFlag(keyId) !== 0) {
 			toggleDesktopModifier(keyId)
 			return true
 		}
 		return sendDesktopKeyCode(desktopKeyCode(keyId), desktopKeyText(keyId))
 	}
+
+    function activateEditingAction(action) {
+        if (action === "paste") { if (Clipboard.hasText) paste(Clipboard.text); return true }
+        var letters = {copy: "C", cut: "X", selectall: "A"}
+        if (!letters[action]) return false
+        prepareDesktopKeyDispatch()
+        clearCustomDeadKey()
+        MInputMethodQuick.sendKey(letters[action].charCodeAt(0), Qt.ControlModifier, "", Maliit.KeyClick)
+        return true
+    }
 
 	function handleArmedDesktopModifierKey(key) {
 		if (activeDesktopModifiers === 0 || !key
@@ -5096,7 +5204,12 @@ InputHandler {
     }
 
     onActiveChanged: {
-        if (!active) clearCustomDeadKey()
+        synchronizePlatformHaptics()
+        if (!active) {
+            clearCustomDeadKey()
+            restorePressEffect()
+            cancelPendingSuggestionTap()
+        }
 		if (!editorSessionActive && passwordField) {
 			finalizeCredentialCapture()
 			offerCapturedCredential()
@@ -5437,6 +5550,7 @@ InputHandler {
     }
 
     function resetSuggestionDisplay() {
+        cancelPendingSuggestionTap()
         requestSerial++
         predictionTimer.stop()
         nextPredictionTimer.stop()
@@ -5456,6 +5570,7 @@ InputHandler {
     }
 
     function clearCommittedPreedit() {
+        cancelPendingSuggestionTap()
         preedit = ""
         preeditAlreadyCommitted = false
         committedPreeditStart = -1
@@ -5617,11 +5732,22 @@ InputHandler {
         lastObservedEditorState = state
         lastObservedSelection = selected
         lastObservedTextValid = valid
+        var ownAcknowledgement = acknowledgedEditorState(state) >= 0
+        var tap = pendingSuggestionTap
+        var currentPrediction = predictionEditorSerial === editorContextSerial
+                && (predictionActionSerial === inputActionSerial
+                    || (tap && predictionActionSerial === tap.acceptingAction
+                        && inputActionSerial === tap.actionSerial))
         editorContextSerial++
         requestSerial++
         if (committedPreeditSending)
             return
         reconcileCommittedPreedit()
+        // Publishing a keystroke that we already sent does not make the
+        // still-visible suggestion belong to a different word or field.
+        if (ownAcknowledgement && currentPrediction && preeditAlreadyCommitted
+                && preedit !== "" && !selected)
+            predictionEditorSerial = editorContextSerial
         if (swipeReplacementActive && editingWordMatchesEditor())
             predictionEditorSerial = editorContextSerial
         if (active && preedit !== "")
@@ -5915,6 +6041,7 @@ InputHandler {
     }
 
     function requestSuggestions() {
+        if (pendingSuggestionTap) return
         reconcileCommittedPreedit()
         var query = activeSuggestionQuery
         if (!active || query === ""
@@ -6113,9 +6240,62 @@ InputHandler {
 		clearSwipeReplacementState()
 	}
 
+    function cancelPendingSuggestionTap() {
+        pendingSuggestionTap = null
+        suggestionTapTimer.stop()
+    }
+
+    function deferSuggestionTap(replacement, acceptingAction) {
+        var observed = editorStateSnapshot()
+        if (!observed || acknowledgedEditorState(observed) < 0
+                || pendingEditorStates.length < 2 || committedPreeditStart < 0)
+            return false
+        var expected = pendingEditorStates[pendingEditorStates.length - 1]
+        if (expected.cursor !== committedPreeditStart + preedit.length
+                || expected.before.slice(-preedit.length) !== preedit)
+            return false
+        pendingSuggestionTap = {replacement: String(replacement), acceptingAction: acceptingAction,
+            actionSerial: inputActionSerial, word: preedit, start: committedPreeditStart,
+            expected: expected, started: Date.now()}
+        predictionTimer.stop()
+        suggestionTapTimer.restart()
+        return true
+    }
+
+    function retryPendingSuggestionTap() {
+        var tap = pendingSuggestionTap
+        if (!tap) return
+        if (!active || passwordField || MInputMethodQuick.hasSelection
+                || inputActionSerial !== tap.actionSerial || preedit !== tap.word
+                || committedPreeditStart !== tap.start
+                || predictionEditorSerial !== editorContextSerial) {
+            cancelPendingSuggestionTap()
+            return
+        }
+        if (committedPreeditMatchesEditor()
+                && sameEditorState(editorStateSnapshot(), tap.expected)) {
+            cancelPendingSuggestionTap()
+            applyPrediction(tap.replacement, tap.acceptingAction)
+        } else if (Date.now() - tap.started < 500) {
+            suggestionTapTimer.restart()
+        } else {
+            resetSuggestionDisplay()
+            editorContextTimer.restart()
+        }
+    }
+
 	function applyPrediction(replacement, acceptingAction) {
         if (acceptingAction === undefined)
             acceptingAction = inputActionSerial
+        // A tap can beat the editor's acknowledgement of the final letter.
+        // Wait for that exact owned write rather than dropping the tap or
+        // weakening the checks that protect unrelated text from replacement.
+        if (predictionEditorSerial === editorContextSerial
+                && predictionActionSerial === acceptingAction
+                && !MInputMethodQuick.hasSelection && preeditAlreadyCommitted
+                && !committedPreeditMatchesEditor()
+                && deferSuggestionTap(replacement, acceptingAction))
+            return
         if (predictionEditorSerial !== editorContextSerial
                 || predictionActionSerial !== acceptingAction
                 || MInputMethodQuick.hasSelection
@@ -6188,36 +6368,30 @@ InputHandler {
             scheduleNextWords(replacement, suggestionContext)
     }
 
-	// The platform plays its press effect for every key a finger crosses, out
-	// of a shared ThemeEffect, before the input handler is consulted, and it
-	// rewrites silenceFeedback on each movement so that flag cannot be held.
-	// Pointing the effect at one the device does not define leaves play() with
-	// nothing to fire; PressWeak comes back the moment the finger lifts. The
-	// object belongs to this process, so no setting of the owner's is touched.
-	readonly property int pressEffectNone: 65535   // ThemeEffect.UserEffect
-	property int pressEffectRestore: -1
-
+	// Silence only this touch, never the phone's vibration preference. Restore
+    // the original platform effect explicitly: Qt 5.6 bindings do not reliably
+    // restore a target's previous literal value when disabled.
 	function silencePressEffect() {
-		if (pressEffectRestore >= 0 || typeof buttonPressEffect === "undefined"
-				|| !buttonPressEffect)
-			return
-		pressEffectRestore = buttonPressEffect.effect
-		buttonPressEffect.effect = pressEffectNone
+        pressEffectSilenced = true
 	}
 
 	function restorePressEffect() {
-		if (pressEffectRestore < 0)
-			return
-		var effect = pressEffectRestore
-		pressEffectRestore = -1
-		if (typeof buttonPressEffect !== "undefined" && buttonPressEffect)
-			buttonPressEffect.effect = effect
+        pressEffectSilenced = false
 	}
 
 	function handleKeyPress() {
+        if (pressedKey && pressedKey.keyType !== KeyType.PopupKey) customPopupSource = null
 		if (pressedKey && pressedKey.customAction === "space")
 			suppressSpacebarLanguageSwitch()
 		if (swipePath.length === 0 && !spacebarGestureActive) playAutomaticKeySound(pressedKey)
+
+        // Normal remains the platform's touch-down effect. Light and Strong
+        // replace it with a timed pulse, never an additional platform pulse.
+        if (Haptics.pulseDuration(keyboardSettings.keyVibrationMode) > 0
+                && pressedKey && pressedKey.manualFeedbackOnPress !== true
+                && !spacebarGestureActive
+                && (swipePath.length === 0 || keyboardSettings.swipeVibrationEnabled))
+            customButtonVibration.play()
 		// The first key of a touch has already had its pulse by the time this
 		// runs, so silencing here leaves the rest of that touch quiet however
 		// far it travels, popup cells included.  Leaving it alone is what the
@@ -6272,6 +6446,8 @@ InputHandler {
     }
 
     function handleKeyClick() {
+        pressedKey = resolveCustomPopupKey(pressedKey)
+        if (pressedKey && pressedKey.customPopupDiscard === true) { resetSwipePath(); return true }
 		if (pressedKey && pressedKey.keyType === KeyType.ShiftKey && MInputMethodQuick.hasSelection)
 			selectionCaseArmed = keyboardSettings.selectionCaseSuggestionsEnabled
 		else if (!pressedKey || pressedKey.keyType !== KeyType.ShiftKey) selectionCaseArmed = false

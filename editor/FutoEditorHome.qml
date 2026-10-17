@@ -10,17 +10,19 @@ Page {
     allowedOrientations: Orientation.LandscapeMask
     property var layouts: []
     property string message: ""
+    property bool messageIsError: true
     property bool busy: false
 
     function load(raw) {
         var data = Custom.parse(String(raw))
-        if (!data) { message = qsTr("Could not read custom layouts"); return }
+        if (!data) { showError(qsTr("Could not read custom layouts")); return }
         layouts = data.layouts
         message = ""
     }
+    function showError(text) { messageIsError = true; message = text }
     function refresh() {
         if (helper.status === DBusInterface.Available)
-            helper.typedCall("ListCustomLayouts", [], function(raw) { home.load(raw) }, function() { home.message = qsTr("Could not read custom layouts") })
+            helper.typedCall("ListCustomLayouts", [], function(raw) { home.load(raw) }, function() { home.showError(qsTr("Could not read custom layouts")) })
     }
     function edit(document, duplicate) {
         var copy = Custom.clone(document)
@@ -47,7 +49,7 @@ Page {
             pageStack.push(Qt.resolvedUrl("FutoEditorExportPage.qml"), {filePath: path, shareImmediately: !!share})
         }, function() { home.busy = false; home.exportFailed() })
     }
-    function exportFailed() { message = qsTr("Could not export the layout"); feedback.show(message) }
+    function exportFailed() { showError(qsTr("Could not export the layout")) }
     function showAbout() { pageStack.push(Qt.resolvedUrl("FutoEditorAboutPage.qml")) }
     DBusInterface {
         id: helper
@@ -74,8 +76,9 @@ Page {
                 var path = selectedContentProperties.filePath
                 if (path) helper.typedCall("ImportCustomLayout", [{type: "s", value: String(path)}], function(raw) {
                     home.load(raw)
+                    home.messageIsError = false
                     home.message = qsTr("Layout imported. Select it in the keyboard's Layout view.")
-                }, function(name, detail) { home.message = String(detail || qsTr("Could not import this layout")) })
+                }, function(name, detail) { home.showError(String(detail || qsTr("Could not import this layout"))) })
             }
         }
     }
@@ -124,10 +127,10 @@ Page {
                 size: BusyIndicatorSize.Small; running: home.busy
                 visible: running; height: visible ? implicitHeight : 0
             }
-            Label {
+            FutoEditorMessage {
                 x: Theme.horizontalPageMargin; width: parent.width - 2 * x
-                visible: home.message !== ""; text: home.message; textFormat: Text.PlainText
-                wrapMode: Text.Wrap; color: Theme.highlightColor
+                visible: home.message !== ""; height: visible ? implicitHeight : 0
+                text: home.message; error: home.messageIsError
             }
         }
     }
@@ -180,7 +183,7 @@ Page {
                             onClicked: {
                                 var id = entry.layoutDocument.id
                                 deleteRemorse.execute(qsTr("Deleting layout"), function() {
-                                    helper.typedCall("DeleteCustomLayout", [{type: "s", value: id}], function(raw) { home.load(raw) }, function() { home.message = qsTr("Could not delete the layout") })
+                                    helper.typedCall("DeleteCustomLayout", [{type: "s", value: id}], function(raw) { home.load(raw) }, function() { home.showError(qsTr("Could not delete the layout")) })
                                 })
                             }
                         }

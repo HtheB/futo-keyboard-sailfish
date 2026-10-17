@@ -1,9 +1,12 @@
 .pragma library
 .import "FutoDeadKeyData.js" as DeadKeys
 
-var actions = ["text", "space", "backspace", "enter", "shift", "page", "emoji", "symbols", "language", "clipboard", "voice", "esc", "tab", "delete", "insert", "home", "end", "pageup", "pagedown", "left", "right", "up", "down", "ctrl", "alt", "altgr", "super", "menu", "print", "pause", "numlock", "scrolllock", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12", "spacer"]
+var actions = ["text", "space", "backspace", "enter", "shift", "page", "emoji", "symbols", "language", "clipboard", "voice", "copy", "cut", "paste", "selectall", "hide", "esc", "tab", "delete", "insert", "home", "end", "pageup", "pagedown", "left", "right", "up", "down", "ctrl", "alt", "altgr", "super", "menu", "print", "pause", "numlock", "scrolllock", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12", "spacer"]
 var labels = {space: "Space", backspace: "⌫", enter: "↵", shift: "⇧", page: "Page", emoji: "☺", symbols: "Symbols", language: "Language", clipboard: "Paste", voice: "Microphone", esc: "Esc", tab: "Tab", delete: "Del", insert: "Ins", home: "Home", end: "End", pageup: "PgUp", pagedown: "PgDn", left: "←", right: "→", up: "↑", down: "↓", ctrl: "Ctrl", alt: "Alt", altgr: "AltGr", super: "Sailfish", menu: "Menu", print: "PrtSc", pause: "Pause", numlock: "Num", scrolllock: "Scroll", spacer: ""}
 var combining = {"`":"\u0300", "'":"\u0301", "´":"\u0301", "^":"\u0302", "~":"\u0303", "¯":"\u0304", "˘":"\u0306", ".":"\u0307", "\"":"\u0308", "¨":"\u0308", "°":"\u030a", "˚":"\u030a", "˝":"\u030b", "ˇ":"\u030c", "¸":"\u0327", "˛":"\u0328", "/":"\u0338"}
+labels.clipboard = "Clipboard"
+labels.copy = "Copy"; labels.cut = "Cut"; labels.paste = "Paste"
+labels.selectall = "Select all"; labels.hide = "Hide keyboard"
 function compose(dead, text) {
     if (text === " " || text === dead) return dead
     var mark = combining[dead] || dead
@@ -13,6 +16,39 @@ function compose(dead, text) {
 }
 
 function clone(value) { return JSON.parse(JSON.stringify(value)) }
+// Empty text rows are unfinished editor controls, not usable popup choices.
+// Clean a copy for testing/saving; never change the user's in-progress draft.
+function prepare(layout) {
+    var result = clone(layout)
+    if (!result || !Array.isArray(result.pages)) return result
+    for (var p = 0; p < result.pages.length; ++p) {
+        var rows = result.pages[p].rows
+        if (!Array.isArray(rows)) continue
+        for (var r = 0; r < rows.length; ++r) {
+            if (!Array.isArray(rows[r])) continue
+            for (var k = 0; k < rows[r].length; ++k) {
+                var item = rows[r][k]
+                if (!item || !Array.isArray(item.more)) continue
+                var choices = [], selected = 0, originalLength = item.more.length
+                for (var i = 0; i < item.more.length; ++i) {
+                    var choice = item.more[i]
+                    var empty = choice === "" || choice && typeof choice === "object" && !Array.isArray(choice)
+                            && choice.text === "" && textValid(choice.label, 40, true)
+                            && Object.keys(choice).every(function(name) { return name === "text" || name === "label" })
+                    if (i < item.defaultMore && !empty) selected++
+                    if (!empty) choices.push(choice)
+                }
+                if (choices.length !== item.more.length) {
+                    item.more = choices
+                    if (typeof item.defaultMore === "number" && Math.floor(item.defaultMore) === item.defaultMore
+                            && item.defaultMore >= 0 && item.defaultMore < originalLength)
+                        item.defaultMore = Math.min(selected, Math.max(0, choices.length - 1))
+                }
+            }
+        }
+    }
+    return result
+}
 function textValid(value, maximum, optional) {
     if (optional && value === undefined) return true
     if (typeof value !== "string" || value.indexOf("\u0000") >= 0) return false
@@ -28,17 +64,44 @@ function textValid(value, maximum, optional) {
 }
 function key(action, output, width, label, target) {
     return {action: action || "text", label: label || "", output: output || "",
-        shifted: "", width: width || 1, more: [], defaultMore: 0, dead: false, target: target || "", style: "auto"}
+        shifted: "", width: width || 1, more: [], defaultMore: 0, dead: false, target: target || "", style: "auto", holdAction: "", holdTarget: ""}
 }
 function showsCard(item, separated) {
     if (item.action === "spacer" || item.style === "plain") return false
     return item.style === "button" || item.action === "space" || item.action === "text" && separated
 }
 function keyLabel(item) {
-    if (item.label) return String(item.label)
-    if (item.action === "text") return String(item.output)
+    if (item.label) return compactLabel(item.label, 12)
+    if (item.action === "text") return compactLabel(item.output, 12)
     return labels[item.action] !== undefined ? labels[item.action] : item.action.toUpperCase()
 }
+function compactLabel(text, maximum) {
+    var value = String(text || "").replace(/[\r\n\t]/g, " "), end = 0, count = 0
+    while (end < value.length && count < maximum) {
+        var code = value.charCodeAt(end++)
+        if (code >= 0xd800 && code <= 0xdbff && end < value.length) end++
+        count++
+    }
+    return value.slice(0, end) + (end < value.length ? "…" : "")
+}
+function shiftedOutput(item) { return item.shifted || (textValid(item.output, 1) ? item.output.toUpperCase() : item.output) }
+function holdActionAllowed(action) { return actions.indexOf(action) >= 0 && action !== "text" && action !== "spacer" }
+function alternatives(item) { return (item.more || []).concat(item.holdAction ? [{action: item.holdAction, target: item.holdTarget || ""}] : []) }
+function alternativeIndex(item) { var choices = alternatives(item); return item.holdAction ? choices.length - 1 : Math.max(0, Math.min(choices.length - 1, item.defaultMore)) }
+function alternativeText(choice) { return typeof choice === "string" ? choice : choice && typeof choice.text === "string" ? choice.text : "" }
+function alternativeLabel(choice) { return compactLabel(typeof choice === "string" ? choice : choice ? choice.label || choice.text || keyLabel(choice) : "", 10) }
+function alternativeCaption(choice) { return choice && choice.action === "hide" ? "\uF8FEhide" : alternativeLabel(choice) }
+function alternativeOutput(choice, index) { return "\uF8FFfuto:" + index }
+function alternativeValid(choice) {
+    if (typeof choice === "string") return choice !== "" && textValid(choice, 2048)
+    if (!choice || typeof choice !== "object" || Array.isArray(choice)) return false
+    if (typeof choice.text === "string") return choice.text !== "" && textValid(choice.text, 2048) && textValid(choice.label, 40, true)
+            && Object.keys(choice).every(function(key) { return key === "text" || key === "label" })
+    return holdActionAllowed(choice.action)
+            && Object.keys(choice).every(function(key) { return key === "action" || key === "target" })
+            && (choice.target === undefined || textValid(choice.target, 48))
+}
+function holdLabel(item) { return alternativeLabel(alternatives(item)[alternativeIndex(item)]) }
 function newPage(id, name, kind) {
     return {id: id, name: name, kind: kind || "text", rows: [[key("page", "", 1, "⚙", id)]]}
 }
@@ -82,15 +145,17 @@ function valid(layout, requireId) {
                 var item = row[k]
                 if (!item || actions.indexOf(item.action) < 0 || typeof item.width !== "number" || !isFinite(item.width)
                         || item.style !== undefined && ["", "auto", "button", "plain"].indexOf(item.style) < 0
-                        || item.width < 0.25 || item.width > 20 || !textValid(item.output, 64)
-                        || !textValid(item.label, 40) || !textValid(item.shifted, 64, true)
+                        || item.width < 0.25 || item.width > 20 || !textValid(item.output, 2048)
+                        || !textValid(item.label, 40) || !textValid(item.shifted, 2048, true)
                         || item.action === "text" && !item.output
+                        || item.holdAction !== undefined && item.holdAction !== "" && !holdActionAllowed(item.holdAction)
+                        || item.holdTarget !== undefined && !textValid(item.holdTarget, 48)
                         || typeof item.dead !== "boolean" || item.dead && (item.action !== "text" || !textValid(item.output, 1))
                         || !Array.isArray(item.more) || item.more.length > 32
                         || typeof item.defaultMore !== "number" || Math.floor(item.defaultMore) !== item.defaultMore
                         || item.defaultMore < 0 || item.defaultMore >= item.more.length && item.defaultMore !== 0) return false
                 for (var m = 0; m < item.more.length; ++m)
-                    if (!textValid(item.more[m], 64) || !item.more[m]) return false
+                    if (!alternativeValid(item.more[m])) return false
             }
         }
     }
@@ -99,7 +164,9 @@ function valid(layout, requireId) {
         for (r = 0; r < layout.pages[p].rows.length; ++r)
             for (k = 0; k < layout.pages[p].rows[r].length; ++k) {
                 var cell = layout.pages[p].rows[r][k]
-                if (cell.action === "page" && !pages[cell.target]) return false
+                if (cell.action === "page" && !pages[cell.target] || cell.holdAction === "page" && !pages[cell.holdTarget]) return false
+                for (var a = 0; a < cell.more.length; ++a)
+                    if (typeof cell.more[a] === "object" && cell.more[a].action === "page" && !pages[cell.more[a].target]) return false
             }
     return true
 }

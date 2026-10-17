@@ -2,19 +2,27 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
+	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/godbus/dbus/v5"
 )
 
 const layoutEditorDesktopName = "futo-layout-editor.desktop"
 const layoutEditorLauncherName = "futo-layout-editor-launcher.desktop"
-const layoutEditorLauncherTemplate = "/usr/share/futo-keyboard-sailfish/editor/" + layoutEditorLauncherName
+const layoutEditorLauncherPackage = "futo-layout-editor-launcher"
+const layoutEditorLauncherRPM = "/usr/share/futo-keyboard-sailfish/editor/launcher.rpm"
+const layoutEditorLauncherInstaller = "/usr/libexec/futo-keyboard-launcher-install"
+const layoutEditorSystemLauncher = "/usr/share/applications/" + layoutEditorLauncherName
 const layoutEditorLauncherMarker = "\nX-FUTO-Layout-Editor=true\n"
 
 var layoutEditorLauncherMutex sync.Mutex
@@ -25,28 +33,6 @@ func layoutEditorLauncherPath() (string, error) {
 		return "", errors.New("Could not find the application directory")
 	}
 	return filepath.Join(home, ".local", "share", "applications", layoutEditorLauncherName), nil
-}
-
-func migrateLayoutEditorLauncher(path string) error {
-	legacy := filepath.Join(filepath.Dir(path), layoutEditorDesktopName)
-	data, err := readLayoutEditorLauncher(legacy)
-	if err != nil || data == nil {
-		// Never move a user's unrelated or symlinked desktop entry.
-		return nil
-	}
-	current, err := readLayoutEditorLauncher(path)
-	if err != nil {
-		return err
-	}
-	if current == nil {
-		err = os.Rename(legacy, path)
-	} else {
-		err = os.Remove(legacy)
-	}
-	if err != nil {
-		return errors.New("Could not update the Layout Editor launcher")
-	}
-	return nil
 }
 
 func readLayoutEditorLauncher(path string) ([]byte, error) {
@@ -70,66 +56,95 @@ func readLayoutEditorLauncher(path string) ([]byte, error) {
 	return data, nil
 }
 
-func setLayoutEditorLauncher(template, path string, visible bool) error {
-	if _, err := readLayoutEditorLauncher(path); err != nil {
-		return err
-	}
-	if !visible {
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-			return errors.New("Could not hide the Layout Editor launcher")
+func layoutEditorLauncherVisible(path string) bool {
+	data, err := readLayoutEditorLauncher(path)
+	return err == nil && bytes.Contains(data, []byte("\nType=Application\n")) &&
+		bytes.Contains(data, []byte("\nNoDisplay=false\n"))
+}
+
+// Older releases used per-user shortcuts. Remove only entries carrying our
+// marker, and only after the replacement operation has succeeded.
+func removeLegacyLayoutEditorLaunchers(path string) error {
+	for _, entry := range []string{path, filepath.Join(filepath.Dir(path), layoutEditorDesktopName)} {
+		data, err := readLayoutEditorLauncher(entry)
+		if err != nil {
+			return err
 		}
-		return nil
-	}
-	data, err := os.ReadFile(template)
-	if err != nil || !bytes.Contains(data, []byte(layoutEditorLauncherMarker)) ||
-		!bytes.Contains(data, []byte("\nType=Link\n")) ||
-		!bytes.Contains(data, []byte("\nURL=futo-layout-editor://open\n")) ||
-		bytes.Count(data, []byte("\nNoDisplay=false\n")) != 1 ||
-		bytes.Contains(data, []byte("\nExec=")) {
-		return errors.New("Could not read the installed Layout Editor launcher")
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return errors.New("Could not create the application directory")
-	}
-	file, err := os.CreateTemp(filepath.Dir(path), ".futo-launcher-*")
-	if err != nil {
-		return errors.New("Could not create the Layout Editor launcher")
-	}
-	defer os.Remove(file.Name())
-	if err = file.Chmod(0644); err == nil {
-		_, err = file.Write(data)
-	}
-	if err == nil {
-		err = file.Sync()
-	}
-	closeErr := file.Close()
-	if err == nil {
-		err = closeErr
-	}
-	if err == nil {
-		err = os.Rename(file.Name(), path)
-	}
-	if err != nil {
-		return errors.New("Could not save the Layout Editor launcher")
+		if data != nil {
+			if err := os.Remove(entry); err != nil && !os.IsNotExist(err) {
+				return errors.New("Could not update the Layout Editor launcher")
+			}
+		}
 	}
 	return nil
 }
 
+func legacyLayoutEditorLauncherVisible(path string) bool {
+	for _, entry := range []string{path, filepath.Join(filepath.Dir(path), layoutEditorDesktopName)} {
+		data, err := readLayoutEditorLauncher(entry)
+		if err == nil && bytes.Contains(data, []byte("\nNoDisplay=false\n")) {
+			return true
+		}
+	}
+	return false
+}
+
+type layoutEditorPackageCommand func(context.Context, string, ...string) ([]byte, error)
+
+func runLayoutEditorPackageCommand(ctx context.Context, name string, args ...string) ([]byte, error) {
+	return exec.CommandContext(ctx, name, args...).CombinedOutput()
+}
+
+// The keyboard does not depend on this optional package. Removing the icon
+// therefore removes only its desktop file, never the editor or keyboard.
+func changeLayoutEditorLauncherPackage(ctx context.Context, visible bool, run layoutEditorPackageCommand) error {
+	if visible {
+		// This fixed-operation bridge validates its parent, package ownership
+		// and permissions before invoking PackageKit with a clean environment.
+		_, err := run(ctx, layoutEditorLauncherInstaller)
+		if err != nil {
+			return errors.New("Could not show the Layout Editor in the app drawer")
+		}
+		return nil
+	}
+	output, err := run(ctx, "/bin/rpm", "-q", "--queryformat",
+		"%{NAME};%{VERSION}-%{RELEASE};%{ARCH};installed", layoutEditorLauncherPackage)
+	if err != nil {
+		return errors.New("Could not identify the Layout Editor launcher package")
+	}
+	id := strings.TrimSpace(string(output))
+	fields := strings.Split(id, ";")
+	if len(fields) != 4 || fields[0] != layoutEditorLauncherPackage ||
+		fields[1] == "" || fields[2] != "noarch" || fields[3] != "installed" {
+		return errors.New("Could not identify the Layout Editor launcher package")
+	}
+	// Deliberately omit --autoremove: no dependencies may be removed with it.
+	if _, err := run(ctx, packageKitClientPath, "--plain", "-y", "remove", id); err != nil {
+		return errors.New("Could not hide the Layout Editor from the app drawer")
+	}
+	return nil
+}
+
+func setLayoutEditorLauncherPackage(systemPath, legacyPath string, visible bool, change func(bool) error) error {
+	// Reject unrelated entries before making any package changes.
+	for _, entry := range []string{legacyPath, filepath.Join(filepath.Dir(legacyPath), layoutEditorDesktopName)} {
+		if _, err := readLayoutEditorLauncher(entry); err != nil {
+			return err
+		}
+	}
+	if layoutEditorLauncherVisible(systemPath) != visible {
+		if err := change(visible); err != nil {
+			return err
+		}
+		if layoutEditorLauncherVisible(systemPath) != visible {
+			return errors.New("The Layout Editor launcher could not be updated")
+		}
+	}
+	return removeLegacyLayoutEditorLaunchers(legacyPath)
+}
+
 func (service *service) GetLayoutEditorLauncherVisible() (bool, *dbus.Error) {
-	layoutEditorLauncherMutex.Lock()
-	defer layoutEditorLauncherMutex.Unlock()
-	path, err := layoutEditorLauncherPath()
-	if err == nil {
-		err = migrateLayoutEditorLauncher(path)
-	}
-	if err != nil {
-		return false, dbus.MakeFailedError(err)
-	}
-	data, err := readLayoutEditorLauncher(path)
-	if err != nil {
-		return false, dbus.MakeFailedError(err)
-	}
-	return bytes.Contains(data, []byte("\nNoDisplay=false\n")), nil
+	return layoutEditorLauncherVisible(layoutEditorSystemLauncher), nil
 }
 
 func (service *service) SetLayoutEditorLauncherVisible(visible bool) (bool, *dbus.Error) {
@@ -137,26 +152,42 @@ func (service *service) SetLayoutEditorLauncherVisible(visible bool) (bool, *dbu
 	defer layoutEditorLauncherMutex.Unlock()
 	path, err := layoutEditorLauncherPath()
 	if err == nil {
-		err = migrateLayoutEditorLauncher(path)
-	}
-	if err == nil {
-		err = setLayoutEditorLauncher(layoutEditorLauncherTemplate, path, visible)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		defer cancel()
+		err = setLayoutEditorLauncherPackage(layoutEditorSystemLauncher, path, visible, func(show bool) error {
+			return changeLayoutEditorLauncherPackage(ctx, show, runLayoutEditorPackageCommand)
+		})
 	}
 	if err != nil {
 		return false, dbus.MakeFailedError(err)
 	}
-	if service.bus != nil {
-		_ = service.bus.Emit(objectPath, interfaceName+".LayoutEditorLauncherChanged", visible)
-	}
+	service.emitLayoutEditorLauncherChanged(visible)
 	return visible, nil
 }
 
-// A Link entry is removed directly by Sailfish, never through PackageKit.
-// Keep the checkbox in sync without polling when it is removed in the drawer.
-func watchLayoutEditorLauncher(path string, changed func(bool)) (io.Closer, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return nil, err
+func (service *service) emitLayoutEditorLauncherChanged(visible bool) {
+	if service.bus != nil {
+		_ = service.bus.Emit(objectPath, interfaceName+".LayoutEditorLauncherChanged", visible)
 	}
+}
+
+func (service *service) upgradeLayoutEditorLauncher() {
+	path, err := layoutEditorLauncherPath()
+	if err != nil {
+		return
+	}
+	// Do not block D-Bus startup or RPM post-install on a package transaction.
+	// Existing users keep their choice; new installations remain hidden.
+	if legacyLayoutEditorLauncherVisible(path) {
+		if _, err := service.SetLayoutEditorLauncherVisible(true); err != nil {
+			log.Print("Could not update the Layout Editor shortcut")
+		}
+	}
+}
+
+// Native app-drawer removal changes the package-owned desktop entry. Watch
+// that directory rather than polling so the checkbox follows it immediately.
+func watchLayoutEditorLauncher(path string, changed func(bool)) (io.Closer, error) {
 	fd, err := syscall.InotifyInit1(syscall.IN_CLOEXEC | syscall.IN_NONBLOCK)
 	if err != nil {
 		return nil, err
@@ -167,20 +198,14 @@ func watchLayoutEditorLauncher(path string, changed func(bool)) (io.Closer, erro
 		file.Close()
 		return nil, err
 	}
-	readVisible := func() bool {
-		layoutEditorLauncherMutex.Lock()
-		defer layoutEditorLauncherMutex.Unlock()
-		data, err := readLayoutEditorLauncher(path)
-		return err == nil && bytes.Contains(data, []byte("\nNoDisplay=false\n"))
-	}
-	visible := readVisible()
+	visible := layoutEditorLauncherVisible(path)
 	go func() {
 		buffer := make([]byte, 64*1024)
 		for {
 			if _, err := file.Read(buffer); err != nil {
 				return
 			}
-			next := readVisible()
+			next := layoutEditorLauncherVisible(path)
 			if next != visible {
 				visible = next
 				changed(next)
@@ -188,15 +213,4 @@ func watchLayoutEditorLauncher(path string, changed func(bool)) (io.Closer, erro
 		}
 	}()
 	return file, nil
-}
-
-func upgradeLayoutEditorLauncher(template, path string) error {
-	if err := migrateLayoutEditorLauncher(path); err != nil {
-		return err
-	}
-	data, err := readLayoutEditorLauncher(path)
-	if err != nil || data == nil || bytes.Contains(data, []byte("\nType=Link\n")) {
-		return err
-	}
-	return setLayoutEditorLauncher(template, path, bytes.Contains(data, []byte("\nNoDisplay=false\n")))
 }

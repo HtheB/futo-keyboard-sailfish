@@ -11,6 +11,7 @@ node "$ROOT/scripts/check-browser-credentials.js"
 node "$ROOT/scripts/check-content-manifest.js"
 node "$ROOT/scripts/check-word-suggestions.js"
 node "$ROOT/scripts/check-editor-state.js"
+node "$ROOT/scripts/check-haptic-feedback.js"
 node "$ROOT/scripts/check-clipboard-strip.js"
 node "$ROOT/scripts/check-composition-session.js"
 node "$ROOT/scripts/check-flick-gesture.js"
@@ -767,7 +768,7 @@ grep -Fq 'commit(typed + (isLetterCharacter(lastTyped) ? " " : ""))' "$ROOT/qml/
 # keyboard silences the platform's own effect for the rest of the touch
 # instead, which is why the settings application no longer sees the
 # vibration option flickering while a word is swiped.
-grep -Fq 'buttonPressEffect.effect = pressEffectNone' \
+grep -Fq 'pressEffectSilenced = true' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'function restorePressEffect()' \
     "$ROOT/qml/FutoInputHandler.qml"
@@ -957,6 +958,8 @@ if [[ ! -x "$ENGINE" ]]; then
     echo "Run scripts/build.sh before scripts/test.sh" >&2
     exit 1
 fi
+
+node "$ROOT/scripts/check-accent-suggestions.js"
 
 actual=$(printf '%s\n' \
     $'CORRECT\tEN\tteh' \

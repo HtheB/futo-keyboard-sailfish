@@ -4,9 +4,14 @@ const assert = require("assert"), fs = require("fs"), path = require("path"), vm
 const root = path.resolve(__dirname, "..");
 const launcher = fs.readFileSync(path.join(root, "editor/futo-layout-editor.desktop"), "utf8");
 assert(/^NoDisplay=true$/m.test(launcher), "Editor must not appear in the app drawer by default");
-assert(/^MimeType=x-scheme-handler\/futo-layout-editor;$/m.test(launcher), "The hidden editor must handle its shortcut URL");
+assert(!/^MimeType=.*x-url-handler\//m.test(launcher), "Editor must not register for website links");
 const shortcut = fs.readFileSync(path.join(root, "editor/futo-layout-editor-launcher.desktop"), "utf8");
-assert(/^Type=Link$/m.test(shortcut) && /^URL=futo-layout-editor:\/\/open$/m.test(shortcut) && !/^Exec=/m.test(shortcut), "Removing the optional shortcut must never uninstall the keyboard package");
+assert(/^Type=Application$/m.test(shortcut) && /^Exec=\/usr\/bin\/invoker .*\/usr\/bin\/futo-layout-editor$/m.test(shortcut) && !/^URL=/m.test(shortcut), "The optional launcher must start the editor directly without opening links");
+const launcherSpec = fs.readFileSync(path.join(root, "packaging/rpm/futo-layout-editor-launcher.spec"), "utf8");
+assert(/^BuildArch:\s+noarch$/m.test(launcherSpec) && /^Requires:\s+futo-keyboard-sailfish >=/m.test(launcherSpec), "Optional launcher must depend on the keyboard, never the reverse");
+const coreSpec = fs.readFileSync(path.join(root, "packaging/rpm/futo-keyboard-sailfish.spec"), "utf8");
+assert(!/^Requires:.*futo-layout-editor-launcher/m.test(coreSpec), "Removing the launcher must not remove the keyboard");
+assert(!/^%(?:pre|post|preun|postun|pretrans|posttrans|trigger\w*)(?:\s|$)/m.test(launcherSpec), "The optional launcher must have no installation/removal scripts");
 const maintenance = fs.readFileSync(path.join(root, "qml/FutoMaintenancePage.qml"), "utf8");
 assert(maintenance.includes('qsTr("Show Layout Editor in app drawer")') && maintenance.includes('automaticCheck: false'), "Launcher choice belongs in Maintenance and must wait for a successful change");
 assert(maintenance.includes('GetLayoutEditorLauncherVisible') && maintenance.includes('SetLayoutEditorLauncherVisible'), "Maintenance must read and write the real launcher state");
@@ -54,6 +59,83 @@ for(const action of ["text","space","enter","backspace","spacer"]) {
 }
 const Generated = load("FutoGeneratedLayouts.js"), Catalogue = load("FutoLanguageCatalogue.js");
 const Layouts = load("FutoLetterLayouts.js", {Custom, Generated, Catalogue});
+const Languages = load("FutoLanguageData.js", {Catalogue, Qt: {locale: () => ({})}});
+const LayoutSearch = {Languages, Generated};
+vm.createContext(LayoutSearch);
+vm.runInContext(fs.readFileSync(path.join(root, "editor/FutoEditorLayoutSearch.js"), "utf8")
+    .replace(/^\.(?:pragma|import).*$/gm, ""), LayoutSearch);
+const templateSearchIndex = LayoutSearch.build(Layouts);
+const templatePickerSource = fs.readFileSync(path.join(root, "editor/FutoTemplatePicker.qml"), "utf8");
+assert(templatePickerSource.includes("LayoutSearch.filter(searchIndex, text)") &&
+    templatePickerSource.includes('text: "\\u200e" + modelData.name'),
+    "Picker must search hidden aliases and keep mixed RTL/native and English titles in reading order");
+assert.equal(templateSearchIndex.length, 121, "Every copyable template must remain searchable");
+assert.equal(LayoutSearch.filter(templateSearchIndex, "  ").length, 121);
+function settingsNameOrder(first, second) {
+    const firstLatin = Languages.isLatinLead(first), secondLatin = Languages.isLatinLead(second);
+    return firstLatin !== secondLatin ? (firstLatin ? -1 : 1) : String(first).localeCompare(String(second));
+}
+const expectedTemplateOrder = Array.from(templateSearchIndex).sort((first, second) =>
+    settingsNameOrder(first.name, second.name) || first.index - second.index);
+assert.deepStrictEqual(Array.from(templateSearchIndex, item => item.index),
+    expectedTemplateOrder.map(item => item.index), "Copy templates must follow the Settings language-name order");
+assert(Languages.compareDisplayNames("Zulu", "العربية") < 0, "Latin names must stay before other scripts");
+assert(Languages.compareDisplayNames("Akan", "Zulu") < 0, "Names within each group must be alphabetical");
+const settingsLanguages = Languages.displayLanguages();
+for (let i = 1; i < settingsLanguages.length; ++i)
+    assert(settingsNameOrder(settingsLanguages[i - 1].title, settingsLanguages[i].title) <= 0,
+        "Sharing the comparator must not change the Settings language order");
+for (const query of ["russian", "arabic", "qwerty", "latin", ""]) {
+    const found = LayoutSearch.filter(templateSearchIndex, query);
+    assert.deepStrictEqual(Array.from(found, item => item.index),
+        Array.from(templateSearchIndex).filter(item => found.some(result => result.index === item.index))
+            .map(item => item.index), "Search results must preserve the same sorted order");
+}
+assert.equal(Layouts.name(0), "QWERTY", "Sorting must not reorder the underlying layout catalogue");
+assert.equal(Layouts.idForIndex(0), "legacy-0", "Sorting must not change persisted layout IDs");
+for (const language of Catalogue.languages) {
+    assert(LayoutSearch.englishNames[language.code], "Missing English search name: " + language.code);
+    const expected = Layouts.defaultForLanguage(language.code);
+    for (const term of [language.code, Languages.localeName(language), LayoutSearch.englishNames[language.code]])
+        assert(LayoutSearch.filter(templateSearchIndex, term).some(item => item.index === expected),
+            "Language must find its own default template: " + language.code + " / " + term);
+}
+for (const [query, expected] of [
+    ["Russian", "Русский (Russian)"], ["РУССКИЙ", "Русский (Russian)"],
+    ["Arabic", "العربية (Arabic)"], ["العربية", "العربية (Arabic)"],
+    ["Farsi", "فارسی (Persian)"], ["فارسی", "فارسی (Persian)"],
+    ["Finnish", "Suomi / Svenska - Nordic"], ["Suomi", "Suomi / Svenska - Nordic"],
+    ["Cestina", "QWERTZ"], ["Espanol", "Español - QWERTY"],
+    ["Turkce", "Türkçe - F"], ["Japanese", "日本語 (Japanese) - Romaji (QWERTY)"],
+    ["Chinese", "中文 (Chinese) - Pinyin (QWERTY)"], ["Thai", "ไทย (Thai)"],
+    ["ไทย", "ไทย (Thai)"]
+]) {
+    const found = LayoutSearch.filter(templateSearchIndex, query);
+    assert(found.some(item => item.name === expected), query + " did not find " + expected);
+    assert(found.every(item => item.name === templateSearchIndex.find(entry => entry.index === item.index).name),
+        "Search terms must not change the display title");
+}
+for (const item of templateSearchIndex) {
+    assert(!/undefined/.test(item.name), "Missing display language: " + item.index);
+    if (!Languages.isLatinLead(item.name))
+        assert(/\([A-Za-z]/.test(item.name), "Non-Latin native titles need an English name: " + item.name);
+}
+for (const index of [0, 1, 2, 9, 10, 11, 12, 22, 37, 51])
+    assert.equal(templateSearchIndex.find(item => item.index === index).name, Layouts.name(index),
+        "Generic layout names must stay unchanged");
+assert.equal(templateSearchIndex.find(item => item.index === 21).name, "North Caucasian",
+    "A shared layout family must not be relabeled as only one of its languages");
+const cyrillicSerbian = LayoutSearch.filter(templateSearchIndex, "SERBIAN CYRILLIC");
+assert(cyrillicSerbian.length > 0 && cyrillicSerbian.every(item => Layouts.script(item.index) === "cyrillic"));
+const latinSerbian = LayoutSearch.filter(templateSearchIndex, "latin serbian");
+assert(latinSerbian.length > 0 && latinSerbian.every(item => Layouts.script(item.index) === "latin"));
+assert(LayoutSearch.filter(templateSearchIndex, "Bulgarian BDS").some(item => Layouts.idForIndex(item.index) === "bulgarian_bds"));
+assert.equal(LayoutSearch.filter(templateSearchIndex, "no-such-template-938145").length, 0);
+assert(templateSearchIndex.every(item => !["stroke", "12key"].includes(Layouts.imeHint(item.index))), "Search must not expose unsupported gesture templates");
+for (const item of LayoutSearch.filter(templateSearchIndex, ""))
+    assert.deepStrictEqual(Object.keys(item).sort(), ["index", "name"], "Hidden tags must not become visible model fields");
+const packageMakefile = fs.readFileSync(path.join(root, "packaging/Makefile"), "utf8");
+assert(packageMakefile.includes("layouts/FutoLanguageCatalogue.js layouts/FutoLanguageData.js"), "Editor must bundle native language names for offline search");
 const id = "custom-" + "1".repeat(32), otherId = "custom-" + "2".repeat(32);
 const layout = Custom.blank("My layout"); layout.id = id;
 layout.pages[0].rows = [[Custom.key("text", "e", 1), Custom.key("text", "ö", 2)],
@@ -340,4 +422,91 @@ for (const origin of [-120, 0, 120]) {
     assert.equal(context.floatingRow.y, 50, "Dragged row follows the exact pointer offset");
     assert.equal(moves.length, 2);
 }
-console.log(`Custom layouts passed: ${templates} templates, global choices, stable IDs, bounded geometry, page targets, page management and Unicode dead keys.`);
+{
+    const document = Custom.fromBuiltin(0, Layouts);
+    const key = document.pages[0].rows[0][0];
+    for (const action of ["emoji", "shift", "enter", "space", "backspace", "left", "ctrl", "f12", "page"]) {
+        key.holdAction = action; key.holdTarget = document.pages[0].id;
+        assert(Custom.valid(document, false), "Long-press action: " + action);
+        assert(Custom.holdLabel(key));
+    }
+    key.holdTarget = "absent"; assert(!Custom.valid(document, false));
+    for (const action of ["exec", "text", "spacer", "shift|emoji"]) {
+        key.holdAction = action; assert(!Custom.valid(document, false));
+    }
+    const editor = pageEditor();
+    editor.document.pages[0].rows[0][1].holdAction = "page";
+    editor.document.pages[0].rows[0][1].holdTarget = "numbers";
+    editor.deletePage("numbers");
+    assert.equal(editor.document.pages[0].rows[0][1].holdTarget, editor.document.pages[0].id);
+    assert(Custom.valid(editor.document, false), "Deleting pages repairs long-press destinations");
+}
+const customKeySource = fs.readFileSync(path.join(root, "layouts/FutoCustomKey.qml"), "utf8");
+{
+    const draft = Custom.fromBuiltin(0, Layouts);
+    const space = draft.pages[0].rows[draft.pages[0].rows.length - 1].find(key => key.action === "space");
+    space.more = ["", {action: "emoji"}]; space.defaultMore = 1;
+    const original = JSON.stringify(draft), ready = Custom.prepare(draft);
+    assert(!Custom.valid(draft, false), "Unfinished popup entries are not valid stored data");
+    assert(Custom.valid(ready, false), "Empty editor placeholder must not block testing or saving");
+    const preparedSpace = ready.pages[0].rows[ready.pages[0].rows.length - 1].find(key => key.action === "space");
+    assert.equal(preparedSpace.more.length, 1); assert.equal(preparedSpace.more[0].action, "emoji");
+    assert.equal(preparedSpace.defaultMore, 0, "Keep the selected action after removing preceding placeholders");
+    assert.equal(JSON.stringify(draft), original, "Testing must not modify the draft");
+    space.more = ["", {text: "", label: "Draft"}, " ", "www.", {action: "paste"}]; space.defaultMore = 4;
+    const choices = Custom.prepare(draft).pages[0].rows[draft.pages[0].rows.length - 1].find(key => key.action === "space");
+    assert.equal(JSON.stringify(choices.more), JSON.stringify([" ", "www.", {action: "paste"}]));
+    assert.equal(choices.defaultMore, 2);
+    for (const selected of [0, 1]) {
+        space.more = ["", ""]; space.defaultMore = selected;
+        const item = Custom.prepare(draft).pages[0].rows[draft.pages[0].rows.length - 1].find(key => key.action === "space");
+        assert.equal(item.more.length, 0); assert.equal(item.defaultMore, 0);
+    }
+    for (const malformed of [{text: "", action: "enter"}, {text: "", command: "run"}, {text: "x", label: null}, {action: "page", target: "missing"}]) {
+        space.more = ["", malformed]; space.defaultMore = 1;
+        assert(!Custom.valid(Custom.prepare(draft), false), "Preparation must not hide invalid actions or destinations");
+    }
+    space.more = ["", {action: "emoji"}]; space.defaultMore = 999;
+    assert(!Custom.valid(Custom.prepare(draft), false), "Preparation must not repair unrelated invalid selection indices");
+    space.defaultMore = 1;
+    const editor = pageEditor(); editor.document = draft;
+    const pushes = [], saved = [];
+    editor.pageStack = {push(url, options) { pushes.push(options.document); }};
+    editor.Qt = {resolvedUrl: url => url}; editor.busy = false;
+    editor.saveFeedback = {dismiss() {}};
+    editor.helper = {typedCall(method, args) { saved.push(JSON.parse(args[0].value)); }};
+    vm.runInContext(qmlFunction(pageEditorSource, "testLayout"), editor);
+    vm.runInContext(qmlFunction(pageEditorSource, "save"), editor);
+    editor.testLayout(); editor.save(false);
+    assert.equal(pushes.length, 1); assert(Custom.valid(pushes[0], false));
+    assert.equal(saved.length, 1); assert(Custom.valid(saved[0], false));
+}
+const messageSource = fs.readFileSync(path.join(root, "editor/FutoEditorMessage.qml"), "utf8");
+assert(messageSource.includes('"#d9a02020"') && messageSource.includes('banner.error ? "white"') && messageSource.includes('image://theme/icon-s-warning'), "Errors must use white text, an ambience-independent translucent red background and a warning triangle");
+assert(pageEditorSource.includes('FutoEditorMessage {') && fs.readFileSync(path.join(root, "editor/FutoEditorHome.qml"), "utf8").includes('FutoEditorMessage {'), "Editor and home-page errors must share the readable warning style");
+{
+    const document = Custom.fromBuiltin(0, Layouts), key = document.pages[0].rows[0][0];
+    const url = "https://example.test/" + "a/".repeat(500);
+    key.output = url; key.shifted = ""; key.label = "Website"; key.more = ["www.", {text: url, label: "Website"}, {action: "backspace"}, {action: "page", target: document.pages[0].id}];
+    key.defaultMore = 1;
+    assert(Custom.valid(document, false));
+    assert.equal(Custom.keyLabel(key), "Website");
+    assert.equal(Custom.holdLabel(key), "Website");
+    assert.equal(Custom.alternativeText(key.more[1]), url);
+    assert.equal(Custom.shiftedOutput(key), url, "A macro remains literal under automatic Shift");
+    key.label = "";
+    assert(Custom.keyLabel(key).length <= 13 && Custom.keyLabel(key).endsWith("…"));
+    assert(Custom.alternativeLabel(url).length <= 11);
+    assert.equal(Custom.compactLabel("😀".repeat(20), 10), "😀".repeat(10) + "…");
+    for (const choice of [{text: "x", action: "enter"}, {text: "x", command: "run"}, {text: ""}, {text: "x", label: null}, {action: "exec"}, "😀".repeat(2049)]) {
+        key.more = [choice]; key.defaultMore = 0;
+        assert(!Custom.valid(document, false), "Reject invalid macro/choice: " + JSON.stringify(choice));
+    }
+    const editor = pageEditor(); editor.document.pages[0].rows[0][1].more = [{action: "page", target: "numbers"}];
+    editor.deletePage("numbers");
+    assert.equal(editor.document.pages[0].rows[0][1].more[0].target, editor.document.pages[0].id);
+}
+assert(customKeySource.includes("keyboard.cycleShift()") && customKeySource.includes("keyboard.shiftKeyPressed = pressed"), "Custom Shift must support normal taps, Caps Lock and held Shift");
+assert(!customKeySource.includes("emojiLongPressEnabled") && !pageEditorSource.includes("emojiLongPressEnabled"), "Custom Enter must remain independent of the built-in emoji preference");
+assert(pageEditorSource.includes("interactive: contentHeight > height") && pageEditorSource.includes("Math.min(Screen.width, Screen.height)"), "Opening the typing keyboard must not collapse the layout preview");
+console.log(`Custom layouts passed: ${templates} templates, global choices, stable IDs, bounded geometry, page targets, page management, long-press actions and Unicode dead keys.`);

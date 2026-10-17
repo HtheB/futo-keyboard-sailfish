@@ -88,11 +88,13 @@ bool operator<(CodeView left, CodeView right) {
 struct RankedEntry {
     const Entry *entry;
     std::int64_t score;
+    bool spellingMatch = false;
 };
 
 struct ScoredWord {
     std::string word;
     std::int64_t score;
+    bool spellingMatch = false;
 };
 
 struct CorrectionWord {
@@ -441,6 +443,9 @@ public:
         }
         const bool capitalize = firstIsUppercase(query);
         const std::vector<uint32_t> normalizedQuery = normalize(query);
+        const std::vector<uint32_t> querySpelling = gestureSpelling(query);
+        const bool explicitDiacritics = querySpelling != normalizedQuery;
+        bool hasSpellingAlternative = false;
         std::vector<RankedEntry> ranked;
         ranked.reserve(256);
 
@@ -457,9 +462,25 @@ public:
             const int probability = std::max(0, entry.probability);
             const CodeView entryNormalized = normalizedOf(entry);
             if (entryNormalized == CodeView(normalizedQuery)) {
-                analysis.known = true;
-                analysis.knownScore = std::max(analysis.knownScore, probability);
-                ranked.push_back({&entry, 4000000000LL + probability});
+                // Accent folding finds related spellings; it does not make
+                // them the same word. In particular, an absent "ecole" must
+                // not become known merely because "école" exists.
+                const bool exactSpelling = gestureOf(entry) == CodeView(querySpelling);
+                if (exactSpelling) {
+                    analysis.known = true;
+                    analysis.knownScore = std::max(analysis.knownScore, probability);
+                } else {
+                    hasSpellingAlternative = true;
+                    if (collectCorrections) {
+                        analysis.corrections.push_back({
+                                formatDisplay(displayOf(entry), capitalize), probability + 20});
+                    }
+                }
+                // Honor a deliberately typed accent before frequency or
+                // learned context can prefer an unaccented homograph.
+                const std::int64_t spellingBonus = exactSpelling && explicitDiacritics
+                        ? 1000000000LL : 0;
+                ranked.push_back({&entry, 4000000000LL + spellingBonus + probability, true});
                 continue;
             }
 
@@ -524,7 +545,8 @@ public:
             if (word.empty() || duplicate != analysis.suggestions.end()) {
                 continue;
             }
-            analysis.suggestions.push_back({word, candidate.score});
+            analysis.suggestions.push_back({word, candidate.score,
+                    candidate.spellingMatch && hasSpellingAlternative});
             if (static_cast<int>(analysis.suggestions.size()) >= limit) {
                 break;
             }
@@ -547,7 +569,8 @@ public:
         // example "alot").  Do not let those suppress a substantially more
         // plausible multi-term reading, while preserving established words
         // and compounds.
-        if (!analysis.known || analysis.knownScore < 80 || exactEnglishContraction) {
+        if ((!analysis.known || analysis.knownScore < 80 || exactEnglishContraction)
+                && !hasSpellingAlternative) {
             for (const std::string &phrase : segmentPhrases(normalizedQuery,
                     capitalize, allowEnglishContractions)) {
                 if (!phrase.empty() && phrase != queryUtf8) {
@@ -1291,7 +1314,11 @@ void printJsonAnalysis(const Analysis &analysis) {
             std::cout << ',';
         }
         std::cout << "{\"word\":\"" << escapeJson(analysis.suggestions[i].word)
-                  << "\",\"score\":" << analysis.suggestions[i].score << '}';
+                  << "\",\"score\":" << analysis.suggestions[i].score;
+        if (analysis.suggestions[i].spellingMatch) {
+            std::cout << ",\"spellingMatch\":true";
+        }
+        std::cout << '}';
     }
     std::cout << "],\"corrections\":[";
     for (std::size_t i = 0; i < analysis.corrections.size(); ++i) {

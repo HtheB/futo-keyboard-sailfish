@@ -1,12 +1,19 @@
-# FUTO Keyboard for Sailfish OS 0.9.5
+# FUTO Keyboard for Sailfish OS 0.9.6
 
 ## New features
 
-- Added **FUTO Layout Editor!**
-  - Create a keyboard or copy an existing one.
-  - Add, move, and resize keys.
-  - Choose letters, symbols, and long-press characters.
-  - Add extra pages and empty spaces.
-  - Try your keyboard before saving.
-  - Import, export, and share layouts.
-  - Use custom layouts with any language.
+- Added vibration levels: Off, Light, Normal and Strong.
+- Expanded custom keys:
+  - Mix text and actions in long-press menus.
+  - Add Copy, Cut, Paste, Select All and Hide Keyboard.
+  - Use longer text shortcuts with optional short labels.
+- Find layouts by language or layout name, with clearer names and sorting.
+
+## Fixes
+
+- Shift and Caps Lock work correctly in custom layouts.
+- Layout Editor no longer gets squeezed when the keyboard opens.
+- Fixed opening Layout Editor from the app drawer.
+- Improved suggestions for accented words across languages.
+- Tapping a suggestion correctly completes partially typed words.
+- Layout Editor error messages are easier to read in different ambiences.

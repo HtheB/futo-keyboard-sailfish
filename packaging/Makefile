@@ -19,6 +19,8 @@ APPSUPPORT_BINARY ?= $(BUILD_DIR)/futo-keyboard-appsupport
 BROWSER_ORIGIN_BINARY ?= $(BUILD_DIR)/futo-keyboard-browser-origin
 EDITOR_BINARY ?= $(BUILD_DIR)/futo-keyboard-editor
 LAYOUT_EDITOR_BINARY ?= $(BUILD_DIR)/futo-layout-editor
+LAUNCHER_INSTALL_BINARY ?= $(BUILD_DIR)/futo-keyboard-launcher-install
+LAYOUT_EDITOR_LAUNCHER_RPM ?= build/layout-editor-launcher/launcher.rpm
 ANDROID_AUTOFILL_APK ?= build/android/FutoAutofill.apk
 VOICE_BINARY ?= $(BUILD_DIR)/futo-keyboard-voice
 POLICY_LIBRARY ?= $(BUILD_DIR)/libfuto-maliit-policy.so.1
@@ -35,6 +37,8 @@ PACKAGE_ROOT := $(DESTDIR)$(PREFIX)/share/futo-keyboard-sailfish
 
 HANDLER_FILES := \
 	qml/FutoInputHandler.qml \
+	qml/FutoHapticFeedback.js \
+	qml/FutoKeyHaptics.qml \
 	qml/FutoCompositionSession.js \
 	qml/FutoCompositionController.qml \
 	qml/FutoConversionStrip.qml \
@@ -49,6 +53,7 @@ LAYOUT_FILES := \
 	layouts/FutoCustomLayouts.js \
 	layouts/FutoDeadKeyData.js \
 	layouts/FutoCharacterKey.qml \
+	layouts/FutoHideKeyboardIcon.qml \
 	layouts/FutoBackspaceKey.qml \
 	layouts/FutoCommaKey.qml \
 	layouts/FutoEmojiBackKey.qml \
@@ -98,6 +103,8 @@ LAYOUT_FILES := \
 	layouts/layouts_futo.conf
 
 SETTINGS_QML := \
+	FutoHapticFeedback.js \
+	FutoKeyHaptics.qml \
 	FutoSettingsPage.qml \
 	FutoLanguagesPage.qml \
 	FutoConversionSettingsPage.qml \
@@ -287,12 +294,13 @@ install: check
 	install -Dm0755 "$(APPSUPPORT_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-appsupport"
 	install -Dm4755 "$(BROWSER_ORIGIN_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-browser-origin"
 	install -Dm4755 "$(EDITOR_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-editor"
+	install -Dm4755 "$(LAUNCHER_INSTALL_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-launcher-install"
 	install -Dm0755 "$(LAYOUT_EDITOR_BINARY)" "$(DESTDIR)$(PREFIX)/bin/futo-layout-editor"
 	install -Dm0644 editor/futo-layout-editor.desktop "$(DESTDIR)$(PREFIX)/share/applications/futo-layout-editor.desktop"
-	install -Dm0644 editor/futo-layout-editor-launcher.desktop "$(PACKAGE_ROOT)/editor/futo-layout-editor-launcher.desktop"
+	install -Dm0644 "$(LAYOUT_EDITOR_LAUNCHER_RPM)" "$(PACKAGE_ROOT)/editor/launcher.rpm"
 	install -Dm0755 packaging/scripts/futo-keyboard-layout-editor-launcher \
 		"$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-layout-editor-launcher"
-	@for file in editor/*.qml editor/*.js qml/FutoMemorial.qml qml/FutoSettingsMenuItem.qml layouts/FutoSymbolData.js layouts/FutoLetterLayouts.js layouts/FutoGeneratedLayouts.js layouts/FutoLanguageCatalogue.js layouts/FutoCustomLayouts.js layouts/FutoDeadKeyData.js; do \
+	@for file in editor/*.qml editor/*.js qml/FutoMemorial.qml qml/FutoSettingsMenuItem.qml layouts/FutoHideKeyboardIcon.qml layouts/FutoSymbolData.js layouts/FutoLetterLayouts.js layouts/FutoGeneratedLayouts.js layouts/FutoLanguageCatalogue.js layouts/FutoLanguageData.js layouts/FutoCustomLayouts.js layouts/FutoDeadKeyData.js; do \
 		install -Dm0644 "$$file" "$(PACKAGE_ROOT)/editor/$$(basename "$$file")"; \
 	done
 	install -Dm0755 "$(VOICE_BINARY)" "$(DESTDIR)$(PREFIX)/libexec/futo-keyboard-voice"

@@ -13,9 +13,9 @@ import (
 
 func layoutFixture() customLayout {
 	return customLayout{Format: "futo-layout", Version: 1, Name: "My keyboard", Pages: []customLayoutPage{{ID: "main", Name: "ABC", Kind: "text", Rows: [][]customLayoutKey{{
-		{Action: "text", Label: "è", Output: "è", Width: 1, More: []string{"ë", "ö"}},
-		{Action: "backspace", Width: 2, More: []string{}},
-		{Action: "backspace", Width: 0.5, More: []string{}},
+		{Action: "text", Label: "è", Output: "è", Width: 1, More: []json.RawMessage{json.RawMessage(`"ë"`), json.RawMessage(`"ö"`)}},
+		{Action: "backspace", Width: 2, More: []json.RawMessage{}},
+		{Action: "backspace", Width: 0.5, More: []json.RawMessage{}},
 	}}}}}
 }
 func TestCustomLayoutValidation(t *testing.T) {
@@ -76,6 +76,76 @@ func TestCustomLayoutAppearanceAndGaps(t *testing.T) {
 		}
 		if decoded.Pages[0].Rows[0][0].Style != style || decoded.Pages[0].Rows[0][1].Action != "spacer" {
 			t.Fatal("appearance or gap lost on round trip")
+		}
+	}
+}
+
+func TestCustomLayoutLongPressActions(t *testing.T) {
+	for _, action := range []string{"emoji", "shift", "enter", "space", "backspace", "left", "ctrl", "f12", "page"} {
+		layout := layoutFixture()
+		key := &layout.Pages[0].Rows[0][1]
+		key.HoldAction = action
+		if action == "page" {
+			key.HoldTarget = "main"
+		}
+		raw, _ := json.Marshal(layout)
+		decoded, err := decodeCustomLayout(raw)
+		if err != nil || decoded.Pages[0].Rows[0][1].HoldAction != action {
+			t.Fatal(action, err)
+		}
+	}
+	for _, action := range []string{"exec", "text", "spacer", "shift|emoji"} {
+		layout := layoutFixture()
+		layout.Pages[0].Rows[0][1].HoldAction = action
+		if validateCustomLayout(&layout, false) == nil {
+			t.Fatal("invalid long-press action accepted", action)
+		}
+	}
+	layout := layoutFixture()
+	layout.Pages[0].Rows[0][1].HoldAction = "page"
+	layout.Pages[0].Rows[0][1].HoldTarget = "missing"
+	if validateCustomLayout(&layout, false) == nil {
+		t.Fatal("missing long-press page accepted")
+	}
+	layout = layoutFixture()
+	layout.Pages[0].Rows[0][0].HoldAction = "emoji"
+	if err := validateCustomLayout(&layout, false); err != nil {
+		t.Fatal(err)
+	}
+	if layout.Pages[0].Rows[0][0].HoldAction != "" {
+		t.Fatal("Quick Settings can be overridden")
+	}
+}
+func TestCustomLayoutMixedAlternativesAndMacros(t *testing.T) {
+	url := "https://example.test/" + strings.Repeat("long-path/", 100)
+	macro, _ := json.Marshal(map[string]string{"text": url, "label": "Website"})
+	layout := layoutFixture()
+	key := &layout.Pages[0].Rows[0][1]
+	key.Action = "text"
+	key.Output = url
+	key.Label = "Website"
+	key.More = []json.RawMessage{json.RawMessage(`"www."`), macro, json.RawMessage(`{"action":"backspace"}`), json.RawMessage(`{"action":"page","target":"main"}`)}
+	raw, _ := json.Marshal(layout)
+	decoded, err := decodeCustomLayout(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := decoded.Pages[0].Rows[0][1]
+	if got.Output != url || len(got.More) != 4 || string(got.More[1]) != string(macro) {
+		t.Fatal("macro or mixed choices lost")
+	}
+	for _, invalid := range []string{`{"text":"url","action":"enter"}`, `{"text":"url","target":"main"}`, `{"action":"exec"}`, `{"action":"page","target":"missing"}`, `{"text":""}`, `{"text":"url","label":null}`, `{"action":"enter","text":null}`, `{"text":"url","command":"run"}`} {
+		copy := layoutFixture()
+		copy.Pages[0].Rows[0][1].More = []json.RawMessage{json.RawMessage(invalid)}
+		if validateCustomLayout(&copy, false) == nil {
+			t.Fatal("accepted invalid choice", invalid)
+		}
+	}
+	for _, size := range []int{2048, 2049} {
+		value, _ := json.Marshal(strings.Repeat("😀", size))
+		_, err := decodeCustomAlternative(value)
+		if (err == nil) != (size == 2048) {
+			t.Fatal("incorrect Unicode macro limit", size, err)
 		}
 	}
 }

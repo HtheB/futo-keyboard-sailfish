@@ -5,6 +5,9 @@
 // editor whose document and published Maliit state can update independently.
 const assert = require("assert"), fs = require("fs"), path = require("path"), vm = require("vm");
 const source = fs.readFileSync(path.resolve(__dirname, "../qml/FutoInputHandler.qml"), "utf8");
+const Haptics = {};
+vm.runInNewContext(fs.readFileSync(path.resolve(__dirname, "../qml/FutoHapticFeedback.js"), "utf8")
+    .replace(/^\.pragma.*$/gm, ""), Haptics);
 const noop = () => {};
 function extract(name, signal = false) {
     const pattern = new RegExp("^([ \\t]*)" + (signal ? name + ": \\{" : "function " + name + "\\("), "m");
@@ -25,9 +28,11 @@ function setup(initial = "", position = initial.length, options = {}) {
     const timer = () => ({running: false, stop() { this.running = false; }, restart() { this.running = true; }, start() { this.running = true; }});
     const context = {
         active: true, activeEditor: true, passwordField: false, urlField: false, immediateCommitField: false,
+        Haptics, customButtonVibration: {play: noop}, silencePressEffect: noop,
         preedit: "", preeditAlreadyCommitted: false, committedPreeditStart: -1, committedPreeditConfirmedCursor: -1,
         committedPreeditSending: false, editorContextSerial: 0, predictionEditorSerial: -1, inputActionSerial: 0,
         predictionActionSerial: -1,
+        pendingSuggestionTap: null,
         pendingEditorStates: [], lastObservedEditorState: null, lastObservedSelection: false, lastObservedTextValid: false,
         requestSerial: 0, urlRequestSerial: 0, correctionQuery: "", correctionCandidate: "", nextWordMode: false,
         nextContextOverride: "", editingWord: "", editingWordStart: -1, editingWordLength: 0,
@@ -35,7 +40,7 @@ function setup(initial = "", position = initial.length, options = {}) {
         committedSpaceArmed: false, committedSpaceExpectedCursor: -1, candidateSpaceIndex: -1,
         undoCorrectionAvailable: false, undoOriginalWord: "", undoReplacementWord: "", undoCommittedSuffix: "",
         undoRestoredSuffix: "", undoCursorPosition: -1, activePredictionsAvailable: true,
-        customPendingDeadKey: "", activeDesktopModifiers: 0, spacebarGestureActive: false, swipeAutoSpacePending: false, swipeReplacementActive: false,
+        customPendingDeadKey: "", customPopupSource: null, customPopupDispatch: {customPopupAction: true}, activeDesktopModifiers: 0, spacebarGestureActive: false, swipeAutoSpacePending: false, swipeReplacementActive: false,
         swipePendingForcedInput: false, swipeLeadingSpaceForGesture: false, swipeOutstanding: 0, swipeRequestQueue: [],
         swipeBatchActionSerial: -1, swipeExpectedEditorState: null, swipeExpectedTextValid: false,
         swipeAwaitingEditor: false, swipeEditorWaitStarted: 0, swipeSessionSerial: 0, swipePath: [],
@@ -48,13 +53,13 @@ function setup(initial = "", position = initial.length, options = {}) {
             swipeTypingEnabled: false, forcedAppSupportKeyEvents: false, undoCorrectionEnabled: false,
             autoSpaceAfterSuggestion: true, suggestionCount: 12, showTypedWord: true, correctionLevel: 0,
             nextWordPredictionEnabled: true, contextPredictionEnabled: true, automaticLanguageDetection: false,
-            passwordSavingEnabled: false, autoCapitalizationEnabled: false, urlHistoryEnabled: false},
+            passwordSavingEnabled: false, autoCapitalizationEnabled: false, urlHistoryEnabled: false, keyVibrationMode: 2},
         Qt: {Key_Space: 32, Key_Backspace: 8, Key_Return: 13, Key_Enter: 14,
             Key_Escape: 27, Key_Left: 37, Key_Right: 39},
         ShiftState: {LockedShift: 3, LatchedShift: 2, NoShift: 0, AutoShift: 1},
-        KeyType: {ShiftKey: 1, SymbolKey: 2}, Maliit: {KeyClick: 0},
+        KeyType: {ShiftKey: 1, SymbolKey: 2, CharacterKey: 3, PopupKey: 4}, Maliit: {KeyClick: 0},
         keyboard: {shiftState: 0, autocaps: false, layout: {}, expandedPaste: false},
-        predictionTimer: timer(), nextPredictionTimer: timer(), editorContextTimer: timer(),
+        predictionTimer: timer(), nextPredictionTimer: timer(), suggestionTapTimer: timer(), editorContextTimer: timer(),
         urlSuggestionTimer: timer(), swipeReleaseTimer: timer(), swipeEditorReadyTimer: timer(),
         committedPreeditReconcileTimer: timer(), passwordFocusProtectionTimer: timer(),
         Clipboard: {text: "pasted"},
@@ -83,13 +88,14 @@ function setup(initial = "", position = initial.length, options = {}) {
         "appendCommittedWordCharacter", "wordRangeAtCursor",
         "resetSuggestionDisplay", "requestSuggestionsSoon", "clearUndoCorrection", "undoLastCorrection",
         "wordStartBeforeReplacement", "lastWord", "contextBeforeCursor", "handleKeyClick", "insertWordCharacter", "commit",
-        "clearCustomDeadKey", "typeCustomText", "handleCustomLayoutKey",
+        "clearCustomDeadKey", "typeCustomText", "handleCustomLayoutKey", "resolveCustomPopupKey",
         "isLetterCharacter", "isCombiningCharacter", "isInputCharacter", "smartPunctuationField",
         "spaceAfterPunctuationAllowed", "clearSwipeReplacementState", "resetSwipePath", "cancelSwipeSession",
         "discardPendingSwipeWord", "swipeSeparatorPrecedesKey", "insertPendingSwipeSeparator",
         "scheduleNextWords", "displayableSuggestion", "nonEmptySuggestions", "allowedWordSuggestion", "wordSuggestions",
         "replacePredictionSuggestions", "visiblePrimaryCorrection", "correctedWordForCommit", "requestSuggestions",
         "requestNextWords", "applyPrediction", "deletePreviousWord", "deletePreviousWords", "rawEditorText", "refreshEditingWord",
+        "cancelPendingSuggestionTap", "deferSuggestionTap", "retryPendingSuggestionTap",
         "acceptSelectionCaseSuggestion",
         "swipeEditorUnchanged", "dispatchNextSwipe", "acceptPendingSwipeForNextGesture", "wordOpensAddress"];
     for (const name of names) vm.runInContext(extract(name), context);
@@ -173,6 +179,52 @@ check("ordinary key sound starts on press and is not repeated on release", () =>
     c.swipePath = []; c.pressedKey.manualFeedbackOnPress = true; c.handleKeyPress();
     assert.deepStrictEqual(sounds, ["letter"], "custom keys already play their own press sound");
 });
+check("timed haptics play once per swipe unless per-letter vibration is selected", () => {
+    const t = setup(), c = t.context;
+    let pulses = 0;
+    c.customButtonVibration.play = () => ++pulses;
+    c.swipeCrossesSpacebar = () => false; c.captureSwipeKey = noop;
+    vm.runInContext(extract("handleKeyPress"), c);
+    c.pressedKey = {key: 97, text: "a", keyType: c.KeyType.CharacterKey};
+    c.keyboardSettings.keyVibrationMode = 1;
+    c.handleKeyPress(); assert.strictEqual(pulses, 1);
+    c.swipePath = [{x: 1, y: 1}]; c.handleKeyPress(); assert.strictEqual(pulses, 1);
+    c.keyboardSettings.swipeVibrationEnabled = true; c.handleKeyPress(); assert.strictEqual(pulses, 2);
+    c.pressedKey.manualFeedbackOnPress = true; c.handleKeyPress(); assert.strictEqual(pulses, 2);
+    c.pressedKey.manualFeedbackOnPress = false; c.spacebarGestureActive = true;
+    c.handleKeyPress(); assert.strictEqual(pulses, 2);
+    c.spacebarGestureActive = false; c.swipePath = [];
+    c.keyboardSettings.keyVibrationMode = 3; c.handleKeyPress(); assert.strictEqual(pulses, 3);
+    c.keyboardSettings.keyVibrationMode = 0; c.handleKeyPress(); assert.strictEqual(pulses, 3);
+    c.keyboardSettings.keyVibrationMode = 2; c.handleKeyPress(); assert.strictEqual(pulses, 3);
+});
+check("fast typed keys retain one haptic request per press", () => {
+    const t = setup(), c = t.context;
+    let pulses = 0;
+    c.keyboardSettings.keyVibrationMode = 1;
+    c.customButtonVibration.play = () => ++pulses;
+    c.swipeCrossesSpacebar = () => false;
+    c.captureSwipeKey = () => c.swipePath.push({x: 1, y: 1});
+    vm.runInContext(extract("handleKeyPress") + extract("handleKeyRelease"), c);
+    for (let i = 0; i < 200; ++i) {
+        c.pressedKey = {key: 97, text: "a", keyType: c.KeyType.CharacterKey};
+        c.handleKeyPress(); c.handleKeyClick(); c.handleKeyRelease();
+    }
+    assert.strictEqual(pulses, 200); assert.strictEqual(t.text, "a".repeat(200));
+});
+for (const perLetter of [false, true]) check("rapid swipe haptics follow the per-letter setting: " + perLetter, () => {
+    const t = setup(), c = t.context;
+    let pulses = 0;
+    c.keyboardSettings.keyVibrationMode = 1;
+    c.keyboardSettings.swipeVibrationEnabled = perLetter;
+    c.customButtonVibration.play = () => ++pulses;
+    c.swipeCrossesSpacebar = () => false;
+    c.captureSwipeKey = () => c.swipePath.push({x: 1, y: 1});
+    vm.runInContext(extract("handleKeyPress"), c);
+    c.pressedKey = {key: 97, text: "a", keyType: c.KeyType.CharacterKey};
+    for (let i = 0; i < 200; ++i) c.handleKeyPress();
+    assert.strictEqual(pulses, perLetter ? 200 : 1);
+});
 check("suggestions only: ordinary Space never replaces typed words", () => {
     const t = setup(); t.type("hello world "); assert.strictEqual(t.text, "hello world ");
     assert(t.commits.every(c => c.length === 0 && c.offset === 0));
@@ -219,6 +271,68 @@ check("explicit suggestion replaces the verified current word", () => {
 check("actual suggestion-tap handler accepts the current row", () => {
     const t = setup(); t.type("hel"); t.context.replacePredictionSuggestions(["hello"]);
     t.context.text = "hello"; t.context.onSelect(); assert.strictEqual(t.text, "hello ");
+});
+for (const [partial, completion] of [["hel", "hello"], ["teh", "the"], ["при", "привет"], ["عر", "عربي"]]) {
+    check("partial completion survives a late owned acknowledgement: " + partial, () => {
+        const t = setup("", 0, {delayed: true}); t.type(partial);
+        t.context.replacePredictionSuggestions([completion]); t.publish();
+        t.context.text = completion; t.context.onSelect();
+        assert.strictEqual(t.text, completion + " ");
+    });
+    check("partial completion waits for its own text publication: " + partial, () => {
+        const t = setup("", 0, {delayed: true}); t.type(partial);
+        t.context.replacePredictionSuggestions([completion]);
+        t.context.text = completion; t.context.onSelect();
+        assert(t.context.pendingSuggestionTap); assert.strictEqual(t.text, partial);
+        t.publish(); t.context.retryPendingSuggestionTap();
+        assert.strictEqual(t.text, completion + " ");
+        t.context.retryPendingSuggestionTap(); assert.strictEqual(t.text, completion + " ");
+        assert.strictEqual(t.context.pendingSuggestionTap, null);
+    });
+}
+check("intermediate acknowledgements keep a tapped partial completion owned", () => {
+    const t = setup("", 0, {delayed: true}); t.type("hel");
+    t.context.replacePredictionSuggestions(["hello"]);
+    t.context.text = "hello"; t.context.onSelect();
+    t.context.MInputMethodQuick.surroundingText = "h";
+    t.context.MInputMethodQuick.cursorPosition = 1;
+    t.context.onCursorPositionChanged(); t.context.onEditorStateUpdate();
+    t.context.retryPendingSuggestionTap(); assert.strictEqual(t.text, "hel");
+    t.publish(); t.context.retryPendingSuggestionTap(); assert.strictEqual(t.text, "hello ");
+});
+check("repeated taps while awaiting an acknowledgement insert only the last choice", () => {
+    const t = setup("", 0, {delayed: true}); t.type("hel");
+    t.context.replacePredictionSuggestions(["hello", "help"]);
+    t.context.text = "hello"; t.context.onSelect();
+    t.context.text = "help"; t.context.onSelect();
+    t.publish(); t.context.retryPendingSuggestionTap();
+    assert.strictEqual(t.text, "help "); assert.strictEqual(t.context.pendingSuggestionTap, null);
+});
+for (const [name, change] of [
+    ["cursor movement", t => t.move(0)], ["focus change", t => t.focus("other field")],
+    ["selection", t => t.select(0, 2)], ["new typing", t => t.type("x")],
+    ["cleared message", t => t.clear()]
+]) check("pending completion cannot survive " + name, () => {
+    const t = setup("", 0, {delayed: true}); t.type("hel");
+    t.context.replacePredictionSuggestions(["hello"]);
+    t.context.text = "hello"; t.context.onSelect(); assert(t.context.pendingSuggestionTap);
+    change(t); const expected = t.text; t.publish(); t.context.retryPendingSuggestionTap();
+    // Clearing an editor whose last published state was already empty is
+    // indistinguishable from an outstanding acknowledgement. It must expire
+    // without writing, rather than guessing that the original word survived.
+    if (name === "cleared message" && t.context.pendingSuggestionTap) {
+        t.context.pendingSuggestionTap.started = Date.now() - 600;
+        t.context.retryPendingSuggestionTap();
+    }
+    assert.strictEqual(t.text, expected); assert.strictEqual(t.context.pendingSuggestionTap, null);
+});
+check("a timed-out completion does not write unverified text", () => {
+    const t = setup("", 0, {delayed: true}); t.type("hel");
+    t.context.replacePredictionSuggestions(["hello"]);
+    t.context.text = "hello"; t.context.onSelect();
+    t.context.pendingSuggestionTap.started = Date.now() - 600;
+    t.context.retryPendingSuggestionTap(); assert.strictEqual(t.text, "hel");
+    assert.strictEqual(t.context.pendingSuggestionTap, null);
 });
 check("old suggestion cannot replace text after a cursor move", () => {
     const t = setup(); t.type("one two"); t.context.replacePredictionSuggestions(["too"]); t.move(3);
@@ -421,5 +535,38 @@ for (const language of ["JA", "ZH", "ZH_HANT"]) check("custom keys use the activ
     t.type("123");
     assert.equal(t.text, "123", "A custom symbol page types its literal keys");
     assert.equal(submitted.length, before, "Symbol pages must not feed Pinyin/Romaji");
+});
+check("mixed custom popup choices dispatch actions and preserve literal macros", () => {
+    const t = setup(), c = t.context, actions = [];
+    c.keyboard.layout.activateCustomAction = choice => actions.push(choice.action);
+    c.keyboard.cycleShift = () => c.keyboard.shiftState++;
+    function choose(choice) {
+        c.customPopupSource = {choiceForPopupOutput: token => token === "\uF8FFfuto:0" ? choice : null};
+        c.pressedKey = {key: 0, text: "\uF8FFfuto:0", keyType: c.KeyType.PopupKey};
+        c.handleKeyClick();
+    }
+    choose("www."); choose({text: "https://example.test/" + "path/".repeat(100), label: "Website"});
+    assert.equal(t.text, "www.https://example.test/" + "path/".repeat(100));
+    choose({action: "page", target: "numbers"}); assert.deepEqual(actions, ["page"]);
+    choose({action: "shift"}); assert.equal(c.keyboard.shiftState, 1);
+    assert.equal(c.customPopupSource, null);
+    const before = t.text;
+    c.pressedKey = {key: 0, text: "\uF8FFfuto:0", keyType: c.KeyType.PopupKey}; c.handleKeyClick();
+    assert.equal(t.text, before, "A canceled/stale popup cannot leak an internal token into text");
+    c.customPopupSource = {}; c.clearCustomDeadKey(); assert.equal(c.customPopupSource, null);
+});
+check("editing actions dispatch standard shortcuts, current clipboard and dismissal", () => {
+    const t = setup(), c = t.context, events = [];
+    c.Qt.ControlModifier = 0x04000000;
+    c.prepareDesktopKeyDispatch = () => events.push("prepare");
+    c.paste = text => events.push(["paste", text]); c.Clipboard.hasText = true;
+    c.MInputMethodQuick.sendKey = (key, modifiers) => events.push([key, modifiers]);
+    c.MInputMethodQuick.userHide = () => events.push("hide");
+    vm.runInContext(extract("activateEditingAction"), c);
+    for (const action of ["copy", "cut", "selectall"]) c.activateEditingAction(action);
+    assert.deepEqual(events.filter(Array.isArray), [[67, c.Qt.ControlModifier], [88, c.Qt.ControlModifier], [65, c.Qt.ControlModifier]]);
+    c.activateEditingAction("paste"); assert.deepEqual(events[events.length - 1], ["paste", "pasted"]);
+    c.pressedKey = {key: 0, text: "", customAction: "hide", keyType: c.KeyType.CharacterKey}; c.handleKeyClick();
+    assert.equal(events[events.length - 1], "hide");
 });
 console.log("Editor-state and suggestion ownership checks passed.");

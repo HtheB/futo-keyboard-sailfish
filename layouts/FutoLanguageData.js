@@ -125,6 +125,14 @@ function isLatinLead(value) {
     return true
 }
 
+function compareDisplayNames(first, second) {
+    var firstLatin = isLatinLead(first)
+    var secondLatin = isLatinLead(second)
+    if (firstLatin !== secondLatin)
+        return firstLatin ? -1 : 1
+    return String(first).localeCompare(String(second))
+}
+
 function displayLanguages() {
     var result = []
     for (var i = 0; i < languages.length; ++i) {
@@ -133,11 +141,7 @@ function displayLanguages() {
                       prediction: !!item.prediction })
     }
     result.sort(function(first, second) {
-        var firstLatin = isLatinLead(first.title)
-        var secondLatin = isLatinLead(second.title)
-        if (firstLatin !== secondLatin)
-            return firstLatin ? -1 : 1
-        return String(first.title).localeCompare(String(second.title))
+        return compareDisplayNames(first.title, second.title)
     })
     return result
 }

@@ -1,5 +1,5 @@
 /*
- * Let the device owner remove this keyboard, and nothing else.
+ * Let the device owner remove this keyboard or its optional launcher.
  *
  * Sailfish OS ships no interactive polkit agent, so an action that asks for
  * authentication cannot ask anybody: it simply fails. Its own rule already
@@ -33,11 +33,13 @@ polkit.addRule(function(action, subject) {
     }
 
     // PackageKit joins several package ids with "&", and each is
-    // name;version;arch;data. Every one of them has to be this keyboard, so a
+    // name;version;arch;data. Every one must belong to this keyboard, so a
     // request that removes anything alongside it is left to the default.
     var requested = packageIds.split("&");
     for (var i = 0; i < requested.length; ++i) {
-        if (requested[i].split(";")[0] !== "futo-keyboard-sailfish") {
+        var name = requested[i].split(";")[0];
+        if (name !== "futo-keyboard-sailfish" &&
+                name !== "futo-layout-editor-launcher") {
             return polkit.Result.NOT_HANDLED;
         }
     }

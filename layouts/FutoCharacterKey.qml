@@ -21,6 +21,10 @@ CharacterKey {
     property bool plainTextKeyLabel: false
     property int exactPopupDefaultIndex: 0
     property string explicitPopupDefault: ""
+    property string explicitPopupDefaultCaption: ""
+    property bool fitPopupLabels: false
+    Component { id: hideKeyboardPopupIcon; FutoHideKeyboardIcon { anchors.centerIn: parent; width: Math.max(1, Math.min(parent.width, parent.height) - Theme.paddingSmall); height: width; color: parent && parent.color !== undefined ? parent.color : Theme.primaryColor } }
+    signal secondaryPopupOpening()
     property string preferredFontFamily: ""
     property string specialArabicFontFamily: "Noto Naskh Arabic"
     property string androidRiyalFontFamily: "FUTO Android Riyal"
@@ -349,6 +353,16 @@ CharacterKey {
         if (!item)
             return
         if (exactPopupSet && item.textFormat !== undefined) item.textFormat = Text.PlainText
+        if (fitPopupLabels && item.text === "\uF8FEhide") {
+            item.text = ""
+            hideKeyboardPopupIcon.createObject(item)
+        }
+        if (fitPopupLabels && item.text !== undefined && item.fontSizeMode !== undefined) {
+            if (item.parent && item.parent.width > 0) item.width = Math.max(1, item.parent.width - Theme.paddingSmall)
+            item.fontSizeMode = Text.Fit
+            item.minimumPixelSize = Theme.fontSizeTiny / 2
+            item.elide = Text.ElideRight
+        }
         // These three symbols are absent or malformed in Sailfish's native
         // fonts. Keep their fallback exact so ordinary Arabic and Latin text
         // continues to use the system typeface.
@@ -516,7 +530,7 @@ CharacterKey {
                                      && visualSettings.secondarySymbolsEnabled)
                                     ? secondarySymbolOutput : "")
         if (explicitPopupDefault !== "") {
-            popupHighlightedText = explicitPopupDefault
+            popupHighlightedText = explicitPopupDefaultCaption || explicitPopupDefault
             popupHighlightedOutput = explicitPopupDefault
         }
         popupArmed = false
@@ -530,6 +544,7 @@ CharacterKey {
         popper.setup()
         replacePopperChoices(popper)
         applyPopupGlyphFonts(popper)
+        secondaryPopupOpening()
         keyboard.inputHandler._handleKeyRelease()
         popper.expanded = true
         keyboard.cancelGesture()

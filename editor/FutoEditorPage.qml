@@ -30,6 +30,7 @@ Page {
     readonly property var pageChoices: JSON.parse(pageChoicesJson)
     // A fresh snapshot also updates controls when a field on the same key changes.
     readonly property var selectedKey: { revision; return pageData && pageData.rows[selectedRow] && pageData.rows[selectedRow][selectedColumn] ? Custom.clone(pageData.rows[selectedRow][selectedColumn]) : null }
+    readonly property var selectedAlternatives: selectedKey ? Custom.alternatives(selectedKey) : []
     readonly property bool reservedKey: pageData && selectedRow === pageData.rows.length - 1 && selectedColumn === 0
     readonly property var boxes: { revision; return Custom.geometry(pageData.rows, preview.width, preview.height, 0) }
     readonly property var selectedBox: {
@@ -71,22 +72,44 @@ Page {
         remember()
         var item = document.pages[pageIndex].rows[selectedRow][selectedColumn]
         item.more = values
+        item.holdAction = ""; item.holdTarget = ""
         if (item.defaultMore >= values.length) item.defaultMore = 0
         changed()
+    }
+    function addAlternativeAction(action) {
+        if (selectedAlternatives.length >= 32) return
+        var choice = {action: action}
+        if (action === "page") choice.target = pageData.id
+        updateAlternatives(selectedAlternatives.concat([choice]))
+    }
+    function updateAlternative(index, value) {
+        var choices = Custom.clone(selectedAlternatives)
+        choices[index] = value; updateAlternatives(choices)
+    }
+    function updateAlternativeText(index, name, value) {
+        var choice = selectedAlternatives[index]
+        var updated = typeof choice === "string" ? {text: choice, label: ""} : Custom.clone(choice)
+        updated[name] = value; updateAlternative(index, updated)
+    }
+    function removeAlternative(index) {
+        var choices = Custom.clone(selectedAlternatives)
+        choices.splice(index, 1); updateAlternatives(choices)
     }
     function chooseCharacter(destination) {
         forceActiveFocus()
         var picker = pageStack.push(Qt.resolvedUrl("FutoEditorCharacterPicker.qml"))
         picker.chosen.connect(function(value) {
             if (destination === "more") {
-                if (editor.selectedKey.more.length < 32) editor.updateAlternatives(editor.selectedKey.more.concat([value]))
+                if (editor.selectedAlternatives.length < 32) editor.updateAlternatives(editor.selectedAlternatives.concat([value]))
             } else editor.updateKey(destination, value)
         })
     }
     function testLayout() {
         forceActiveFocus()
-        if (!Custom.valid(document, false)) { message = qsTr("Check the key text and page-switch destinations before testing."); return }
-        pageStack.push(Qt.resolvedUrl("FutoEditorTestPage.qml"), {document: Custom.clone(document)})
+        var value = Custom.prepare(document)
+        if (!Custom.valid(value, false)) { message = qsTr("Check the key text and page-switch destinations before testing."); return }
+        message = ""
+        pageStack.push(Qt.resolvedUrl("FutoEditorTestPage.qml"), {document: value})
     }
     function undo(redo) {
         var source = redo ? redoStack : undoStack
@@ -104,8 +127,8 @@ Page {
         forceActiveFocus()
         if (busy) return
         saveFeedback.dismiss()
-        if (!Custom.valid(document, false)) { message = qsTr("Check the key text and page-switch destinations before saving."); return }
-        var value = Custom.clone(document)
+        var value = Custom.prepare(document)
+        if (!Custom.valid(value, false)) { message = qsTr("Check the key text and page-switch destinations before saving."); return }
         if (copy) value.id = ""
         busy = true
         helper.typedCall("SaveCustomLayout", [{type: "s", value: JSON.stringify(value)}], function(raw) {
@@ -182,6 +205,9 @@ Page {
                 for (var k = 0; k < document.pages[p].rows[r].length; ++k) {
                     var item = document.pages[p].rows[r][k]
                     if (item.action === "page" && item.target === removed) item.target = document.pages[0].id
+                    if (item.holdAction === "page" && item.holdTarget === removed) item.holdTarget = document.pages[0].id
+                    for (var a = 0; a < item.more.length; ++a)
+                        if (typeof item.more[a] === "object" && item.more[a].action === "page" && item.more[a].target === removed) item.more[a].target = document.pages[0].id
                 }
         if (selectedId === removed) select(0, 0)
         changed()
@@ -264,8 +290,11 @@ Page {
         z: 1
         anchors.left: parent.left; anchors.top: toolbar.bottom; anchors.bottom: parent.bottom
         width: parent.width * 0.59
-        contentWidth: width; contentHeight: height
-        interactive: false
+        contentWidth: width
+        contentHeight: Math.max(height, Math.min(Screen.width, Screen.height) - toolbar.height - Theme.paddingSmall)
+        interactive: contentHeight > height
+        clip: true
+        VerticalScrollDecorator { flickable: left }
         Item {
             id: previewHeader
             width: parent.width; height: layoutName.height
@@ -314,9 +343,10 @@ Page {
                     border.width: selected ? 2 : dataKey && dataKey.action === "spacer" ? 1 : 0
                     border.color: selected ? Theme.highlightColor : Theme.rgba(Theme.primaryColor, 0.15); radius: Theme.paddingSmall
                     opacity: pointer.dragging && selected ? 0.22 : 1
-                    Label { anchors.fill: parent; anchors.margins: 3; text: tile.dataKey ? Custom.keyLabel(tile.dataKey) : ""; textFormat: Text.PlainText; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; font.pixelSize: Theme.fontSizeMedium; fontSizeMode: Text.Fit; minimumPixelSize: 8 }
+                    Label { anchors.fill: parent; anchors.margins: 3; visible: !tile.dataKey || tile.dataKey.action !== "hide" || !!tile.dataKey.label; text: tile.dataKey ? Custom.keyLabel(tile.dataKey) : ""; textFormat: Text.PlainText; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; font.pixelSize: Theme.fontSizeMedium; fontSizeMode: Text.Fit; minimumPixelSize: 8 }
+                    FutoHideKeyboardIcon { anchors.centerIn: parent; width: Math.min(parent.width - 6, parent.height * 0.65); height: width; visible: tile.dataKey && tile.dataKey.action === "hide" && !tile.dataKey.label }
                     Icon { visible: tile.dataKey && tile.dataKey.action === "spacer" && !tile.dataKey.label; anchors.centerIn: parent; width: Math.min(Theme.iconSizeMedium, parent.width * 0.6); height: width; rotation: 90; source: "image://theme/icon-m-scale"; opacity: 0.3 }
-                    Label { anchors.right: parent.right; anchors.top: parent.top; text: !tile.dataKey ? "" : tile.box.row === editor.pageData.rows.length - 1 && tile.box.column === 0 ? "⚙" : tile.dataKey.more.length ? tile.dataKey.more[tile.dataKey.defaultMore] : ""; textFormat: Text.PlainText; font.pixelSize: Theme.fontSizeTiny }
+                    Label { anchors.right: parent.right; anchors.top: parent.top; width: parent.width - 6; horizontalAlignment: Text.AlignRight; elide: Text.ElideRight; text: !tile.dataKey ? "" : tile.box.row === editor.pageData.rows.length - 1 && tile.box.column === 0 ? "⚙" : Custom.holdLabel(tile.dataKey); textFormat: Text.PlainText; font.pixelSize: Theme.fontSizeTiny }
                     Rectangle { visible: tile.selected; anchors.right: parent.right; anchors.bottom: parent.bottom; width: Math.min(Theme.paddingLarge, parent.width / 3); height: 5; color: Theme.highlightColor }
                 }
             }
@@ -379,35 +409,21 @@ Page {
                 onCanceled: { dragging = false; resizing = false }
             }
         }
-        Item {
+        FutoEditorMessage {
             id: previewHint
             objectName: "editorHintBar"
             anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-            height: editor.hintShown ? Math.max(hintText.implicitHeight, dismissHintButton.height) + 2 * Theme.paddingSmall : 0
+            height: editor.hintShown ? implicitHeight : 0
             opacity: editor.hintShown ? 1 : 0
             visible: height > 0
             enabled: editor.hintShown
             clip: true
             Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
             Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
-            Label {
-                id: hintText
-                anchors.left: parent.left; anchors.leftMargin: Theme.paddingMedium
-                anchors.right: dismissHintButton.left; anchors.rightMargin: Theme.paddingSmall; anchors.verticalCenter: parent.verticalCenter
-                text: editor.message || qsTr("Tap to edit. Drag a key to move it. Drag its lower-right handle to resize it.")
-                textFormat: Text.PlainText; wrapMode: Text.Wrap; font.pixelSize: Theme.fontSizeExtraSmall; color: editor.message ? Theme.highlightColor : Theme.secondaryColor
-            }
-            FutoEditorTool {
-                id: dismissHintButton
-                objectName: "editorHintClose"
-                anchors.right: parent.right; anchors.rightMargin: Theme.paddingSmall; anchors.verticalCenter: parent.verticalCenter
-                width: Theme.itemSizeExtraSmall; height: width
-                icon.source: "image://theme/icon-m-close"
-                icon.width: Theme.iconSizeSmall; icon.height: Theme.iconSizeSmall
-                Accessible.name: qsTr("Hide hint")
-                actionId: "close"; description: qsTr("Hide hint")
-                onClicked: editor.dismissHint()
-            }
+            text: editor.message || qsTr("Tap to edit. Drag a key to move it. Drag its lower-right handle to resize it.")
+            error: editor.message !== ""
+            dismissible: true
+            onDismissed: editor.dismissHint()
         }
     }
     Rectangle { x: left.width; width: 1; height: parent.height; color: Theme.rgba(Theme.primaryColor, 0.2) }
@@ -509,31 +525,73 @@ Page {
                 Label {
                     x: Theme.paddingMedium; width: parent.width - 2 * x; wrapMode: Text.Wrap; font.pixelSize: Theme.fontSizeExtraSmall; color: Theme.secondaryColor
                     visible: editor.reservedKey || editor.selectedKey && editor.selectedKey.action !== "spacer"
-                    text: editor.reservedKey ? qsTr("Long-press is reserved for Quick Settings at the bottom-left of every page. Its normal action and width can still change.") : qsTr("Long-press alternatives: one character or text sequence per line.")
+                    text: editor.reservedKey ? qsTr("Long-press is reserved for Quick Settings at the bottom-left of every page. Its normal action and width can still change.") : qsTr("Long-press alternatives can contain both text and actions.")
                 }
-                Row {
+                Column {
                     objectName: "longPressAlternativesRow"
                     width: parent.width; visible: !editor.reservedKey && editor.selectedKey && editor.selectedKey.action !== "spacer"
-                    TextArea {
-                        id: alternatives
-                        objectName: "longPressAlternatives"
-                        width: parent.width - Theme.itemSizeSmall; label: qsTr("Long-press alternatives")
-                        function synchronize() { if (!activeFocus) text = editor.selectedKey ? editor.selectedKey.more.join("\n") : "" }
-                        Component.onCompleted: synchronize()
-                        onActiveFocusChanged: if (!activeFocus) synchronize()
-                        Connections { target: editor; onSelectedKeyChanged: alternatives.synchronize() }
-                        onTextChanged: if (activeFocus && editor.selectedKey && text !== editor.selectedKey.more.join("\n")) {
-                            var values = text.split("\n").filter(function(value) { return value !== "" })
-                            editor.updateAlternatives(values)
+                    Repeater {
+                        model: editor.selectedAlternatives.length
+                        Column {
+                            id: alternativeItem
+                            width: parent.width
+                            readonly property var choice: editor.selectedAlternatives[index]
+                            readonly property int choiceIndex: index
+                            Row {
+                                width: parent.width
+                                TextField {
+                                    width: parent.width - Theme.itemSizeSmall
+                                    visible: typeof alternativeItem.choice === "string" || alternativeItem.choice && alternativeItem.choice.text !== undefined
+                                    label: qsTr("Text to insert")
+                                    text: Custom.alternativeText(alternativeItem.choice)
+                                    onTextChanged: if (activeFocus && text !== Custom.alternativeText(alternativeItem.choice)) editor.updateAlternativeText(alternativeItem.choiceIndex, "text", text)
+                                }
+                                FutoEditorComboBox {
+                                    id: alternativeAction
+                                    width: parent.width - Theme.itemSizeSmall
+                                    visible: alternativeItem.choice && alternativeItem.choice.action !== undefined
+                                    readonly property var choices: Custom.actions.filter(function(action) { return Custom.holdActionAllowed(action) })
+                                    label: qsTr("Action")
+                                    selectedIndex: alternativeItem.choice ? choices.indexOf(alternativeItem.choice.action) : -1
+                                    menu: ContextMenu { Repeater { model: alternativeAction.choices; MenuItem { text: modelData === "page" ? qsTr("Switch page") : Custom.labels[modelData] || modelData.toUpperCase(); onClicked: editor.updateAlternative(alternativeItem.choiceIndex, modelData === "page" ? {action: modelData, target: editor.pageData.id} : {action: modelData}) } } }
+                                }
+                                FutoEditorTool { actionId: "key-remove"; description: qsTr("Remove alternative"); onClicked: editor.removeAlternative(alternativeItem.choiceIndex) }
+                            }
+                            TextField {
+                                width: parent.width
+                                visible: typeof alternativeItem.choice === "string" || alternativeItem.choice && alternativeItem.choice.text !== undefined
+                                label: qsTr("Popup label (optional)")
+                                text: alternativeItem.choice && alternativeItem.choice.label || ""
+                                onTextChanged: if (activeFocus && text !== (alternativeItem.choice && alternativeItem.choice.label || "")) editor.updateAlternativeText(alternativeItem.choiceIndex, "label", text)
+                            }
+                            FutoEditorComboBox {
+                                width: parent.width; visible: alternativeItem.choice && alternativeItem.choice.action === "page"
+                                label: qsTr("Destination page")
+                                selectedIndex: alternativeItem.choice ? Custom.pageIndex(editor.document, alternativeItem.choice.target) : 0
+                                menu: ContextMenu { Repeater { model: editor.pageChoices; MenuItem { text: modelData.name; onClicked: editor.updateAlternative(alternativeItem.choiceIndex, {action: "page", target: modelData.id}) } } }
+                            }
                         }
                     }
-                    FutoEditorTool { objectName: "longPressCharacterPicker"; anchors.verticalCenter: parent.verticalCenter; actionId: "characters"; description: qsTr("Add long-press character"); onClicked: editor.chooseCharacter("more") }
+                    Row {
+                        width: parent.width
+                        FutoEditorTool { actionId: "key-add"; description: qsTr("Add text"); enabled: editor.selectedAlternatives.length < 32; onClicked: editor.updateAlternatives(editor.selectedAlternatives.concat([""])) }
+                        FutoEditorTool { objectName: "longPressCharacterPicker"; actionId: "characters"; description: qsTr("Add long-press character"); enabled: editor.selectedAlternatives.length < 32; onClicked: editor.chooseCharacter("more") }
+                        FutoEditorComboBox {
+                            id: addAlternativeAction
+                            objectName: "longPressActionSelector"
+                            width: parent.width - 2 * Theme.itemSizeSmall
+                            enabled: editor.selectedAlternatives.length < 32
+                            readonly property var choices: Custom.actions.filter(function(action) { return Custom.holdActionAllowed(action) })
+                            label: qsTr("Add action"); selectedIndex: -1
+                            menu: ContextMenu { Repeater { model: addAlternativeAction.choices; MenuItem { text: modelData === "page" ? qsTr("Switch page") : Custom.labels[modelData] || modelData.toUpperCase(); onClicked: editor.addAlternativeAction(modelData) } } }
+                        }
+                    }
                 }
                 FutoEditorComboBox {
                     objectName: "alternativeSelector"
-                    width: parent.width; visible: !editor.reservedKey && editor.selectedKey && editor.selectedKey.action !== "spacer" && editor.selectedKey.more.length > 0
-                    label: qsTr("Default long-press choice"); selectedIndex: editor.selectedKey && editor.selectedKey.more.length ? editor.selectedKey.defaultMore : -1
-                    menu: ContextMenu { Repeater { model: editor.selectedKey ? editor.selectedKey.more : []; MenuItem { text: modelData; onClicked: editor.updateKey("defaultMore", index) } } }
+                    width: parent.width; visible: !editor.reservedKey && editor.selectedKey && editor.selectedKey.action !== "spacer" && editor.selectedAlternatives.length > 0
+                    label: qsTr("Default long-press choice"); selectedIndex: editor.selectedKey && editor.selectedAlternatives.length ? Custom.alternativeIndex(editor.selectedKey) : -1
+                    menu: ContextMenu { Repeater { model: editor.selectedAlternatives; MenuItem { text: Custom.alternativeLabel(modelData); onClicked: editor.updateKey("defaultMore", index) } } }
                 }
                 SectionHeader { text: qsTr("Pages") }
                 TextField { width: parent.width; label: qsTr("Page name"); text: editor.pageData.name; onTextChanged: if (activeFocus && text !== editor.pageData.name) { editor.remember(); editor.editablePage().name = text; editor.changed() } }

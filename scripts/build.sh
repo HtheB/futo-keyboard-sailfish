@@ -399,6 +399,11 @@ FUTO_ARCH="$ARCH" FUTO_BUILD_DIR="$BUILD" FUTO_CXX="$CXX" FUTO_STRIP="$STRIP" \
     -o "$BUILD/futo-keyboard-editor"
 "$STRIP" "$BUILD/futo-keyboard-editor"
 
+"$CC" "${TARGET_COMPILE_FLAGS[@]}" -std=c11 -O2 -DNDEBUG -fPIE -pie \
+    -Wall -Wextra -Werror "$ROOT/vault/futo-keyboard-launcher-install.c" \
+    -o "$BUILD/futo-keyboard-launcher-install"
+"$STRIP" "$BUILD/futo-keyboard-launcher-install"
+
 if [[ ${FUTO_SKIP_COMPOSITION_BUILD:-0} != 1 ]]; then
     FUTO_ARCH="$ARCH" FUTO_BUILD_DIR="$BUILD" FUTO_DEPS_ROOT="$DEPS_ROOT" \
     FUTO_CXX="$CXX" FUTO_CC="$CC" FUTO_STRIP="$STRIP" \

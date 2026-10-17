@@ -26,16 +26,18 @@ import (
 // Layout documents are inert, versioned data. They cannot name QML files,
 // commands, image URLs or input engines. No language or dictionary is stored.
 type customLayoutKey struct {
-	Action      string   `json:"action"`
-	Label       string   `json:"label"`
-	Output      string   `json:"output"`
-	Shifted     string   `json:"shifted,omitempty"`
-	Width       float64  `json:"width"`
-	More        []string `json:"more"`
-	DefaultMore int      `json:"defaultMore"`
-	Dead        bool     `json:"dead"`
-	Target      string   `json:"target,omitempty"`
-	Style       string   `json:"style,omitempty"`
+	Action      string            `json:"action"`
+	Label       string            `json:"label"`
+	Output      string            `json:"output"`
+	Shifted     string            `json:"shifted,omitempty"`
+	Width       float64           `json:"width"`
+	More        []json.RawMessage `json:"more"`
+	DefaultMore int               `json:"defaultMore"`
+	Dead        bool              `json:"dead"`
+	Target      string            `json:"target,omitempty"`
+	Style       string            `json:"style,omitempty"`
+	HoldAction  string            `json:"holdAction,omitempty"`
+	HoldTarget  string            `json:"holdTarget,omitempty"`
 }
 type customLayoutPage struct {
 	ID   string              `json:"id"`
@@ -65,7 +67,7 @@ var customLayoutID = regexp.MustCompile(`^custom-[a-f0-9]{32}$`)
 var customPageID = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,48}$`)
 
 func customActionAllowed(action string) bool {
-	return !strings.ContainsRune(action, '|') && strings.Contains("|text|space|backspace|enter|shift|page|emoji|symbols|language|clipboard|voice|esc|tab|delete|insert|home|end|pageup|pagedown|left|right|up|down|ctrl|alt|altgr|super|menu|print|pause|numlock|scrolllock|f1|f2|f3|f4|f5|f6|f7|f8|f9|f10|f11|f12|spacer|", "|"+action+"|")
+	return !strings.ContainsRune(action, '|') && strings.Contains("|text|space|backspace|enter|shift|page|emoji|symbols|language|clipboard|voice|copy|cut|paste|selectall|hide|esc|tab|delete|insert|home|end|pageup|pagedown|left|right|up|down|ctrl|alt|altgr|super|menu|print|pause|numlock|scrolllock|f1|f2|f3|f4|f5|f6|f7|f8|f9|f10|f11|f12|spacer|", "|"+action+"|")
 }
 func layoutTextValid(value string, maximum int) bool {
 	return utf8.ValidString(value) && utf8.RuneCountInString(value) <= maximum && !strings.ContainsRune(value, 0)
@@ -103,11 +105,17 @@ func validateCustomLayout(layout *customLayout, requireID bool) error {
 			count += len(row)
 			for ki := range row {
 				key := &page.Rows[ri][ki]
-				if !customActionAllowed(key.Action) || !layoutTextValid(key.Label, 40) || !layoutTextValid(key.Output, 64) || !layoutTextValid(key.Shifted, 64) {
+				if !customActionAllowed(key.Action) || !layoutTextValid(key.Label, 40) || !layoutTextValid(key.Output, 2048) || !layoutTextValid(key.Shifted, 2048) {
 					return errors.New("Invalid key action or text")
 				}
 				if key.Style != "" && key.Style != "auto" && key.Style != "button" && key.Style != "plain" {
 					return errors.New("Unknown key appearance")
+				}
+				if key.HoldAction != "" && (!customActionAllowed(key.HoldAction) || key.HoldAction == "text" || key.HoldAction == "spacer") {
+					return errors.New("Invalid long-press action")
+				}
+				if !layoutTextValid(key.HoldTarget, 48) {
+					return errors.New("Invalid long-press destination")
 				}
 				if math.IsNaN(key.Width) || math.IsInf(key.Width, 0) || key.Width < 0.25 || key.Width > 20 {
 					return errors.New("Key width must be between 0.25 and 20")
@@ -121,18 +129,20 @@ func validateCustomLayout(layout *customLayout, requireID bool) error {
 				if len(key.More) > 32 || key.DefaultMore < 0 || key.DefaultMore >= len(key.More) && key.DefaultMore != 0 {
 					return errors.New("Invalid long-press selection")
 				}
-				for _, text := range key.More {
-					if text == "" || !layoutTextValid(text, 64) {
-						return errors.New("Invalid long-press character")
+				for _, raw := range key.More {
+					if _, err := decodeCustomAlternative(raw); err != nil {
+						return err
 					}
 				}
 				if key.More == nil {
-					key.More = []string{}
+					key.More = []json.RawMessage{}
 				}
 				// Protection belongs to the position, not an editable key flag.
 				if ri == len(page.Rows)-1 && ki == 0 {
-					key.More = []string{}
+					key.More = []json.RawMessage{}
 					key.DefaultMore = 0
+					key.HoldAction = ""
+					key.HoldTarget = ""
 				}
 			}
 		}
@@ -146,10 +156,56 @@ func validateCustomLayout(layout *customLayout, requireID bool) error {
 				if key.Action == "page" && !pages[key.Target] {
 					return errors.New("A page-switch key refers to a missing page")
 				}
+				if key.HoldAction == "page" && !pages[key.HoldTarget] {
+					return errors.New("A long-press action refers to a missing page")
+				}
+				for _, raw := range key.More {
+					alternative, _ := decodeCustomAlternative(raw)
+					if alternative.Action == "page" && !pages[alternative.Target] {
+						return errors.New("A long-press action refers to a missing page")
+					}
+				}
 			}
 		}
 	}
 	return nil
+}
+
+type customLayoutAlternative struct {
+	Action string  `json:"action"`
+	Target string  `json:"target,omitempty"`
+	Text   *string `json:"text,omitempty"`
+	Label  *string `json:"label,omitempty"`
+}
+
+func decodeCustomAlternative(raw json.RawMessage) (customLayoutAlternative, error) {
+	var text string
+	if json.Unmarshal(raw, &text) == nil && text != "" && layoutTextValid(text, 2048) {
+		return customLayoutAlternative{}, nil
+	}
+	var alternative customLayoutAlternative
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&alternative); err != nil {
+		return alternative, errors.New("Invalid long-press choice")
+	}
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(raw, &fields) != nil || fields == nil {
+		return alternative, errors.New("Invalid long-press choice")
+	}
+	for name, value := range fields {
+		if bytes.Equal(value, []byte("null")) || alternative.Text != nil && name != "text" && name != "label" || alternative.Text == nil && name != "action" && name != "target" {
+			return alternative, errors.New("Invalid long-press choice")
+		}
+	}
+	if alternative.Text != nil && *alternative.Text != "" && layoutTextValid(*alternative.Text, 2048) &&
+		(alternative.Label == nil || layoutTextValid(*alternative.Label, 40)) && alternative.Action == "" && alternative.Target == "" {
+		return alternative, nil
+	}
+	if alternative.Text != nil || alternative.Label != nil || !customActionAllowed(alternative.Action) || alternative.Action == "text" || alternative.Action == "spacer" || !layoutTextValid(alternative.Target, 48) {
+		return alternative, errors.New("Invalid long-press choice")
+	}
+	return alternative, nil
 }
 func decodeCustomLayout(data []byte) (customLayout, error) {
 	var layout customLayout

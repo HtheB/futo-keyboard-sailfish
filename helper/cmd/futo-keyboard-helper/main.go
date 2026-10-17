@@ -258,9 +258,10 @@ type languageInfo struct {
 }
 
 type scoredWord struct {
-	Word     string `json:"word"`
-	Score    int64  `json:"score"`
-	Language string `json:"language,omitempty"`
+	Word          string `json:"word"`
+	Score         int64  `json:"score"`
+	Language      string `json:"language,omitempty"`
+	SpellingMatch bool   `json:"spellingMatch,omitempty"`
 }
 
 type correctionWord struct {
@@ -4360,6 +4361,18 @@ func mergeRankedSuggestions(typed string, showTyped bool, personal []string,
 			}
 		}
 	}
+	// Keep an accent-only spelling family reachable even when personal prefix
+	// completions fill a short suggestion strip. Other rankings stay unchanged.
+	for _, candidate := range candidates {
+		if candidate.SpellingMatch {
+			appendWord(candidate.Word)
+			// Reserve one alternative, not the whole accent family: uncommon
+			// variants must not crowd out every learned prefix completion.
+			if !strings.EqualFold(candidate.Word, typed) {
+				break
+			}
+		}
+	}
 	for _, word := range personal {
 		appendWord(word)
 	}
@@ -4536,7 +4549,9 @@ func (service *service) analyzeContext(languagesCSV, word, context string,
 	bestLanguageScore := int64(-1)
 
 	for _, language := range languages {
-		analysis, err := service.engine.analyze(language, word, limit)
+		// Rank a few more candidates before applying the visible limit, so
+		// learned context can promote a spelling just outside a short strip.
+		analysis, err := service.engine.analyze(language, word, int32(stdMax(8, int(limit))))
 		if err != nil {
 			return result, err
 		}
@@ -4561,6 +4576,7 @@ func (service *service) analyzeContext(languagesCSV, word, context string,
 				continue
 			}
 			candidate.Language = language
+			candidate.Score += service.history.bigramBonus(previous, candidate.Word)
 			if automaticLanguageDetection {
 				candidate.Score += contextBonus + runeBonus
 			}
@@ -7612,18 +7628,6 @@ func main() {
 	defer application.androidCursor.close()
 	defer application.CancelVoiceInput()
 
-	if path, err := layoutEditorLauncherPath(); err == nil {
-		if err := upgradeLayoutEditorLauncher(layoutEditorLauncherTemplate, path); err != nil {
-			log.Print(err)
-		}
-		if watcher, err := watchLayoutEditorLauncher(path, func(visible bool) {
-			_ = connection.Emit(objectPath, interfaceName+".LayoutEditorLauncherChanged", visible)
-		}); err == nil {
-			defer watcher.Close()
-		} else {
-			log.Printf("could not watch the Layout Editor shortcut: %v", err)
-		}
-	}
 	if err := connection.Export(application, objectPath, interfaceName); err != nil {
 		log.Fatal(err)
 	}
@@ -7645,6 +7649,12 @@ func main() {
 	if reply != dbus.RequestNameReplyPrimaryOwner {
 		log.Fatal("another FUTO Keyboard helper already owns the service")
 	}
+	if watcher, err := watchLayoutEditorLauncher(layoutEditorSystemLauncher, application.emitLayoutEditorLauncherChanged); err == nil {
+		defer watcher.Close()
+	} else {
+		log.Printf("could not watch the Layout Editor shortcut: %v", err)
+	}
+	go application.upgradeLayoutEditorLauncher()
 	// Event-driven cleanup, not an idle timer. A crashed keyboard must not
 	// leave a conversion worker or its private learned-data profile behind.
 	if err := connection.AddMatchSignal(dbus.WithMatchInterface("org.freedesktop.DBus"),

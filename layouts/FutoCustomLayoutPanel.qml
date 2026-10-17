@@ -36,7 +36,7 @@ Item {
             Loader {
                 id: keyLoader
                 anchors.fill: parent
-                sourceComponent: !cell.reserved && cell.definition.more.length === 0
+                sourceComponent: !cell.reserved && !cell.definition.holdAction && cell.definition.more.length === 0
                         ? cell.definition.action === "space" ? spaceComponent
                         : cell.definition.action === "backspace" && !cell.definition.label ? backspaceComponent : genericComponent : genericComponent
             }

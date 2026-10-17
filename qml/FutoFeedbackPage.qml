@@ -4,6 +4,7 @@ import Sailfish.Silica 1.0
 import Nemo.DBus 2.0
 import Nemo.Configuration 1.0
 import org.nemomobile.systemsettings 1.0
+import "FutoHapticFeedback.js" as Haptics
 
 Page {
     id: page
@@ -21,10 +22,26 @@ Page {
         property int keySoundMode: -1
         property real keySoundVolume: 0.5
         property bool swipeVibrationEnabled: false
+        property int keyVibrationMode: 2
+        onKeyVibrationModeChanged: {
+            if (vibrationModeCombo.currentIndex !== page.vibrationMode())
+                vibrationModeCombo.currentIndex = page.vibrationMode()
+        }
     }
 
     ProfileControl { id: systemFeedback }
-    ThemeEffect { id: vibrationPreview; effect: ThemeEffect.PressWeak }
+    FutoKeyHaptics {
+        id: vibrationPreview
+        mode: page.vibrationMode()
+        enabled: Haptics.allowed(mode, systemFeedback.touchscreenVibrationLevel)
+    }
+
+    function vibrationMode() { return Haptics.mode(settings.keyVibrationMode) }
+    function setVibrationMode(mode) {
+        settings.keyVibrationMode = Haptics.mode(mode)
+        if (Haptics.allowed(settings.keyVibrationMode, systemFeedback.touchscreenVibrationLevel))
+            vibrationPreview.play()
+    }
 
     DBusInterface {
         id: helper
@@ -150,24 +167,36 @@ Page {
             width: parent.width
             PageHeader { title: qsTr("Sound and vibration") }
 
-            TextSwitch {
+            ComboBox {
+                id: vibrationModeCombo
+                objectName: "keyVibrationModeSelector"
                 width: parent.width
-                automaticCheck: false
-                checked: systemFeedback.touchscreenVibrationLevel !== 0
-                text: qsTr("Vibrate on each key press")
-                description: qsTr("Uses Sailfish touch vibration. FUTO also applies it to its "
-                                  + "emoji, clipboard, layout, and quick-action controls.")
-                onClicked: {
-                    systemFeedback.touchscreenVibrationLevel = checked ? 0 : 1
-                    if (!checked)
-                        vibrationPreview.play()
+                label: qsTr("Vibration feedback")
+                automaticSelection: false
+                currentIndex: page.vibrationMode()
+                menu: ContextMenu {
+                    MenuItem { text: qsTr("Off"); onClicked: page.setVibrationMode(0) }
+                    MenuItem { text: qsTr("Light"); onClicked: page.setVibrationMode(1) }
+                    MenuItem { text: qsTr("Normal"); onClicked: page.setVibrationMode(2) }
+                    MenuItem { text: qsTr("Strong"); onClicked: page.setVibrationMode(3) }
                 }
+            }
+
+            Label {
+                x: Theme.horizontalPageMargin
+                width: parent.width - 2 * x
+                wrapMode: Text.Wrap
+                color: Theme.secondaryColor
+                font.pixelSize: Theme.fontSizeSmall
+                text: systemFeedback.touchscreenVibrationLevel === 0
+                      ? qsTr("Touch vibration is turned off in Sailfish settings.")
+                      : qsTr("Light uses a shorter pulse and Strong a longer one. Normal uses Sailfish's standard keyboard feedback.")
             }
 
             TextSwitch {
                 width: parent.width
                 automaticCheck: false
-                enabled: systemFeedback.touchscreenVibrationLevel !== 0
+                enabled: Haptics.allowed(settings.keyVibrationMode, systemFeedback.touchscreenVibrationLevel)
                 checked: settings.swipeVibrationEnabled
                 text: qsTr("Vibrate while swiping")
                 description: qsTr("Pulses on every letter the finger passes over "

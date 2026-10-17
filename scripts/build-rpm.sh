@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 ARCH=${FUTO_ARCH:-aarch64}
-VERSION=0.9.5
-RELEASE=2
+VERSION=0.9.6
+RELEASE=1
 NAME=futo-keyboard-sailfish
 OUTPUT_DIR=${FUTO_RPM_OUTPUT_DIR:-$ROOT/build/rpm}
 BINARY_DIR=${FUTO_BINARY_DIR:-$ROOT/build/$ARCH}
@@ -33,10 +33,12 @@ git -C "$ROOT" ls-files -z \
     | tar -C "$STAGING/$NAME-$VERSION" -xf -
 mkdir -p "$STAGING/$NAME-$VERSION/build/$ARCH"
 mkdir -p "$STAGING/$NAME-$VERSION/build/android"
+bash "$ROOT/scripts/build-layout-editor-launcher.sh" \
+    "$STAGING/$NAME-$VERSION/build/layout-editor-launcher/launcher.rpm"
 cp "$ROOT/build/android/FutoAutofill.apk" "$STAGING/$NAME-$VERSION/build/android/FutoAutofill.apk"
 for file in \
     futo-keyboard-engine futo-keyboard-swipe futo-keyboard-prediction futo-keyboard-mozc futo-keyboard-rime futo-keyboard-helper futo-keyboard-secrets \
-    futo-keyboard-keyring futo-keyboard-device-auth futo-keyboard-setup-toast futo-keyboard-focus futo-keyboard-appsupport futo-keyboard-browser-origin futo-keyboard-editor futo-layout-editor futo-keyboard-voice \
+    futo-keyboard-keyring futo-keyboard-device-auth futo-keyboard-setup-toast futo-keyboard-focus futo-keyboard-appsupport futo-keyboard-browser-origin futo-keyboard-editor futo-keyboard-launcher-install futo-layout-editor futo-keyboard-voice \
     libfuto-maliit-policy.so.1 libcomposeplatforminputcontextplugin.so \
     libafutomaliitcomposewrapper.so libQt5WaylandClient.so.5.6.3 \
     libQt5WaylandClientFutoOriginal.so.5.6.3 stock-wayland.sha256; do
