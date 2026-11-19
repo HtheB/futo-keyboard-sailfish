@@ -7035,6 +7035,17 @@ InputHandler {
 		}
 	}
 
+	// A Space gesture that switches language can replace the layout before its
+	// release reaches endSpacebarGesture().  Never stay in gesture mode, which
+	// swallows every key, once the layout it started on is gone.
+	Connections {
+		target: keyboard
+		onLayoutChanged: {
+			if (futoHandler.spacebarGestureActive)
+				futoHandler.endSpacebarGesture(true)
+		}
+	}
+
 	Timer {
 		id: spacebarGestureGuard
 		interval: 120

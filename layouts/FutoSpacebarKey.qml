@@ -471,21 +471,25 @@ SpacebarKey {
 			spaceKey.pointerDown = false
 			cursorHoldTimer.stop()
             spaceKey.pressed = false
+			// Take the handler before finishing the language mode.  Switching to a
+			// language with another layout destroys this layout, after which
+			// 'keyboard' no longer resolves here and the Space gesture never ends.
+			var handler = keyboard.inputHandler
 			spaceKey.finishLanguageMode(!spaceKey.languageAbandoned)
-            if (!spaceKey.gestureMoved && keyboard.inputHandler) {
-				if (keyboard.inputHandler.endSpacebarGesture)
-                    keyboard.inputHandler.endSpacebarGesture(spaceKey.alternateTapEnabled)
+            if (!spaceKey.gestureMoved && handler) {
+				if (handler.endSpacebarGesture)
+                    handler.endSpacebarGesture(spaceKey.alternateTapEnabled)
                 if (spaceKey.alternateTapEnabled) {
                     spaceKey.alternateTapped()
                 } else {
-                    keyboard.inputHandler._handleKeyPress(spaceKey)
-                    keyboard.inputHandler._handleKeyClick(spaceKey)
-                    keyboard.inputHandler._handleKeyRelease()
+                    handler._handleKeyPress(spaceKey)
+                    handler._handleKeyClick(spaceKey)
+                    handler._handleKeyRelease()
                     spaceKey.clicked()
                 }
-			} else if (keyboard.inputHandler
-					&& keyboard.inputHandler.endSpacebarGesture) {
-				keyboard.inputHandler.endSpacebarGesture(true)
+			} else if (handler
+					&& handler.endSpacebarGesture) {
+				handler.endSpacebarGesture(true)
             }
 			spaceKey.cursorMode = false
 		}
@@ -494,9 +498,10 @@ SpacebarKey {
 			spaceKey.pointerDown = false
 			cursorHoldTimer.stop()
 			spaceKey.pressed = false
+			var handler = keyboard.inputHandler
 			spaceKey.finishLanguageMode(false)
-			if (keyboard.inputHandler && keyboard.inputHandler.endSpacebarGesture)
-				keyboard.inputHandler.endSpacebarGesture(true)
+			if (handler && handler.endSpacebarGesture)
+				handler.endSpacebarGesture(true)
 			spaceKey.cursorMode = false
 		}
     }
