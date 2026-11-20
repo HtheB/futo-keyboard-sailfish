@@ -23,6 +23,7 @@ LAUNCHER_INSTALL_BINARY ?= $(BUILD_DIR)/futo-keyboard-launcher-install
 LAYOUT_EDITOR_LAUNCHER_RPM ?= build/layout-editor-launcher/launcher.rpm
 ANDROID_AUTOFILL_APK ?= build/android/FutoAutofill.apk
 VOICE_BINARY ?= $(BUILD_DIR)/futo-keyboard-voice
+LRELEASE ?= lrelease
 POLICY_LIBRARY ?= $(BUILD_DIR)/libfuto-maliit-policy.so.1
 COMPOSE_PLUGIN ?= $(BUILD_DIR)/libcomposeplatforminputcontextplugin.so
 COMPOSE_WRAPPER ?= $(BUILD_DIR)/libafutomaliitcomposewrapper.so
@@ -345,6 +346,11 @@ install: check
 		"$(DESTDIR)$(PREFIX)/share/jolla-settings/pages/futo-keyboard-sailfish/main.qml"
 	install -Dm0644 packaging/settings/futo-keyboard.json \
 		"$(DESTDIR)$(PREFIX)/share/jolla-settings/entries/futo-keyboard.json"
+	install -d "$(DESTDIR)$(PREFIX)/share/translations" \
+		"$(DESTDIR)$(PREFIX)/share/futo-layout-editor/translations"
+	python3 scripts/build-translations.py "$(LRELEASE)" \
+		"$(DESTDIR)$(PREFIX)/share/translations" \
+		"$(DESTDIR)$(PREFIX)/share/futo-layout-editor/translations"
 	@for file in $(filter-out FutoSettingsPage.qml,$(SETTINGS_QML)); do \
 		install -Dm0644 "qml/$$file" \
 			"$(DESTDIR)$(PREFIX)/share/jolla-settings/pages/futo-keyboard-sailfish/$$file"; \
