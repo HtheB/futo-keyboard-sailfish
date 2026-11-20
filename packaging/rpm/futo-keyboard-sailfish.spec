@@ -13,6 +13,7 @@ Icon:           %{name}.xpm
 ExclusiveArch:  aarch64 armv7hl i486
 
 BuildRequires:  make
+BuildRequires:  qt5-qttools-linguist
 
 Requires:       jolla-keyboard
 Requires:       maliit-framework-wayland
@@ -192,6 +193,8 @@ fi
 %{_datadir}/maliit/plugins/com/jolla/handlers/FutoPasteButton.qml
 %{_datadir}/jolla-settings/pages/futo-keyboard-sailfish/
 %{_datadir}/jolla-settings/entries/futo-keyboard.json
+%{_datadir}/translations/settings-futo-keyboard-*.qm
+%{_datadir}/futo-layout-editor/translations/
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoCharacterKey.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoHideKeyboardIcon.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoCustomKey.qml
