@@ -229,6 +229,35 @@ func resolvedPredictionModelPath() string {
 		"/usr/share/futo-keyboard-sailfish/prediction/ml4_q6_k.gguf")
 }
 
+// frenchPredictionModelFile is the community French KeyboardLM. It has the
+// same format as the English model and is installed beside it by hand.
+const frenchPredictionModelFile = "fr_keyboard.gguf"
+
+func resolvedFrenchPredictionModelPath() string {
+	if override := strings.TrimSpace(os.Getenv("FUTO_PREDICTION_MODEL_FR")); override != "" {
+		return firstAvailableContentFile(override)
+	}
+	root := optionalContentRoot()
+	userPath := ""
+	if root != "" {
+		userPath = filepath.Join(root, "prediction", frenchPredictionModelFile)
+	}
+	return firstAvailableContentFile(userPath,
+		filepath.Join("/usr/share/futo-keyboard-sailfish/prediction", frenchPredictionModelFile))
+}
+
+// predictionModelFor returns the KeyboardLM file for a language, or "" when
+// that language has no context model.
+func predictionModelFor(language string) string {
+	switch language {
+	case "EN", "EN_GB", "EN_IN":
+		return resolvedPredictionModelPath()
+	case "FR", "FR_CA", "FR_CH":
+		return resolvedFrenchPredictionModelPath()
+	}
+	return ""
+}
+
 func loadContentManifest(manifestPath string) (contentManifest, error) {
 	var manifest contentManifest
 	data, err := os.ReadFile(manifestPath)

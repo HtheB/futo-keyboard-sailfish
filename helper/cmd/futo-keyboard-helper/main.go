@@ -328,13 +328,13 @@ type predictionProcess struct {
 	stdout         *bufio.Reader
 	idleTimer      *time.Timer
 	idleGeneration uint64
+	modelPath      string
 }
 
-func (engine *predictionProcess) startLocked() error {
+func (engine *predictionProcess) startLocked(modelPath string) error {
 	if engine.command != nil && engine.command.Process != nil {
 		return nil
 	}
-	modelPath := resolvedPredictionModelPath()
 	if modelPath == "" {
 		return errors.New("typed prediction model is not installed")
 	}
@@ -360,6 +360,7 @@ func (engine *predictionProcess) startLocked() error {
 	engine.command = command
 	engine.stdin = stdin
 	engine.stdout = bufio.NewReaderSize(stdoutPipe, 32*1024)
+	engine.modelPath = modelPath
 	go func(process *exec.Cmd) {
 		if err := process.Wait(); err != nil {
 			log.Printf("typed prediction worker stopped: %v", err)
@@ -411,14 +412,14 @@ func flattenWorkerField(value string) string {
 	return strings.NewReplacer("\t", " ", "\r", " ", "\n", " ").Replace(value)
 }
 
-func (engine *predictionProcess) predict(context, partial string,
+func (engine *predictionProcess) predict(modelPath, context, partial string,
 	threshold float64) (predictionModelResponse, error) {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
 	context = flattenWorkerField(context)
 	partial = flattenWorkerField(partial)
 	for attempt := 0; attempt < 2; attempt++ {
-		if err := engine.startLocked(); err != nil {
+		if err := engine.startLocked(modelPath); err != nil {
 			return predictionModelResponse{}, err
 		}
 		request := fmt.Sprintf("PREDICT\t%s\t%s\t%.3f\n", context, partial, threshold)
@@ -459,6 +460,51 @@ func (engine *predictionProcess) close() {
 
 func (engine *predictionProcess) reload() {
 	engine.close()
+}
+
+// predictionPool keeps one KeyboardLM worker per model file. With English and
+// French both enabled, the detected language can change from one word to the
+// next; restarting a single worker on every change would reload a model on
+// almost every keystroke. Each worker still exits on its own idle timer.
+type predictionPool struct {
+	mu      sync.Mutex
+	workers map[string]*predictionProcess
+}
+
+func (pool *predictionPool) worker(modelPath string) *predictionProcess {
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+	if pool.workers == nil {
+		pool.workers = make(map[string]*predictionProcess)
+	}
+	engine := pool.workers[modelPath]
+	if engine == nil {
+		engine = &predictionProcess{}
+		pool.workers[modelPath] = engine
+	}
+	return engine
+}
+
+func (pool *predictionPool) predict(modelPath, context, partial string,
+	threshold float64) (predictionModelResponse, error) {
+	if modelPath == "" {
+		return predictionModelResponse{}, errors.New("typed prediction model is not installed")
+	}
+	return pool.worker(modelPath).predict(modelPath, context, partial, threshold)
+}
+
+func (pool *predictionPool) close() {
+	pool.mu.Lock()
+	workers := pool.workers
+	pool.workers = nil
+	pool.mu.Unlock()
+	for _, engine := range workers {
+		engine.close()
+	}
+}
+
+func (pool *predictionPool) reload() {
+	pool.close()
 }
 
 // androidCursorProcess keeps a single, restricted lxc-attach channel open.
@@ -3013,7 +3059,7 @@ type service struct {
 	bus                      *dbus.Conn
 	engine                   engineProcess
 	swipeEngine              swipeProcess
-	predictionEngine         predictionProcess
+	predictionEngine         predictionPool
 	composition              compositionSession
 	androidCursor            androidCursorProcess
 	androidAutofill          *androidAutofillBridge
@@ -4449,6 +4495,26 @@ func englishContractionCorrection(language, typed, phrase string) string {
 	return phrase
 }
 
+// The KeyboardLM worker only has tokens for the letters a..z and drops any
+// other key. A French model is trained on accent-free typed letters, so fold
+// "été" to "ete" (and "cœur" to "coeur") before it reaches the worker.
+var frenchLetterFolder = strings.NewReplacer(
+	"à", "a", "â", "a", "ä", "a", "á", "a", "À", "A", "Â", "A", "Ä", "A", "Á", "A",
+	"ç", "c", "Ç", "C",
+	"é", "e", "è", "e", "ê", "e", "ë", "e", "É", "E", "È", "E", "Ê", "E", "Ë", "E",
+	"î", "i", "ï", "i", "í", "i", "Î", "I", "Ï", "I", "Í", "I",
+	"ô", "o", "ö", "o", "ó", "o", "Ô", "O", "Ö", "O", "Ó", "O",
+	"ù", "u", "û", "u", "ü", "u", "ú", "u", "Ù", "U", "Û", "U", "Ü", "U", "Ú", "U",
+	"ÿ", "y", "Ÿ", "Y", "ñ", "n", "Ñ", "N",
+	"œ", "oe", "Œ", "OE", "æ", "ae", "Æ", "AE")
+
+func modelLetters(language, word string) string {
+	if strings.HasPrefix(language, "FR") {
+		return frenchLetterFolder.Replace(word)
+	}
+	return word
+}
+
 func englishPredictionLanguage(language string) bool {
 	return language == "EN" || language == "EN_GB" || language == "EN_IN"
 }
@@ -4620,10 +4686,9 @@ func (service *service) analyzeContext(languagesCSV, word, context string,
 			}
 		}
 	}
-	if usePredictionModel && englishPredictionLanguage(detectedLanguage) &&
-		resolvedPredictionModelPath() != "" {
-		modelResult, modelErr := service.predictionEngine.predict(
-			compactPredictionContext(context), word,
+	if modelPath := predictionModelFor(detectedLanguage); usePredictionModel && modelPath != "" {
+		modelResult, modelErr := service.predictionEngine.predict(modelPath,
+			compactPredictionContext(context), modelLetters(detectedLanguage, word),
 			predictionModelThreshold(correctionLevel))
 		if modelErr != nil {
 			log.Printf("typed prediction model unavailable: %v", modelErr)
@@ -4876,9 +4941,8 @@ func (service *service) NextWords(languagesCSV, context string, limit int32,
 	if modelLanguage == "" && len(languages) == 1 {
 		modelLanguage = languages[0]
 	}
-	if usePredictionModel && englishPredictionLanguage(modelLanguage) &&
-		resolvedPredictionModelPath() != "" {
-		modelResult, modelErr := service.predictionEngine.predict(
+	if modelPath := predictionModelFor(modelLanguage); usePredictionModel && modelPath != "" {
+		modelResult, modelErr := service.predictionEngine.predict(modelPath,
 			compactPredictionContext(context), "", 1.0)
 		if modelErr != nil {
 			log.Printf("typed next-word model unavailable: %v", modelErr)
