@@ -328,13 +328,13 @@ type predictionProcess struct {
 	stdout         *bufio.Reader
 	idleTimer      *time.Timer
 	idleGeneration uint64
+	modelPath      string
 }
 
-func (engine *predictionProcess) startLocked() error {
+func (engine *predictionProcess) startLocked(modelPath string) error {
 	if engine.command != nil && engine.command.Process != nil {
 		return nil
 	}
-	modelPath := resolvedPredictionModelPath()
 	if modelPath == "" {
 		return errors.New("typed prediction model is not installed")
 	}
@@ -360,6 +360,7 @@ func (engine *predictionProcess) startLocked() error {
 	engine.command = command
 	engine.stdin = stdin
 	engine.stdout = bufio.NewReaderSize(stdoutPipe, 32*1024)
+	engine.modelPath = modelPath
 	go func(process *exec.Cmd) {
 		if err := process.Wait(); err != nil {
 			log.Printf("typed prediction worker stopped: %v", err)
@@ -411,14 +412,14 @@ func flattenWorkerField(value string) string {
 	return strings.NewReplacer("\t", " ", "\r", " ", "\n", " ").Replace(value)
 }
 
-func (engine *predictionProcess) predict(context, partial string,
+func (engine *predictionProcess) predict(modelPath, context, partial string,
 	threshold float64) (predictionModelResponse, error) {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
 	context = flattenWorkerField(context)
 	partial = flattenWorkerField(partial)
 	for attempt := 0; attempt < 2; attempt++ {
-		if err := engine.startLocked(); err != nil {
+		if err := engine.startLocked(modelPath); err != nil {
 			return predictionModelResponse{}, err
 		}
 		request := fmt.Sprintf("PREDICT\t%s\t%s\t%.3f\n", context, partial, threshold)
@@ -459,6 +460,51 @@ func (engine *predictionProcess) close() {
 
 func (engine *predictionProcess) reload() {
 	engine.close()
+}
+
+// predictionPool keeps one KeyboardLM worker per model file. With English and
+// French both enabled, the detected language can change from one word to the
+// next; restarting a single worker on every change would reload a model on
+// almost every keystroke. Each worker still exits on its own idle timer.
+type predictionPool struct {
+	mu      sync.Mutex
+	workers map[string]*predictionProcess
+}
+
+func (pool *predictionPool) worker(modelPath string) *predictionProcess {
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+	if pool.workers == nil {
+		pool.workers = make(map[string]*predictionProcess)
+	}
+	engine := pool.workers[modelPath]
+	if engine == nil {
+		engine = &predictionProcess{}
+		pool.workers[modelPath] = engine
+	}
+	return engine
+}
+
+func (pool *predictionPool) predict(modelPath, context, partial string,
+	threshold float64) (predictionModelResponse, error) {
+	if modelPath == "" {
+		return predictionModelResponse{}, errors.New("typed prediction model is not installed")
+	}
+	return pool.worker(modelPath).predict(modelPath, context, partial, threshold)
+}
+
+func (pool *predictionPool) close() {
+	pool.mu.Lock()
+	workers := pool.workers
+	pool.workers = nil
+	pool.mu.Unlock()
+	for _, engine := range workers {
+		engine.close()
+	}
+}
+
+func (pool *predictionPool) reload() {
+	pool.close()
 }
 
 // androidCursorProcess keeps a single, restricted lxc-attach channel open.
@@ -3013,7 +3059,7 @@ type service struct {
 	bus                      *dbus.Conn
 	engine                   engineProcess
 	swipeEngine              swipeProcess
-	predictionEngine         predictionProcess
+	predictionEngine         predictionPool
 	composition              compositionSession
 	androidCursor            androidCursorProcess
 	androidAutofill          *androidAutofillBridge
@@ -4449,6 +4495,39 @@ func englishContractionCorrection(language, typed, phrase string) string {
 	return phrase
 }
 
+// The KeyboardLM worker only has tokens for the letters a..z and drops any
+// other key. A French model is trained on accent-free typed letters, so fold
+// "été" to "ete" (and "cœur" to "coeur") before it reaches the worker.
+var frenchLetterFolder = strings.NewReplacer(
+	"à", "a", "â", "a", "ä", "a", "á", "a", "À", "A", "Â", "A", "Ä", "A", "Á", "A",
+	"ç", "c", "Ç", "C",
+	"é", "e", "è", "e", "ê", "e", "ë", "e", "É", "E", "È", "E", "Ê", "E", "Ë", "E",
+	"î", "i", "ï", "i", "í", "i", "Î", "I", "Ï", "I", "Í", "I",
+	"ô", "o", "ö", "o", "ó", "o", "Ô", "O", "Ö", "O", "Ó", "O",
+	"ù", "u", "û", "u", "ü", "u", "ú", "u", "Ù", "U", "Û", "U", "Ü", "U", "Ú", "U",
+	"ÿ", "y", "Ÿ", "Y", "ñ", "n", "Ñ", "N",
+	"œ", "oe", "Œ", "OE", "æ", "ae", "Æ", "AE")
+
+// withoutTypedSpelling drops the model's copy of what was typed when that
+// spelling is not a word. French web text often lacks accents, so the model
+// may echo "ete" or "deja" first, just ahead of "été" and "déjà".
+func withoutTypedSpelling(words []predictionModelSuggestion, typed string) []predictionModelSuggestion {
+	kept := words[:0:0]
+	for _, candidate := range words {
+		if !strings.EqualFold(candidate.Word, typed) {
+			kept = append(kept, candidate)
+		}
+	}
+	return kept
+}
+
+func modelLetters(language, word string) string {
+	if strings.HasPrefix(language, "FR") {
+		return frenchLetterFolder.Replace(word)
+	}
+	return word
+}
+
 func englishPredictionLanguage(language string) bool {
 	return language == "EN" || language == "EN_GB" || language == "EN_IN"
 }
@@ -4620,15 +4699,18 @@ func (service *service) analyzeContext(languagesCSV, word, context string,
 			}
 		}
 	}
-	if usePredictionModel && englishPredictionLanguage(detectedLanguage) &&
-		resolvedPredictionModelPath() != "" {
-		modelResult, modelErr := service.predictionEngine.predict(
-			compactPredictionContext(context), word,
+	if modelPath := predictionModelFor(detectedLanguage); usePredictionModel && modelPath != "" {
+		modelResult, modelErr := service.predictionEngine.predict(modelPath,
+			compactPredictionContext(context), modelLetters(detectedLanguage, word),
 			predictionModelThreshold(correctionLevel))
 		if modelErr != nil {
 			log.Printf("typed prediction model unavailable: %v", modelErr)
 		} else {
 			modelWords := predictionModelWords(modelResult)
+			if strings.HasPrefix(detectedLanguage, "FR") && !allKnown &&
+				!service.learned.contains(detectedLanguage, word) {
+				modelWords = withoutTypedSpelling(modelWords, word)
+			}
 			for index, candidate := range modelWords {
 				candidate.Word = matchTypedCase(candidate.Word, word)
 				if service.history.isSuppressed(candidate.Word) {
@@ -4772,10 +4854,14 @@ func (service *service) SwipeSuggestions(languagesCSV, path, geometry, context s
 	languages := normalizeLanguages(languagesCSV)
 	allowEnglishRefinement := len(languages) == 1
 	previous := lastContextWord(context)
+	engineLimit := limit
+	if frenchSwipeRanking(languages) && engineLimit < swipeContextCandidates {
+		engineLimit = swipeContextCandidates
+	}
 	ranked := make([]scoredWord, 0, int(limit)*len(languages))
 	for _, language := range languages {
 		candidates, err := service.swipeEngine.swipe(language, path, geometry,
-			context, limit, capitalize, allowEnglishRefinement)
+			context, engineLimit, capitalize, allowEnglishRefinement)
 		if err != nil {
 			// Enabled languages may intentionally have no downloaded dictionary.
 			// Keep swipe results from the installed packs instead of discarding the
@@ -4814,6 +4900,12 @@ func (service *service) SwipeSuggestions(languagesCSV, path, geometry, context s
 		}
 		return len(ranked[i].Word) < len(ranked[j].Word)
 	})
+	if len(ranked) > 1 && strings.HasPrefix(ranked[0].Language, "FR") {
+		ranked = demoteAcronyms(ranked, func(candidate scoredWord) bool {
+			return service.learned != nil && service.learned.contains(candidate.Language, candidate.Word)
+		})
+		ranked = service.promoteSwipeWithContext(ranked, context)
+	}
 	seen := make(map[string]bool)
 	for _, candidate := range ranked {
 		key := strings.ToLower(candidate.Word)
@@ -4834,6 +4926,158 @@ func (service *service) SwipeSuggestions(languagesCSV, path, geometry, context s
 		return "", dbus.MakeFailedError(err)
 	}
 	return string(data), nil
+}
+
+func isAcronym(word string) bool {
+	letters := 0
+	for _, character := range word {
+		if unicode.IsLetter(character) {
+			if !unicode.IsUpper(character) {
+				return false
+			}
+			letters++
+		}
+	}
+	return letters >= 2
+}
+
+// demoteAcronyms moves all-capital dictionary entries such as "PT" or "RT"
+// behind ordinary words in a French gesture ranking. Short gestures often fit
+// them as well as "pour" or "et", yet they are rarely meant. Acronyms the
+// user has already typed keep their place, and nothing changes while every
+// candidate is in capitals (Caps Lock).
+func demoteAcronyms(ranked []scoredWord, known func(scoredWord) bool) []scoredWord {
+	words := make([]scoredWord, 0, len(ranked))
+	acronyms := make([]scoredWord, 0)
+	for _, candidate := range ranked {
+		if isAcronym(candidate.Word) && !known(candidate) {
+			acronyms = append(acronyms, candidate)
+		} else {
+			words = append(words, candidate)
+		}
+	}
+	if len(words) == 0 || len(acronyms) == 0 {
+		return ranked
+	}
+	return append(words, acronyms...)
+}
+
+// swipeContextCandidates is how many gesture candidates are fetched, and
+// may be lifted to the top, when the French context model can rank them.
+const swipeContextCandidates = 12
+
+func frenchSwipeRanking(languages []string) bool {
+	if resolvedFrenchPredictionModelPath() == "" {
+		return false
+	}
+	for _, language := range languages {
+		if strings.HasPrefix(language, "FR") {
+			return true
+		}
+	}
+	return false
+}
+
+// promoteSwipeWithContext lets the French context model pick between gesture
+// candidates. A short gesture such as "pour" is almost a straight line on the
+// AZERTY top row, so "pt", "pe" and "pur" fit it as well as "pour". The model
+// is asked for the likely words that start with the gesture's first letter,
+// and for the likely next words; the best one found among the gesture
+// candidates moves first. When none of them is there, the model's best word
+// is added if it starts and ends like the gesture.
+func (service *service) promoteSwipeWithContext(ranked []scoredWord, context string) []scoredWord {
+	modelPath := resolvedFrenchPredictionModelPath()
+	first := []rune(frenchLetterFolder.Replace(strings.ToLower(ranked[0].Word)))
+	if modelPath == "" || len(first) == 0 {
+		return ranked
+	}
+	compact := compactPredictionContext(context)
+	var model []predictionModelSuggestion
+	if result, err := service.predictionEngine.predict(modelPath, compact, string(first[0]), 1.0); err == nil {
+		model = append(model, predictionModelWords(result)...)
+	} else {
+		log.Printf("swipe context model unavailable: %v", err)
+		return ranked
+	}
+	if result, err := service.predictionEngine.predict(modelPath, compact, "", 1.0); err == nil {
+		model = append(model, predictionModelWords(result)...)
+	}
+	return promoteModelWords(ranked, model, swipeContextCandidates)
+}
+
+var azertyRows = []string{"azertyuiop", "qsdfghjklm", "wxcvbn"}
+
+// nearKey reports whether two letters are the same or neighbouring AZERTY keys.
+func nearKey(a, b rune) bool {
+	if a == b {
+		return true
+	}
+	ra, ca, rb, cb := -1, 0, -1, 0
+	for row, letters := range azertyRows {
+		if i := strings.IndexRune(letters, a); i >= 0 {
+			ra, ca = row, i
+		}
+		if i := strings.IndexRune(letters, b); i >= 0 {
+			rb, cb = row, i
+		}
+	}
+	if ra < 0 || rb < 0 {
+		return false
+	}
+	dr, dc := ra-rb, ca-cb
+	if ra == 2 || rb == 2 { // the bottom row is offset by about one and a half keys
+		if ra == 2 {
+			dc = ca + 1 - cb
+		} else {
+			dc = ca - (cb + 1)
+		}
+	}
+	return dr >= -1 && dr <= 1 && dc >= -1 && dc <= 1
+}
+
+func promoteModelWords(ranked []scoredWord, model []predictionModelSuggestion, window int) []scoredWord {
+	order := make(map[string]int, len(model))
+	for index, suggestion := range model {
+		key := strings.ToLower(strings.TrimSpace(suggestion.Word))
+		if _, ok := order[key]; !ok && key != "" {
+			order[key] = index
+		}
+	}
+	best, bestOrder := -1, len(model)
+	for index := 0; index < len(ranked) && index < window; index++ {
+		if position, ok := order[strings.ToLower(ranked[index].Word)]; ok && position < bestOrder {
+			best, bestOrder = index, position
+		}
+	}
+	if best > 0 {
+		promoted := ranked[best]
+		copy(ranked[1:best+1], ranked[:best])
+		ranked[0] = promoted
+		return ranked
+	}
+	if best == 0 || len(ranked) == 0 {
+		return ranked
+	}
+	top := []rune(frenchLetterFolder.Replace(strings.ToLower(ranked[0].Word)))
+	for _, suggestion := range model {
+		word := strings.TrimSpace(suggestion.Word)
+		letters := []rune(frenchLetterFolder.Replace(strings.ToLower(word)))
+		if len(letters) < 2 || len(top) < 2 || letters[0] != top[0] ||
+			!nearKey(letters[len(letters)-1], top[len(top)-1]) {
+			continue
+		}
+		// Copy the capitalisation of a normal candidate, not of an acronym
+		// such as "PT", so "pour" does not become "POUR".
+		for _, candidate := range ranked {
+			if candidate.Word != strings.ToUpper(candidate.Word) {
+				word = matchTypedCase(word, candidate.Word)
+				break
+			}
+		}
+		added := scoredWord{Word: word, Language: ranked[0].Language}
+		return append([]scoredWord{added}, ranked...)
+	}
+	return ranked
 }
 
 func (service *service) AcceptSwipeCorrection(language, source, replacement string) (bool, *dbus.Error) {
@@ -4876,9 +5120,8 @@ func (service *service) NextWords(languagesCSV, context string, limit int32,
 	if modelLanguage == "" && len(languages) == 1 {
 		modelLanguage = languages[0]
 	}
-	if usePredictionModel && englishPredictionLanguage(modelLanguage) &&
-		resolvedPredictionModelPath() != "" {
-		modelResult, modelErr := service.predictionEngine.predict(
+	if modelPath := predictionModelFor(modelLanguage); usePredictionModel && modelPath != "" {
+		modelResult, modelErr := service.predictionEngine.predict(modelPath,
 			compactPredictionContext(context), "", 1.0)
 		if modelErr != nil {
 			log.Printf("typed next-word model unavailable: %v", modelErr)
