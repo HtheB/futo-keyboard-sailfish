@@ -4884,6 +4884,9 @@ func (service *service) SwipeSuggestions(languagesCSV, path, geometry, context s
 		return len(ranked[i].Word) < len(ranked[j].Word)
 	})
 	if len(ranked) > 1 && strings.HasPrefix(ranked[0].Language, "FR") {
+		ranked = demoteAcronyms(ranked, func(candidate scoredWord) bool {
+			return service.learned != nil && service.learned.contains(candidate.Language, candidate.Word)
+		})
 		ranked = service.promoteSwipeWithContext(ranked, context)
 	}
 	seen := make(map[string]bool)
@@ -4906,6 +4909,40 @@ func (service *service) SwipeSuggestions(languagesCSV, path, geometry, context s
 		return "", dbus.MakeFailedError(err)
 	}
 	return string(data), nil
+}
+
+func isAcronym(word string) bool {
+	letters := 0
+	for _, character := range word {
+		if unicode.IsLetter(character) {
+			if !unicode.IsUpper(character) {
+				return false
+			}
+			letters++
+		}
+	}
+	return letters >= 2
+}
+
+// demoteAcronyms moves all-capital dictionary entries such as "PT" or "RT"
+// behind ordinary words in a French gesture ranking. Short gestures often fit
+// them as well as "pour" or "et", yet they are rarely meant. Acronyms the
+// user has already typed keep their place, and nothing changes while every
+// candidate is in capitals (Caps Lock).
+func demoteAcronyms(ranked []scoredWord, known func(scoredWord) bool) []scoredWord {
+	words := make([]scoredWord, 0, len(ranked))
+	acronyms := make([]scoredWord, 0)
+	for _, candidate := range ranked {
+		if isAcronym(candidate.Word) && !known(candidate) {
+			acronyms = append(acronyms, candidate)
+		} else {
+			words = append(words, candidate)
+		}
+	}
+	if len(words) == 0 || len(acronyms) == 0 {
+		return ranked
+	}
+	return append(words, acronyms...)
 }
 
 // swipeContextCandidates is how many gesture candidates are fetched, and

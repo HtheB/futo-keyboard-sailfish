@@ -139,3 +139,20 @@ func TestNearKeyAzerty(t *testing.T) {
 		}
 	}
 }
+
+func TestDemoteAcronyms(t *testing.T) {
+	ranked := []scoredWord{{Word: "PT"}, {Word: "PE"}, {Word: "pur"}, {Word: "pour"}}
+	got := demoteAcronyms(ranked, func(scoredWord) bool { return false })
+	if got[0].Word != "pur" || got[1].Word != "pour" || got[2].Word != "PT" || got[3].Word != "PE" {
+		t.Fatalf("unexpected order %+v", got)
+	}
+	known := demoteAcronyms([]scoredWord{{Word: "SNCF"}, {Word: "sncf"}},
+		func(c scoredWord) bool { return c.Word == "SNCF" })
+	if known[0].Word != "SNCF" {
+		t.Fatalf("a learned acronym must keep its place, got %+v", known)
+	}
+	caps := demoteAcronyms([]scoredWord{{Word: "POUR"}, {Word: "PT"}}, func(scoredWord) bool { return false })
+	if caps[0].Word != "POUR" || caps[1].Word != "PT" {
+		t.Fatalf("Caps Lock rankings must stay as they are, got %+v", caps)
+	}
+}
