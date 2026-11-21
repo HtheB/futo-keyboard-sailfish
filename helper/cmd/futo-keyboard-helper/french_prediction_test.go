@@ -156,3 +156,10 @@ func TestDemoteAcronyms(t *testing.T) {
 		t.Fatalf("Caps Lock rankings must stay as they are, got %+v", caps)
 	}
 }
+
+func TestWithoutTypedSpelling(t *testing.T) {
+	got := withoutTypedSpelling([]predictionModelSuggestion{{Word: "ete"}, {Word: "été"}, {Word: "Ete"}, {Word: "est"}}, "ete")
+	if len(got) != 2 || got[0].Word != "été" || got[1].Word != "est" {
+		t.Fatalf("unexpected %+v", got)
+	}
+}

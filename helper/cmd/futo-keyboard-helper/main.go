@@ -4508,6 +4508,19 @@ var frenchLetterFolder = strings.NewReplacer(
 	"ÿ", "y", "Ÿ", "Y", "ñ", "n", "Ñ", "N",
 	"œ", "oe", "Œ", "OE", "æ", "ae", "Æ", "AE")
 
+// withoutTypedSpelling drops the model's copy of what was typed when that
+// spelling is not a word. French web text often lacks accents, so the model
+// may echo "ete" or "deja" first, just ahead of "été" and "déjà".
+func withoutTypedSpelling(words []predictionModelSuggestion, typed string) []predictionModelSuggestion {
+	kept := words[:0:0]
+	for _, candidate := range words {
+		if !strings.EqualFold(candidate.Word, typed) {
+			kept = append(kept, candidate)
+		}
+	}
+	return kept
+}
+
 func modelLetters(language, word string) string {
 	if strings.HasPrefix(language, "FR") {
 		return frenchLetterFolder.Replace(word)
@@ -4694,6 +4707,10 @@ func (service *service) analyzeContext(languagesCSV, word, context string,
 			log.Printf("typed prediction model unavailable: %v", modelErr)
 		} else {
 			modelWords := predictionModelWords(modelResult)
+			if strings.HasPrefix(detectedLanguage, "FR") && !allKnown &&
+				!service.learned.contains(detectedLanguage, word) {
+				modelWords = withoutTypedSpelling(modelWords, word)
+			}
 			for index, candidate := range modelWords {
 				candidate.Word = matchTypedCase(candidate.Word, word)
 				if service.history.isSuppressed(candidate.Word) {
