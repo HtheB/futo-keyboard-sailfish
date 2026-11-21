@@ -4837,10 +4837,14 @@ func (service *service) SwipeSuggestions(languagesCSV, path, geometry, context s
 	languages := normalizeLanguages(languagesCSV)
 	allowEnglishRefinement := len(languages) == 1
 	previous := lastContextWord(context)
+	engineLimit := limit
+	if frenchSwipeRanking(languages) && engineLimit < swipeContextCandidates {
+		engineLimit = swipeContextCandidates
+	}
 	ranked := make([]scoredWord, 0, int(limit)*len(languages))
 	for _, language := range languages {
 		candidates, err := service.swipeEngine.swipe(language, path, geometry,
-			context, limit, capitalize, allowEnglishRefinement)
+			context, engineLimit, capitalize, allowEnglishRefinement)
 		if err != nil {
 			// Enabled languages may intentionally have no downloaded dictionary.
 			// Keep swipe results from the installed packs instead of discarding the
@@ -4879,6 +4883,9 @@ func (service *service) SwipeSuggestions(languagesCSV, path, geometry, context s
 		}
 		return len(ranked[i].Word) < len(ranked[j].Word)
 	})
+	if len(ranked) > 1 && strings.HasPrefix(ranked[0].Language, "FR") {
+		ranked = service.promoteSwipeWithContext(ranked, context)
+	}
 	seen := make(map[string]bool)
 	for _, candidate := range ranked {
 		key := strings.ToLower(candidate.Word)
@@ -4899,6 +4906,124 @@ func (service *service) SwipeSuggestions(languagesCSV, path, geometry, context s
 		return "", dbus.MakeFailedError(err)
 	}
 	return string(data), nil
+}
+
+// swipeContextCandidates is how many gesture candidates are fetched, and
+// may be lifted to the top, when the French context model can rank them.
+const swipeContextCandidates = 12
+
+func frenchSwipeRanking(languages []string) bool {
+	if resolvedFrenchPredictionModelPath() == "" {
+		return false
+	}
+	for _, language := range languages {
+		if strings.HasPrefix(language, "FR") {
+			return true
+		}
+	}
+	return false
+}
+
+// promoteSwipeWithContext lets the French context model pick between gesture
+// candidates. A short gesture such as "pour" is almost a straight line on the
+// AZERTY top row, so "pt", "pe" and "pur" fit it as well as "pour". The model
+// is asked for the likely words that start with the gesture's first letter,
+// and for the likely next words; the best one found among the gesture
+// candidates moves first. When none of them is there, the model's best word
+// is added if it starts and ends like the gesture.
+func (service *service) promoteSwipeWithContext(ranked []scoredWord, context string) []scoredWord {
+	modelPath := resolvedFrenchPredictionModelPath()
+	first := []rune(frenchLetterFolder.Replace(strings.ToLower(ranked[0].Word)))
+	if modelPath == "" || len(first) == 0 {
+		return ranked
+	}
+	compact := compactPredictionContext(context)
+	var model []predictionModelSuggestion
+	if result, err := service.predictionEngine.predict(modelPath, compact, string(first[0]), 1.0); err == nil {
+		model = append(model, predictionModelWords(result)...)
+	} else {
+		log.Printf("swipe context model unavailable: %v", err)
+		return ranked
+	}
+	if result, err := service.predictionEngine.predict(modelPath, compact, "", 1.0); err == nil {
+		model = append(model, predictionModelWords(result)...)
+	}
+	return promoteModelWords(ranked, model, swipeContextCandidates)
+}
+
+var azertyRows = []string{"azertyuiop", "qsdfghjklm", "wxcvbn"}
+
+// nearKey reports whether two letters are the same or neighbouring AZERTY keys.
+func nearKey(a, b rune) bool {
+	if a == b {
+		return true
+	}
+	ra, ca, rb, cb := -1, 0, -1, 0
+	for row, letters := range azertyRows {
+		if i := strings.IndexRune(letters, a); i >= 0 {
+			ra, ca = row, i
+		}
+		if i := strings.IndexRune(letters, b); i >= 0 {
+			rb, cb = row, i
+		}
+	}
+	if ra < 0 || rb < 0 {
+		return false
+	}
+	dr, dc := ra-rb, ca-cb
+	if ra == 2 || rb == 2 { // the bottom row is offset by about one and a half keys
+		if ra == 2 {
+			dc = ca + 1 - cb
+		} else {
+			dc = ca - (cb + 1)
+		}
+	}
+	return dr >= -1 && dr <= 1 && dc >= -1 && dc <= 1
+}
+
+func promoteModelWords(ranked []scoredWord, model []predictionModelSuggestion, window int) []scoredWord {
+	order := make(map[string]int, len(model))
+	for index, suggestion := range model {
+		key := strings.ToLower(strings.TrimSpace(suggestion.Word))
+		if _, ok := order[key]; !ok && key != "" {
+			order[key] = index
+		}
+	}
+	best, bestOrder := -1, len(model)
+	for index := 0; index < len(ranked) && index < window; index++ {
+		if position, ok := order[strings.ToLower(ranked[index].Word)]; ok && position < bestOrder {
+			best, bestOrder = index, position
+		}
+	}
+	if best > 0 {
+		promoted := ranked[best]
+		copy(ranked[1:best+1], ranked[:best])
+		ranked[0] = promoted
+		return ranked
+	}
+	if best == 0 || len(ranked) == 0 {
+		return ranked
+	}
+	top := []rune(frenchLetterFolder.Replace(strings.ToLower(ranked[0].Word)))
+	for _, suggestion := range model {
+		word := strings.TrimSpace(suggestion.Word)
+		letters := []rune(frenchLetterFolder.Replace(strings.ToLower(word)))
+		if len(letters) < 2 || len(top) < 2 || letters[0] != top[0] ||
+			!nearKey(letters[len(letters)-1], top[len(top)-1]) {
+			continue
+		}
+		// Copy the capitalisation of a normal candidate, not of an acronym
+		// such as "PT", so "pour" does not become "POUR".
+		for _, candidate := range ranked {
+			if candidate.Word != strings.ToUpper(candidate.Word) {
+				word = matchTypedCase(word, candidate.Word)
+				break
+			}
+		}
+		added := scoredWord{Word: word, Language: ranked[0].Language}
+		return append([]scoredWord{added}, ranked...)
+	}
+	return ranked
 }
 
 func (service *service) AcceptSwipeCorrection(language, source, replacement string) (bool, *dbus.Error) {

@@ -81,3 +81,61 @@ func TestPredictionProcessSwitchesModel(t *testing.T) {
 		t.Errorf("French model did not offer été: %+v", second.Suggestions)
 	}
 }
+
+func TestPromoteModelWords(t *testing.T) {
+	words := func(list ...string) []scoredWord {
+		out := make([]scoredWord, len(list))
+		for i, w := range list {
+			out[i] = scoredWord{Word: w, Language: "FR"}
+		}
+		return out
+	}
+	model := []predictionModelSuggestion{{Word: "à"}, {Word: "pour"}, {Word: "avec"}}
+	got := promoteModelWords(words("PT", "pur", "pour", "pire"), model, 6)
+	if got[0].Word != "pour" || got[1].Word != "PT" || got[2].Word != "pur" || got[3].Word != "pire" {
+		t.Fatalf("unexpected order %+v", got)
+	}
+	unchanged := promoteModelWords(words("maison", "raison"), model, 6)
+	if unchanged[0].Word != "maison" {
+		t.Fatalf("no model match must keep the gesture order, got %+v", unchanged)
+	}
+	far := promoteModelWords(words("a", "b", "c", "pour"), model, 3)
+	if far[0].Word != "a" {
+		t.Fatalf("a word outside the window must not move, got %+v", far)
+	}
+}
+
+func TestPromoteModelWordsAddsMissingGestureWord(t *testing.T) {
+	ranked := []scoredWord{{Word: "PT", Language: "FR"}, {Word: "pe", Language: "FR"}, {Word: "pur", Language: "FR"}}
+	model := []predictionModelSuggestion{{Word: "pour"}, {Word: "par"}, {Word: "pas"}}
+	got := promoteModelWords(ranked, model, 12)
+	if got[0].Word != "pour" || len(got) != 4 {
+		t.Fatalf("pour should be added first, got %+v", got)
+	}
+	ranked = []scoredWord{{Word: "PT", Language: "FR"}, {Word: "Pur", Language: "FR"}}
+	got = promoteModelWords(ranked, model, 12)
+	if got[0].Word != "Pour" {
+		t.Fatalf("sentence-start capital expected, got %+v", got)
+	}
+	// "dans" ends with s, far from t: not a plausible reading of this gesture.
+	ranked = []scoredWord{{Word: "PT", Language: "FR"}}
+	got = promoteModelWords(ranked, []predictionModelSuggestion{{Word: "dans"}}, 12)
+	if got[0].Word != "PT" || len(got) != 1 {
+		t.Fatalf("unrelated word must not be added, got %+v", got)
+	}
+}
+
+func TestNearKeyAzerty(t *testing.T) {
+	for _, pair := range []string{"rt", "re", "rr", "ml", "wq", "cd", "nj"} {
+		r := []rune(pair)
+		if !nearKey(r[0], r[1]) {
+			t.Errorf("%c and %c should be neighbours", r[0], r[1])
+		}
+	}
+	for _, pair := range []string{"rs", "ap", "wm"} {
+		r := []rune(pair)
+		if nearKey(r[0], r[1]) {
+			t.Errorf("%c and %c should not be neighbours", r[0], r[1])
+		}
+	}
+}
